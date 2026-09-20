@@ -2,7 +2,7 @@
 <html lang="en" class="dark">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Garmin Bio-Intelligence Terminal // Harvin</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -15,10 +15,10 @@
         extend: {
           colors: {
             bio: {
-              bg: '#070b14',
-              surface: '#0d1527',
-              card: '#111b33',
-              border: '#1e2942',
+              bg: '#050811',
+              surface: '#09101f',
+              card: '#0e182e',
+              border: '#1b2845',
               accent: '#06b6d4',
               emerald: '#10b981',
               violet: '#8b5cf6',
@@ -31,30 +31,49 @@
     }
   </script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
     body {
       font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-      background-color: #070b14;
+      background-color: #050811;
       color: #e2e8f0;
+      touch-action: pan-y;
     }
     .mono { font-family: 'JetBrains Mono', monospace; }
     .glass-card {
-      background: rgba(17, 27, 51, 0.75);
-      backdrop-filter: blur(14px);
+      background: rgba(14, 24, 46, 0.82);
+      backdrop-filter: blur(16px);
       border: 1px solid rgba(255, 255, 255, 0.08);
     }
-    .glow-cyan { box-shadow: 0 0 25px -5px rgba(6, 182, 212, 0.25); }
-    .glow-emerald { box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.25); }
+    .glass-card-hover:hover {
+      border-color: rgba(6, 182, 212, 0.3);
+      box-shadow: 0 8px 30px -8px rgba(6, 182, 212, 0.2);
+    }
+    .glow-cyan { box-shadow: 0 0 30px -5px rgba(6, 182, 212, 0.25); }
+    .glow-emerald { box-shadow: 0 0 30px -5px rgba(16, 185, 129, 0.25); }
     .glow-rose { box-shadow: 0 0 30px -5px rgba(244, 63, 94, 0.35); }
+    .glow-amber { box-shadow: 0 0 30px -5px rgba(245, 158, 11, 0.25); }
     .gauge-circle {
-      transition: stroke-dashoffset 1s ease-out;
+      transition: stroke-dashoffset 1.2s cubic-bezier(0.16, 1, 0.3, 1);
       transform: rotate(-90deg);
       transform-origin: 50% 50%;
     }
     .filter-btn.active {
-      background-color: rgba(6, 182, 212, 0.2);
+      background-color: rgba(6, 182, 212, 0.22);
       color: #22d3ee;
-      border-color: rgba(6, 182, 212, 0.4);
+      border-color: rgba(6, 182, 212, 0.5);
+      font-weight: 700;
+    }
+    .interactive-canvas-container {
+      touch-action: none;
+      cursor: crosshair;
+    }
+    /* Pulse glow */
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+    .animate-pulse-dot {
+      animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     }
   </style>
 </head>
@@ -74,7 +93,7 @@
       </div>
 
       <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-semibold tracking-wider uppercase mb-3">
-        <span>●</span> End-to-End Encrypted Vault
+        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse-dot"></span> End-to-End Encrypted Vault
       </div>
       
       <h1 id="lockTitle" class="text-2xl font-bold text-white tracking-tight mb-1">Garmin Bio-Intelligence</h1>
@@ -160,7 +179,7 @@
           <input 
             type="password" 
             id="masterPassInput" 
-            placeholder="Enter Barabara to lock..."
+            placeholder="Enter Barabara to lock..." 
             class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-rose-500/40 focus:border-rose-400 focus:ring-2 focus:ring-rose-500/20 outline-none text-white text-sm"
             required
           />
@@ -171,7 +190,7 @@
         <div class="flex items-center gap-3 pt-2">
           <button 
             type="button" 
-            onclick="closeMasterLockModal()"
+            onclick="closeMasterLockModal()" 
             class="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs transition cursor-pointer"
           >
             Cancel
@@ -194,7 +213,7 @@
   <div id="mainDashboard" class="hidden flex-1 flex flex-col">
     
     <!-- Header Bar -->
-    <header class="border-b border-slate-800/80 bg-bio-surface/70 backdrop-blur-md sticky top-0 z-30 px-4 lg:px-8 py-3.5">
+    <header class="border-b border-slate-800/80 bg-bio-surface/80 backdrop-blur-md sticky top-0 z-30 px-4 lg:px-8 py-3.5">
       <div class="max-w-7xl mx-auto flex items-center justify-between">
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-black font-extrabold text-sm shadow-md shadow-cyan-500/20">
@@ -203,9 +222,11 @@
           <div>
             <div class="flex items-center gap-2">
               <span class="font-bold text-white text-base tracking-tight">Garmin Bio-Intelligence</span>
-              <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">LIVE</span>
+              <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-dot"></span> LIVE
+              </span>
             </div>
-            <div class="text-[11px] text-slate-400 flex items-center gap-2">
+            <div class="text-[11px] text-slate-400 flex items-center gap-2 flex-wrap">
               <span>Athlete: <strong id="headerAthlete" class="text-slate-200 font-semibold">Harvin</strong></span>
               <span>•</span>
               <span id="headerDevice" class="mono text-cyan-400 text-[10px]">fenix 6S Sapphire</span>
@@ -226,7 +247,7 @@
             <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
             </svg>
-            <span>Master Lock</span>
+            <span class="hidden sm:inline">Master Lock</span>
           </button>
 
           <!-- Lock / Exit Button -->
@@ -247,114 +268,205 @@
     <!-- Main Content Container -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 space-y-6">
 
-      <!-- SECTION 1: WHOOP-STYLE RECOVERY & ILLNESS EARLY WARNING RADAR (DUAL HERO) -->
-      <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- SECTION 1: WHOOP 4.0 TRI-PILLAR HERO (RECOVERY + DAY STRAIN + SLEEP NEED) -->
+      <section class="grid grid-cols-1 md:grid-cols-3 gap-5">
         
-        <!-- CARD A: WHOOP-STYLE RECOVERY GAUGE -->
-        <div class="glass-card rounded-2xl p-6 border border-emerald-500/20 glow-emerald flex flex-col justify-between relative overflow-hidden">
-          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <!-- CARD 1A: WHOOP RECOVERY DIAL -->
+        <div class="glass-card rounded-2xl p-5 border border-emerald-500/20 glow-emerald flex flex-col justify-between relative overflow-hidden">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
             <div>
-              <span class="text-[10px] font-bold tracking-wider text-emerald-400 uppercase">Whoop Tier</span>
-              <h2 class="text-base font-bold text-white tracking-tight">Recovery & Strain Score</h2>
+              <span class="text-[10px] font-bold tracking-wider text-emerald-400 uppercase">Whoop 4.0 Engine</span>
+              <h2 class="text-sm font-bold text-white tracking-tight">Physiological Recovery</h2>
             </div>
-            <span id="recoveryScoreZone" class="px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-[11px] uppercase">
+            <span id="recoveryScoreZone" class="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-[10px] uppercase">
               Optimal (Green)
             </span>
           </div>
 
-          <div class="flex items-center justify-center my-4">
-            <div class="relative w-36 h-36 flex items-center justify-center">
+          <div class="flex items-center justify-center my-3">
+            <div class="relative w-32 h-32 flex items-center justify-center">
               <svg class="w-full h-full" viewBox="0 0 100 100">
                 <circle cx="50" cy="50" r="42" stroke="#1e2942" stroke-width="8" fill="none"/>
-                <circle id="recoveryGaugeCircle" cx="50" cy="50" r="42" stroke="#10b981" stroke-width="8" fill="none" stroke-dasharray="264" stroke-dashoffset="31" stroke-linecap="round" class="gauge-circle"/>
+                <circle id="recoveryGaugeCircle" cx="50" cy="50" r="42" stroke="#10b981" stroke-width="8" fill="none" stroke-dasharray="264" stroke-dashoffset="63" stroke-linecap="round" class="gauge-circle"/>
               </svg>
               <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span id="recoveryScoreVal" class="text-3xl font-extrabold text-white mono">88%</span>
-                <span class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Recovery</span>
+                <span id="recoveryScoreVal" class="text-3xl font-extrabold text-white mono">76%</span>
+                <span class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">Recovery</span>
               </div>
             </div>
           </div>
 
-          <div class="pt-3 border-t border-slate-800 text-xs text-slate-300 space-y-1.5">
+          <div class="pt-2.5 border-t border-slate-800/80 text-xs text-slate-300 space-y-1">
             <div class="flex justify-between">
               <span class="text-slate-400">Autonomic State:</span>
               <strong id="autonomicStateBadge" class="text-emerald-400">BALANCED (+8.5%)</strong>
             </div>
             <div class="flex justify-between">
-              <span class="text-slate-400">Strain Capacity:</span>
-              <strong class="text-cyan-400">HIGH (Prime for Loading)</strong>
+              <span class="text-slate-400">Resting Heart Rate:</span>
+              <strong id="cardRhrVal" class="text-white mono">51 bpm</strong>
             </div>
           </div>
         </div>
 
-        <!-- CARD B: ILLNESS & INFECTION EARLY WARNING SYSTEM (Fitbit/Oura Premium) -->
-        <div class="glass-card rounded-2xl p-6 border border-cyan-500/20 glow-cyan lg:col-span-2 flex flex-col justify-between relative overflow-hidden">
-          <div>
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-800">
-              <div class="flex items-center gap-2.5">
-                <div class="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                  </svg>
-                </div>
-                <div>
-                  <span class="text-[10px] font-bold tracking-wider text-cyan-400 uppercase">Clinical Diagnostic Radar</span>
-                  <h2 class="text-base font-bold text-white tracking-tight">Illness & Immune System Early Warning</h2>
-                </div>
-              </div>
-              <div id="illnessStatusBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-xs">
-                <span>●</span> LOW RISK // ZERO INFECTION DETECTED
-              </div>
+        <!-- CARD 1B: WHOOP DAY STRAIN GAUGE & TARGET BAND -->
+        <div class="glass-card rounded-2xl p-5 border border-cyan-500/20 glow-cyan flex flex-col justify-between relative overflow-hidden">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
+            <div>
+              <span class="text-[10px] font-bold tracking-wider text-cyan-400 uppercase">Whoop Strain Coach</span>
+              <h2 class="text-sm font-bold text-white tracking-tight">Day Strain Accumulation</h2>
             </div>
-
-            <!-- 4 Bio-Markers Grid -->
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4">
-              
-              <!-- Bio-Marker 1: RHR Delta -->
-              <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
-                <div class="text-[10px] text-slate-400 uppercase font-semibold">Δ RHR vs Base</div>
-                <div id="markerDeltaRhr" class="text-lg font-bold text-emerald-400 mono">+1.2 bpm</div>
-                <div class="text-[10px] text-slate-500">Normal (&lt; +3.0)</div>
-              </div>
-
-              <!-- Bio-Marker 2: HRV Deviation -->
-              <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
-                <div class="text-[10px] text-slate-400 uppercase font-semibold">Δ HRV vs Base</div>
-                <div id="markerDeltaHrv" class="text-lg font-bold text-emerald-400 mono">+8.5%</div>
-                <div class="text-[10px] text-slate-500">Elevated Vagal Tone</div>
-              </div>
-
-              <!-- Bio-Marker 3: Respiration -->
-              <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
-                <div class="text-[10px] text-slate-400 uppercase font-semibold">Nocturnal Resp</div>
-                <div id="markerRespRate" class="text-lg font-bold text-cyan-400 mono">13.0 brpm</div>
-                <div class="text-[10px] text-slate-500">Range: 12 - 16</div>
-              </div>
-
-              <!-- Bio-Marker 4: Sleep Stress -->
-              <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
-                <div class="text-[10px] text-slate-400 uppercase font-semibold">Sleep Stress Index</div>
-                <div id="markerSleepStress" class="text-lg font-bold text-emerald-400 mono">16 / 100</div>
-                <div class="text-[10px] text-slate-500">Deep Parasympathetic</div>
-              </div>
-
-            </div>
-
-            <!-- Clinical Explanation -->
-            <p id="illnessDetailText" class="text-xs text-slate-300 leading-relaxed font-medium">
-              Vitals confirm an uncompromised immune system. No nocturnal respiratory elevation, no sustained resting heart rate spike, and zero sympathetic nervous overdrive detected.
-            </p>
+            <span id="strainZoneBadge" class="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-bold text-[10px] uppercase">
+              Active Recovery
+            </span>
           </div>
 
-          <div class="pt-3 border-t border-slate-800 text-[11px] text-slate-500 mono flex flex-wrap gap-x-4 gap-y-1">
-            <span>Clinical Rule: Sickness Flagged if ΔRHR &gt; +3 bpm AND ΔHRV &lt; -15%</span>
-            <span>Status: Healthy & Baseline Stabilized</span>
+          <div class="flex items-center justify-center my-3">
+            <div class="relative w-32 h-32 flex items-center justify-center">
+              <svg class="w-full h-full" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="42" stroke="#1e2942" stroke-width="8" fill="none"/>
+                <circle id="strainGaugeCircle" cx="50" cy="50" r="42" stroke="#06b6d4" stroke-width="8" fill="none" stroke-dasharray="264" stroke-dashoffset="216" stroke-linecap="round" class="gauge-circle"/>
+              </svg>
+              <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span id="strainScoreVal" class="text-3xl font-extrabold text-white mono">3.8</span>
+                <span class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">of 21.0 Strain</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Target Strain Range Bar -->
+          <div class="pt-2.5 border-t border-slate-800/80 space-y-1.5 text-xs">
+            <div class="flex justify-between items-center text-[11px]">
+              <span class="text-slate-400">Target Strain Window:</span>
+              <span id="strainTargetRange" class="mono font-bold text-cyan-300">13.0 — 17.5</span>
+            </div>
+            <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden relative border border-slate-800">
+              <div id="strainTargetBar" class="bg-gradient-to-r from-cyan-500 to-blue-500 h-2 rounded-full transition-all duration-700" style="width: 25%"></div>
+            </div>
+            <p id="strainAdviceText" class="text-[11px] text-slate-400 leading-tight">
+              High recovery capacity today. Prime for high-intensity intervals or strength volume.
+            </p>
+          </div>
+        </div>
+
+        <!-- CARD 1C: WHOOP SLEEP NEED & BEDTIME CALCULATOR -->
+        <div class="glass-card rounded-2xl p-5 border border-violet-500/20 flex flex-col justify-between relative overflow-hidden">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
+            <div>
+              <span class="text-[10px] font-bold tracking-wider text-violet-400 uppercase">Sleep Coach Engine</span>
+              <h2 class="text-sm font-bold text-white tracking-tight">Sleep Need & Bedtime</h2>
+            </div>
+            <span id="sleepPerfBadge" class="px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/30 text-violet-300 font-bold text-[10px]">
+              76% Performance
+            </span>
+          </div>
+
+          <!-- Sleep Need Equation -->
+          <div class="my-2 p-3 rounded-xl bg-slate-900/80 border border-slate-800/80 space-y-1.5 text-xs">
+            <div class="flex justify-between text-slate-400 text-[11px]">
+              <span>Baseline Sleep Need:</span>
+              <span id="needBaseline" class="mono text-slate-200">7h 30m</span>
+            </div>
+            <div class="flex justify-between text-slate-400 text-[11px]">
+              <span>Accumulated Sleep Debt:</span>
+              <span id="needDebt" class="mono text-rose-400">+55m</span>
+            </div>
+            <div class="flex justify-between text-slate-400 text-[11px]">
+              <span>Strain Recovery Need:</span>
+              <span id="needStrain" class="mono text-cyan-400">+12m</span>
+            </div>
+            <div class="pt-1.5 border-t border-slate-800 flex justify-between items-center text-sm font-bold">
+              <span class="text-white">Total Sleep Need:</span>
+              <span id="needTotal" class="mono text-violet-400 text-base font-extrabold">8h 37m</span>
+            </div>
+          </div>
+
+          <!-- Recommended Target Bedtime -->
+          <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
+            <div>
+              <span class="text-[10px] text-slate-400 uppercase font-semibold block">Target Bedtime (SGT)</span>
+              <span id="targetBedtime" class="mono text-base font-bold text-emerald-400">10:03 PM</span>
+            </div>
+            <div class="text-right">
+              <span class="text-[10px] text-slate-400 uppercase font-semibold block">Target Wake Alarm</span>
+              <span id="targetWake" class="mono text-base font-bold text-slate-200">07:00 AM</span>
+            </div>
           </div>
         </div>
 
       </section>
 
-      <!-- SECTION 2: BIOLOGICAL FITNESS AGE & WORKLOAD EFFICIENCY (4 CARDS) -->
+      <!-- SECTION 2: CLINICAL ILLNESS & IMMUNE SYSTEM EARLY WARNING RADAR -->
+      <section class="glass-card rounded-2xl p-5 lg:p-6 border border-cyan-500/20 glow-cyan">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2.5">
+            <div class="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+              </svg>
+            </div>
+            <div>
+              <span class="text-[10px] font-bold tracking-wider text-cyan-400 uppercase">Clinical Diagnostic Radar</span>
+              <h2 class="text-base font-bold text-white tracking-tight">Illness & Infection Early Warning System</h2>
+            </div>
+          </div>
+          <div id="illnessStatusBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-xs">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse-dot"></span> LOW RISK // ZERO INFECTION DETECTED
+          </div>
+        </div>
+
+        <!-- 4 Bio-Markers Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4">
+          <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+            <div class="text-[10px] text-slate-400 uppercase font-semibold">Δ RHR vs Base</div>
+            <div id="markerDeltaRhr" class="text-lg font-bold text-emerald-400 mono">+1.2 bpm</div>
+            <div class="text-[10px] text-slate-500">Normal (&lt; +3.0)</div>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+            <div class="text-[10px] text-slate-400 uppercase font-semibold">Δ HRV vs Base</div>
+            <div id="markerDeltaHrv" class="text-lg font-bold text-emerald-400 mono">+8.5%</div>
+            <div class="text-[10px] text-slate-500">Elevated Vagal Tone</div>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+            <div class="text-[10px] text-slate-400 uppercase font-semibold">Nocturnal Resp</div>
+            <div id="markerRespRate" class="text-lg font-bold text-cyan-400 mono">13.0 brpm</div>
+            <div class="text-[10px] text-slate-500">Normal Range: 11.5 - 14.5</div>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+            <div class="text-[10px] text-slate-400 uppercase font-semibold">Sleep Stress Index</div>
+            <div id="markerSleepStress" class="text-lg font-bold text-emerald-400 mono">16 / 100</div>
+            <div class="text-[10px] text-slate-500">Deep Parasympathetic</div>
+          </div>
+        </div>
+
+        <p id="illnessDetailText" class="text-xs text-slate-300 leading-relaxed font-medium">
+          Vitals confirm an uncompromised immune system. No nocturnal respiratory elevation, no sustained resting heart rate spike, and zero sympathetic nervous overdrive detected.
+        </p>
+
+        <div class="pt-3 mt-3 border-t border-slate-800/80 text-[11px] text-slate-500 mono flex flex-wrap gap-x-4 gap-y-1">
+          <span>Clinical Marker: Sickness Flagged if ΔRHR &gt; +3 bpm AND ΔHRV &lt; -15%</span>
+          <span>Immune Status: Highly Resilient</span>
+        </div>
+      </section>
+
+      <!-- SECTION 3: FITBIT PREMIUM 5-PILLAR HEALTH METRICS MATRIX -->
+      <section class="glass-card rounded-2xl p-5 lg:p-6 border border-slate-800">
+        <div class="flex items-center justify-between pb-3 mb-4 border-b border-slate-800">
+          <div>
+            <span class="text-[10px] font-bold tracking-wider text-amber-400 uppercase">Fitbit Premium Tier</span>
+            <h2 class="text-base font-bold text-white tracking-tight">Health Metrics 5-Pillar Matrix</h2>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-400">Daily Readiness:</span>
+            <span id="fitbitReadinessScore" class="px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold mono text-xs">84 / 100</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5" id="fitbitPillarsContainer">
+          <!-- Populated dynamically with 5 cards -->
+        </div>
+      </section>
+
+      <!-- SECTION 4: BIOLOGICAL FITNESS AGE & WORKLOAD EFFICIENCY (4 CARDS) -->
       <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         <!-- CARD 1: BIOLOGICAL FITNESS AGE -->
@@ -366,11 +478,11 @@
           <div class="flex items-baseline gap-2">
             <span id="kpiFitnessAge" class="text-3xl font-extrabold text-white mono">24.7</span>
             <span class="text-xs text-slate-400 font-medium">years</span>
-            <span class="ml-auto text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-semibold">-4.3 yrs younger</span>
+            <span class="ml-auto text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-semibold">-4.3 yrs</span>
           </div>
           <div class="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400 flex justify-between">
             <span>Chronological: <strong id="kpiChronologicalAge" class="text-slate-200">29</strong></span>
-            <span>Target: <strong class="text-cyan-400">21.0 yrs</strong></span>
+            <span>Achievable: <strong class="text-cyan-400">21.1 yrs</strong></span>
           </div>
         </div>
 
@@ -383,7 +495,7 @@
           <div class="flex items-baseline gap-2">
             <span id="kpiAcwrVal" class="text-3xl font-extrabold text-white mono">0.2</span>
             <span class="text-xs text-slate-400 font-medium">ratio</span>
-            <span id="kpiAcwrStatus" class="ml-auto text-xs px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 font-semibold">FRESH / RECOVERY</span>
+            <span id="kpiAcwrStatus" class="ml-auto text-xs px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 font-semibold">FRESH</span>
           </div>
           <div class="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400 flex justify-between">
             <span>Acute: <strong id="kpiAcuteLoad" class="text-slate-200">44</strong></span>
@@ -427,53 +539,53 @@
 
       </section>
 
-      <!-- SECTION 3: DEEP CLINICAL & ATHLETIC INTELLIGENCE DOSSIER (4 PANELS) -->
+      <!-- SECTION 5: GEMINI AI CLINICAL SPORTS CARDIOLOGY DOSSIER -->
       <section class="glass-card rounded-2xl p-6 border border-slate-800 space-y-4">
-        <div class="flex items-center gap-3 pb-3 border-b border-slate-800">
-          <div class="p-2 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/30">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
-            </svg>
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-3">
+            <div class="p-2 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/30">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+              </svg>
+            </div>
+            <div>
+              <span class="text-[10px] font-bold tracking-wider text-violet-400 uppercase">Google AI Studio // Gemini Flash Engine</span>
+              <h3 class="text-base font-bold text-white tracking-tight">Clinical Sports Cardiology Diagnostic Synthesis</h3>
+            </div>
           </div>
-          <div>
-            <span class="text-[10px] font-bold tracking-wider text-violet-400 uppercase">Physiological Intelligence Dossier</span>
-            <h3 class="text-base font-bold text-white tracking-tight">Comprehensive Diagnostic Evaluation</h3>
-          </div>
+          <span class="text-xs px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-mono text-[11px]">
+            AI Synthesized
+          </span>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-          
-          <!-- Block 1: Autonomic & HRV Analysis -->
           <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5">
             <div class="text-xs font-bold text-cyan-400 uppercase tracking-wide flex items-center gap-1.5">
-              <span>●</span> Autonomic Tone & HRV Balance
+              <span>●</span> Autonomic Tone & Parasympathetic Vagal Modulation
             </div>
             <p id="intelAutonomicText" class="text-xs text-slate-300 leading-relaxed font-medium">
               Loading autonomic analysis...
             </p>
           </div>
 
-          <!-- Block 2: Sleep Architecture & Debt -->
           <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5">
             <div class="text-xs font-bold text-indigo-400 uppercase tracking-wide flex items-center gap-1.5">
-              <span>●</span> Sleep Architecture & Somatic Repair
+              <span>●</span> Sleep Architecture & Somatic Tissue Restoration
             </div>
             <p id="intelSleepText" class="text-xs text-slate-300 leading-relaxed font-medium">
               Loading sleep architecture analysis...
             </p>
           </div>
 
-          <!-- Block 3: Cardiovascular Adaptation & Biological Age -->
           <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5">
             <div class="text-xs font-bold text-amber-400 uppercase tracking-wide flex items-center gap-1.5">
-              <span>●</span> Biological Fitness Age & Workload Adaptation
+              <span>●</span> Cardiovascular Adaptation & Biological Fitness Age
             </div>
             <p id="intelWorkloadText" class="text-xs text-slate-300 leading-relaxed font-medium">
               Loading workload analysis...
             </p>
           </div>
 
-          <!-- Block 4: Actionable Daily Execution Directives -->
           <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
             <div class="text-xs font-bold text-emerald-400 uppercase tracking-wide flex items-center gap-1.5">
               <span>●</span> Actionable Daily Directives & Recommendations
@@ -482,19 +594,18 @@
               <!-- Populated dynamically -->
             </ul>
           </div>
-
         </div>
       </section>
 
-      <!-- SECTION 4: INTERACTIVE CHART 1 — SLEEP ARCHITECTURE (WITH TIMEFRAME SELECTORS) -->
+      <!-- SECTION 6: INTERACTIVE CHART 1 — SLEEP ARCHITECTURE (WITH TOUCH SCRUBBER CALLOUT) -->
       <section class="glass-card rounded-2xl p-5 lg:p-6 border border-slate-800">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
           <div>
             <div class="flex items-center gap-2">
-              <h3 class="text-sm font-bold text-white tracking-tight">Sleep Architecture & Somatic Restoration</h3>
+              <h3 class="text-sm font-bold text-white tracking-tight">Sleep Architecture & Daily Stages Timeline</h3>
               <span class="text-xs text-slate-400 font-mono">(Hours)</span>
             </div>
-            <p class="text-xs text-slate-400">Deep, REM, and Light sleep stages breakdown</p>
+            <p class="text-xs text-slate-400">Deep (Slow Wave), REM, and Light stages across 186+ nights</p>
           </div>
 
           <!-- Timeframe Pills -->
@@ -508,28 +619,108 @@
           </div>
         </div>
 
-        <div class="flex items-center gap-4 text-xs mb-3">
-          <span class="flex items-center gap-1 text-indigo-400 font-medium">● Deep Sleep (Physical)</span>
-          <span class="flex items-center gap-1 text-cyan-400 font-medium">● REM Sleep (Cognitive)</span>
-          <span class="flex items-center gap-1 text-slate-400 font-medium">● Light Sleep</span>
+        <!-- LIVE TOUCH & MOUSE CALLOUT INSPECTOR HUD -->
+        <div id="sleepCalloutHud" class="p-3.5 rounded-xl bg-slate-900/90 border border-indigo-500/30 mb-4 transition-all flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse-dot"></span>
+            <span id="sleepHudDate" class="font-bold text-white mono text-sm">Today (Latest)</span>
+            <span id="sleepHudScore" class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono font-bold">Score: 78</span>
+          </div>
+          <div class="flex items-center gap-4 flex-wrap text-slate-300 mono text-[11px]">
+            <span>Total: <strong id="sleepHudTotal" class="text-white font-bold">6h 35m</strong></span>
+            <span>Deep: <strong id="sleepHudDeep" class="text-indigo-400 font-bold">1h 33m (23.5%)</strong></span>
+            <span>REM: <strong id="sleepHudRem" class="text-cyan-400 font-bold">1h 03m (15.9%)</strong></span>
+            <span>Light: <strong id="sleepHudLight" class="text-slate-400 font-bold">3h 59m</strong></span>
+            <span>Stress: <strong id="sleepHudStress" class="text-amber-400 font-bold">16/100</strong></span>
+            <span>Resp: <strong id="sleepHudResp" class="text-emerald-400 font-bold">13.0 brpm</strong></span>
+          </div>
         </div>
 
-        <div class="relative h-64">
+        <div class="relative h-64 interactive-canvas-container">
           <canvas id="sleepChart"></canvas>
         </div>
+        <p class="text-[11px] text-slate-500 mt-2 text-right mono">
+          Touch & Drag or Hover to scrub through all 186 nights
+        </p>
       </section>
 
-      <!-- SECTION 5: INTERACTIVE CHART 2 — HRV AUTONOMIC STABILITY (WITH TIMEFRAME SELECTORS) -->
+      <!-- SECTION 7: SLEEP STAGE DOUGHNUT & SLEEP METRICS BREAKDOWN -->
+      <section class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        
+        <!-- DOUGHNUT CHART -->
+        <div class="glass-card rounded-2xl p-5 border border-slate-800 flex flex-col justify-between">
+          <div>
+            <span class="text-[10px] font-bold tracking-wider text-indigo-400 uppercase">Stage Proportions</span>
+            <h3 class="text-sm font-bold text-white tracking-tight">Today's Sleep Architecture Distribution</h3>
+          </div>
+
+          <div class="relative h-48 my-2 flex items-center justify-center">
+            <canvas id="sleepDoughnutChart"></canvas>
+            <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <span id="doughnutScoreVal" class="text-2xl font-extrabold text-white mono">78</span>
+              <span class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Sleep Score</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-[11px] mono pt-2 border-t border-slate-800/80">
+            <div class="flex items-center gap-1.5 text-indigo-400">
+              <span>●</span> <span>Deep: <strong id="stageDeepPct">23.5%</strong></span>
+            </div>
+            <div class="flex items-center gap-1.5 text-cyan-400">
+              <span>●</span> <span>REM: <strong id="stageRemPct">15.9%</strong></span>
+            </div>
+            <div class="flex items-center gap-1.5 text-slate-400">
+              <span>●</span> <span>Light: <strong id="stageLightPct">60.6%</strong></span>
+            </div>
+            <div class="flex items-center gap-1.5 text-rose-400">
+              <span>●</span> <span>Awake: <strong id="stageAwakePct">0.0%</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- SLEEP RECOVERY BENCHMARKS -->
+        <div class="glass-card rounded-2xl p-5 border border-slate-800 lg:col-span-2 flex flex-col justify-between space-y-3">
+          <div>
+            <span class="text-[10px] font-bold tracking-wider text-cyan-400 uppercase">Clinical Benchmarks</span>
+            <h3 class="text-sm font-bold text-white tracking-tight">Sleep Restoration vs Whoop / National Sleep Foundation</h3>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1">
+              <div class="text-[10px] text-slate-400 uppercase font-semibold">Sleep Consistency</div>
+              <div id="metricConsistency" class="text-2xl font-extrabold text-emerald-400 mono">82%</div>
+              <div class="text-[11px] text-slate-400">Regular 14-day bedtime window</div>
+            </div>
+            <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1">
+              <div class="text-[10px] text-slate-400 uppercase font-semibold">Sleep Efficiency</div>
+              <div id="metricEfficiency" class="text-2xl font-extrabold text-cyan-400 mono">100%</div>
+              <div class="text-[11px] text-slate-400">Restorative time in bed vs awake</div>
+            </div>
+            <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1">
+              <div class="text-[10px] text-slate-400 uppercase font-semibold">7-Day Accumulated Debt</div>
+              <div id="metric7dDebt" class="text-2xl font-extrabold text-amber-400 mono">4.7 hrs</div>
+              <div class="text-[11px] text-slate-400">Pay down with +55m tonight</div>
+            </div>
+          </div>
+
+          <p class="text-xs text-slate-300 leading-relaxed">
+            Your high deep sleep percentage (23.5%) meets the elite athletic benchmark for human growth hormone (HGH) secretion and myofibrillar repair. Lengthening total duration by ~45 minutes will systematically elevate REM sleep toward the 20% target.
+          </p>
+        </div>
+
+      </section>
+
+      <!-- SECTION 8: INTERACTIVE CHART 2 — HRV AUTONOMIC STABILITY (WITH TOUCH SCRUBBER CALLOUT) -->
       <section class="glass-card rounded-2xl p-5 lg:p-6 border border-slate-800">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
           <div>
             <div class="flex items-center gap-2">
-              <h3 class="text-sm font-bold text-white tracking-tight">Autonomic Nervous System & HRV Stability</h3>
+              <h3 class="text-sm font-bold text-white tracking-tight">Heart Rate Variability (HRV) & Autonomic Balance</h3>
               <span class="text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
-                Baseline Corridor: 54 - 73 ms
+                Corridor: 54 - 73 ms
               </span>
             </div>
-            <p class="text-xs text-slate-400">Daily overnight HRV (ms) vs 7-day rolling average</p>
+            <p class="text-xs text-slate-400">Daily overnight HRV (ms) vs 7-day rolling baseline</p>
           </div>
 
           <!-- Timeframe Pills -->
@@ -543,14 +734,31 @@
           </div>
         </div>
 
-        <div class="relative h-64">
+        <!-- LIVE TOUCH & MOUSE CALLOUT INSPECTOR HUD -->
+        <div id="hrvCalloutHud" class="p-3.5 rounded-xl bg-slate-900/90 border border-emerald-500/30 mb-4 transition-all flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse-dot"></span>
+            <span id="hrvHudDate" class="font-bold text-white mono text-sm">Today (Latest)</span>
+            <span id="hrvHudStatus" class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono font-bold">BALANCED (+8.5%)</span>
+          </div>
+          <div class="flex items-center gap-4 flex-wrap text-slate-300 mono text-[11px]">
+            <span>Overnight HRV: <strong id="hrvHudVal" class="text-emerald-400 font-bold text-sm">60 ms</strong></span>
+            <span>7-Day Baseline: <strong id="hrvHudBase" class="text-cyan-400 font-bold">57 ms</strong></span>
+            <span>Personal Corridor: <strong id="hrvHudCorridor" class="text-slate-300">54 — 73 ms</strong></span>
+          </div>
+        </div>
+
+        <div class="relative h-64 interactive-canvas-container">
           <canvas id="hrvChart"></canvas>
         </div>
+        <p class="text-[11px] text-slate-500 mt-2 text-right mono">
+          Touch & Drag or Hover to inspect overnight autonomic values
+        </p>
       </section>
 
-      <!-- SECTION 6: 4-YEAR CARDIOVASCULAR PROGRESSION (2022 - 2026) -->
+      <!-- SECTION 9: INTERACTIVE CHART 3 — 4-YEAR CARDIOVASCULAR RHR (WITH TOUCH SCRUBBER CALLOUT) -->
       <section class="glass-card rounded-2xl p-5 lg:p-6 border border-slate-800">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
           <div>
             <div class="flex items-center gap-2">
               <h3 class="text-sm font-bold text-white tracking-tight">4-Year Longitudinal Cardiovascular Adaptation</h3>
@@ -559,7 +767,7 @@
             <p class="text-xs text-slate-400">Monthly Average Resting Heart Rate (bpm) across 1,505+ days</p>
           </div>
 
-          <div class="flex items-center gap-2 text-xs mono">
+          <div class="flex items-center gap-2 text-xs mono flex-wrap">
             <span class="px-2 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300">2022: <strong>53.1</strong></span>
             <span class="px-2 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300">2023: <strong>50.4</strong></span>
             <span class="px-2 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300">2024: <strong>49.7</strong></span>
@@ -568,12 +776,28 @@
           </div>
         </div>
 
-        <div class="relative h-56">
+        <!-- LIVE TOUCH & MOUSE CALLOUT INSPECTOR HUD -->
+        <div id="rhrCalloutHud" class="p-3.5 rounded-xl bg-slate-900/90 border border-amber-500/30 mb-4 transition-all flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse-dot"></span>
+            <span id="rhrHudDate" class="font-bold text-white mono text-sm">Sep 2026 (Latest)</span>
+          </div>
+          <div class="flex items-center gap-4 flex-wrap text-slate-300 mono text-[11px]">
+            <span>Monthly RHR: <strong id="rhrHudVal" class="text-amber-400 font-bold text-sm">51.0 bpm</strong></span>
+            <span>4-Year Lifetime Baseline: <strong class="text-slate-300">50.0 bpm</strong></span>
+            <span>Deviation: <strong id="rhrHudDelta" class="text-emerald-400 font-bold">+1.0 bpm</strong></span>
+          </div>
+        </div>
+
+        <div class="relative h-56 interactive-canvas-container">
           <canvas id="multiYearRhrChart"></canvas>
         </div>
+        <p class="text-[11px] text-slate-500 mt-2 text-right mono">
+          Touch & Drag across months to scrub 4-year cardiovascular trends
+        </p>
       </section>
 
-      <!-- SECTION 7: INTERACTIVE WORKOUT & ACTIVITY LOG (WITH SPORT CATEGORY FILTER) -->
+      <!-- SECTION 10: INTERACTIVE WORKOUT & ACTIVITY LOG (WITH SPORT CATEGORY FILTER) -->
       <section class="glass-card rounded-2xl p-5 lg:p-6 border border-slate-800">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
@@ -622,7 +846,7 @@
 
 
   <!-- ======================================================== -->
-  <!-- 4. JAVASCRIPT ENGINE (CRYPTO + FILTERS + CHARTS)          -->
+  <!-- 4. JAVASCRIPT ENGINE (CRYPTO + INTERACTIVE SCRUBBING)     -->
   <!-- ======================================================== -->
   <script>
     const MASTER_LOCK_HASH = "ae5338f6bab31814a680161782cb13040c2647b0065ada8b9b105baa8c95e62b";
@@ -633,6 +857,50 @@
     let currentHrvTf = 30;
     let currentActivityCat = 'All';
 
+    // Chart Instances
+    let sleepChartInstance = null;
+    let hrvChartInstance = null;
+    let rhrChartInstance = null;
+    let doughnutChartInstance = null;
+
+    // ==========================================
+    // CUSTOM CHART.JS VERTICAL LASER CROSSHAIR PLUGIN
+    // ==========================================
+    const verticalLaserCrosshairPlugin = {
+      id: 'verticalLaserCrosshair',
+      afterDraw: (chart) => {
+        if (chart.tooltip?._active && chart.tooltip._active.length) {
+          const activePoint = chart.tooltip._active[0];
+          const ctx = chart.ctx;
+          const x = activePoint.element.x;
+          const topY = chart.chartArea.top;
+          const bottomY = chart.chartArea.bottom;
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(x, topY);
+          ctx.lineTo(x, bottomY);
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = 'rgba(6, 182, 212, 0.8)';
+          ctx.setLineDash([4, 4]);
+          ctx.stroke();
+
+          // Luminous pulsing laser head dot
+          ctx.beginPath();
+          ctx.arc(x, activePoint.element.y, 4.5, 0, Math.PI * 2);
+          ctx.fillStyle = '#06b6d4';
+          ctx.shadowColor = '#06b6d4';
+          ctx.shadowBlur = 10;
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+    };
+    Chart.register(verticalLaserCrosshairPlugin);
+
+    // ==========================================
+    // DOM READY & AUTO-UNLOCK
+    // ==========================================
     window.addEventListener('DOMContentLoaded', () => {
       checkMasterLockState();
       const isMasterLocked = localStorage.getItem("garmin_master_locked") === "true";
@@ -745,7 +1013,7 @@
           return;
         } else {
           errorDiv.className = "mt-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs text-center font-medium";
-          errorDiv.textContent = "⛔ SYSTEM MASTER-LOCKED: Capybara access is suspended. Valid Master Passphrase required.";
+          errorDiv.textContent = "⛔ SYSTEM MASTER-LOCKED: Capybara access suspended. Valid Master Passphrase required.";
           errorDiv.classList.remove("hidden");
           return;
         }
@@ -761,12 +1029,11 @@
         
         globalBioData = await decryptPayload(encData, password);
         
-        // Remember password in localStorage if requested
         if (document.getElementById("rememberMe")?.checked) {
           localStorage.setItem("garmin_vault_pass", password);
         }
 
-        // CRITICAL: Unhide dashboard BEFORE calling render so canvas clientWidth > 0
+        // Unhide dashboard BEFORE calling render so canvas clientWidth > 0
         const mainDash = document.getElementById("mainDashboard");
         const lockScrn = document.getElementById("lockScreen");
         
@@ -778,12 +1045,12 @@
 
         renderDashboard(globalBioData);
 
-        // Force canvas resize on next frame
         requestAnimationFrame(() => {
           window.dispatchEvent(new Event('resize'));
           sleepChartInstance?.resize();
           hrvChartInstance?.resize();
           rhrChartInstance?.resize();
+          doughnutChartInstance?.resize();
         });
 
       } catch (err) {
@@ -839,51 +1106,86 @@
       checkMasterLockState();
     }
 
-    // ==========================================
-    // DASHBOARD RENDERING & CHART CONTROLS
-    // ==========================================
+
+    // ========================================================
+    // DASHBOARD RENDERING & MASTER CONTROLS
+    // ========================================================
     function renderDashboard(data) {
       const athlete = data.athlete || {};
       const today = data.today || {};
       const fitness = data.fitness || {};
       const baselines = data.baselines || {};
       const intel = data.clinical_intelligence || {};
+      const whoop = data.whoop || {};
+      const fitbit = data.fitbit || {};
       const history = data.history || {};
 
-      // Headers
+      // 1. Header Information
       document.getElementById("headerAthlete").textContent = athlete.name || "Harvin";
       document.getElementById("headerDevice").textContent = athlete.primary_device || "fenix 6S Sapphire";
       const syncDate = new Date(data.updated_at);
       document.getElementById("headerSyncTime").textContent = `Sync: ${syncDate.toLocaleDateString()} ${syncDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
 
-      // Section 1A: Whoop Recovery Score & Radial Dial
-      const recScore = intel.recovery_score || 88;
+      // 2. Whoop Recovery Score & Radial Dial
+      const recScore = intel.recovery_score || 76;
       document.getElementById("recoveryScoreVal").textContent = `${recScore}%`;
       document.getElementById("recoveryScoreZone").textContent = intel.recovery_zone || "Optimal (Green)";
       
-      // Update SVG gauge circumference (r=42 -> C = 2 * PI * 42 = 263.89)
-      const offset = 264 - (264 * recScore / 100);
-      document.getElementById("recoveryGaugeCircle").style.strokeDashoffset = offset;
+      const offsetRec = 264 - (264 * recScore / 100);
+      const recCircle = document.getElementById("recoveryGaugeCircle");
+      recCircle.style.strokeDashoffset = offsetRec;
       if (recScore >= 67) {
-        document.getElementById("recoveryGaugeCircle").setAttribute("stroke", "#10b981");
+        recCircle.setAttribute("stroke", "#10b981");
       } else if (recScore >= 34) {
-        document.getElementById("recoveryGaugeCircle").setAttribute("stroke", "#f59e0b");
+        recCircle.setAttribute("stroke", "#f59e0b");
       } else {
-        document.getElementById("recoveryGaugeCircle").setAttribute("stroke", "#f43f5e");
+        recCircle.setAttribute("stroke", "#f43f5e");
+      }
+      document.getElementById("cardRhrVal").textContent = `${Math.round(today.rhr || 51)} bpm`;
+
+      // 3. Whoop Day Strain & Target Strain
+      const dayStrain = whoop.day_strain || 3.8;
+      document.getElementById("strainScoreVal").textContent = dayStrain.toFixed(1);
+      document.getElementById("strainZoneBadge").textContent = whoop.strain_zone || "Active Recovery";
+      
+      // Strain dial offset (0-21 scale)
+      const offsetStrain = 264 - (264 * Math.min(dayStrain / 21.0, 1.0));
+      document.getElementById("strainGaugeCircle").style.strokeDashoffset = offsetStrain;
+      
+      const tMin = whoop.target_strain_min || 13.0;
+      const tMax = whoop.target_strain_max || 17.5;
+      document.getElementById("strainTargetRange").textContent = `${tMin.toFixed(1)} — ${tMax.toFixed(1)}`;
+      document.getElementById("strainTargetBar").style.width = `${Math.min((dayStrain / tMax) * 100, 100)}%`;
+      if (whoop.strain_advice) {
+        document.getElementById("strainAdviceText").textContent = whoop.strain_advice;
       }
 
-      // Section 1B: Illness & Infection Early Warning Radar
+      // 4. Whoop Sleep Need Equation & Bedtime
+      document.getElementById("sleepPerfBadge").textContent = `${whoop.sleep_performance_pct || 76}% Performance`;
+      document.getElementById("needBaseline").textContent = `${whoop.baseline_sleep_need_hours || 7.5}h`;
+      document.getElementById("needDebt").textContent = `+${whoop.sleep_debt_minutes || 55}m`;
+      document.getElementById("needStrain").textContent = `+${whoop.strain_sleep_need_minutes || 12}m`;
+      document.getElementById("needTotal").textContent = whoop.total_sleep_need_formatted || "8h 37m";
+      document.getElementById("targetBedtime").textContent = whoop.recommended_bedtime || "10:03 PM";
+      document.getElementById("targetWake").textContent = whoop.recommended_wake_time || "07:00 AM";
+
+      // Benchmarks
+      document.getElementById("metricConsistency").textContent = `${whoop.sleep_consistency_pct || 82}%`;
+      document.getElementById("metricEfficiency").textContent = `${whoop.sleep_efficiency_pct || 100}%`;
+      document.getElementById("metric7dDebt").textContent = `${whoop.accumulated_7d_debt_hours || 4.7} hrs`;
+
+      // 5. Illness Early Warning Radar
       const illness = intel.illness_early_warning || {};
       const statusBadge = document.getElementById("illnessStatusBadge");
       if (illness.risk_level === "LOW") {
         statusBadge.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-xs";
-        statusBadge.innerHTML = "<span>●</span> LOW RISK // ZERO INFECTION DETECTED";
+        statusBadge.innerHTML = "<span class='w-2 h-2 rounded-full bg-emerald-400 animate-pulse-dot'></span> LOW RISK // ZERO INFECTION DETECTED";
       } else if (illness.risk_level === "MODERATE") {
         statusBadge.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-xs";
-        statusBadge.innerHTML = "<span>●</span> MODERATE STRAIN // MONITOR RECOVERY";
+        statusBadge.innerHTML = "<span class='w-2 h-2 rounded-full bg-amber-400 animate-pulse-dot'></span> MODERATE STRAIN // MONITOR RECOVERY";
       } else {
         statusBadge.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold text-xs";
-        statusBadge.innerHTML = "<span>●</span> IMMUNE ACTIVATION // POTENTIAL ILLNESS";
+        statusBadge.innerHTML = "<span class='w-2 h-2 rounded-full bg-rose-400 animate-pulse-dot'></span> IMMUNE ACTIVATION // POTENTIAL ILLNESS";
       }
 
       document.getElementById("markerDeltaRhr").textContent = (illness.delta_rhr_bpm >= 0 ? '+' : '') + illness.delta_rhr_bpm + ' bpm';
@@ -894,11 +1196,14 @@
         document.getElementById("illnessDetailText").textContent = illness.details.join(' ');
       }
 
-      // Section 2: Fitness Age & Workload KPI Cards
+      // 6. Fitbit Premium 5-Pillar Health Metrics Matrix
+      renderFitbitPillars(fitbit);
+
+      // 7. Biological Fitness Age & Workload
       document.getElementById("kpiFitnessAge").textContent = fitness.fitness_age || "24.7";
       document.getElementById("kpiChronologicalAge").textContent = fitness.chronological_age || "29";
       document.getElementById("kpiAcwrVal").textContent = fitness.acwr || "0.2";
-      document.getElementById("kpiAcwrStatus").textContent = fitness.acwr_status || "FRESH / RECOVERY";
+      document.getElementById("kpiAcwrStatus").textContent = fitness.acwr_status || "FRESH";
       document.getElementById("kpiAcuteLoad").textContent = fitness.acute_load || "44";
       document.getElementById("kpiChronicLoad").textContent = fitness.chronic_load || "219";
 
@@ -911,7 +1216,7 @@
       document.getElementById("kpiRhr30d").textContent = `${baselines.rhr_30d || 49.8} bpm`;
       document.getElementById("kpiRhrAllTime").textContent = `${baselines.rhr_all_time || 50.0} bpm`;
 
-      // Section 3: Diagnostic Dossier
+      // 8. Gemini AI Diagnostic Dossier
       document.getElementById("intelAutonomicText").textContent = intel.autonomic_nervous_analysis || "Autonomic tone balanced.";
       document.getElementById("intelSleepText").textContent = intel.sleep_architecture_analysis || "Sleep architecture restorative.";
       document.getElementById("intelWorkloadText").textContent = intel.workload_and_biological_age || "Cardiovascular age optimal.";
@@ -924,19 +1229,64 @@
         </li>
       `).join('');
 
-      // Render Charts
+      // 9. Render All Interactive Charts
       updateSleepChart();
+      renderSleepDoughnut(today);
       updateHrvChart();
       renderMultiYearRhrChart(history.rhr_multi_year || []);
-
-      // Render Activity Table
       renderActivityTable();
     }
 
-    // ==========================================
-    // CHART 1: SLEEP ARCHITECTURE (INTERACTIVE)
-    // ==========================================
-    let sleepChartInstance = null;
+
+    // ========================================================
+    // FITBIT PREMIUM 5-PILLAR CARDS GENERATOR
+    // ========================================================
+    function renderFitbitPillars(fitbitData) {
+      const container = document.getElementById("fitbitPillarsContainer");
+      if (!fitbitData || !fitbitData.health_metrics_5_pillars) return;
+
+      document.getElementById("fitbitReadinessScore").textContent = `${fitbitData.daily_readiness_score || 84} / 100`;
+
+      container.innerHTML = fitbitData.health_metrics_5_pillars.map(pillar => {
+        // Calculate progress percentage inside range
+        const pct = Math.min(Math.max(((pillar.value - pillar.range_min) / (pillar.range_max - pillar.range_min)) * 100, 10), 95);
+        return `
+          <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between space-y-2">
+            <div>
+              <div class="flex items-center justify-between text-[10px] text-slate-400 uppercase font-semibold">
+                <span>${pillar.name}</span>
+                <span class="text-${pillar.status_color}-400 font-bold font-mono">●</span>
+              </div>
+              <div class="flex items-baseline gap-1 mt-1">
+                <span class="text-xl font-extrabold text-white mono">${pillar.value}</span>
+                <span class="text-xs text-slate-400 font-medium">${pillar.unit}</span>
+              </div>
+            </div>
+
+            <!-- Range Bar -->
+            <div class="space-y-1">
+              <div class="w-full bg-slate-800 rounded-full h-1.5 relative overflow-hidden">
+                <div class="bg-gradient-to-r from-cyan-500 to-emerald-400 h-1.5 rounded-full" style="width: ${pct}%"></div>
+              </div>
+              <div class="flex justify-between text-[9px] text-slate-500 mono">
+                <span>${pillar.range_min}</span>
+                <span class="text-slate-400">Base: ${pillar.baseline}</span>
+                <span>${pillar.range_max}</span>
+              </div>
+            </div>
+
+            <div class="pt-1.5 border-t border-slate-800/80 text-[10px] text-slate-400 leading-tight">
+              ${pillar.description}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+
+    // ========================================================
+    // CHART 1: SLEEP ARCHITECTURE (TOUCH & MOUSE SCRUBBER)
+    // ========================================================
     function changeSleepTimeframe(days) {
       currentSleepTf = days;
       document.querySelectorAll('[data-sleep-tf]').forEach(btn => {
@@ -953,7 +1303,7 @@
       const ctx = document.getElementById("sleepChart").getContext("2d");
       if (sleepChartInstance) sleepChartInstance.destroy();
 
-      const labels = subset.map(d => d.date.slice(5)); // MM-DD
+      const labels = subset.map(d => d.date ? d.date.slice(5) : '--');
       const deepHours = subset.map(d => +(d.deep_seconds / 3600).toFixed(2));
       const remHours = subset.map(d => +(d.rem_seconds / 3600).toFixed(2));
       const lightHours = subset.map(d => +(d.light_seconds / 3600).toFixed(2));
@@ -989,14 +1339,24 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          hover: {
+            mode: 'index',
+            intersect: false
+          },
           plugins: {
             legend: { display: false },
             tooltip: {
-              callbacks: {
-                footer: (items) => {
-                  let total = 0;
-                  items.forEach(i => total += i.parsed.y);
-                  return `Total: ${total.toFixed(1)} hrs`;
+              enabled: false, // We use the high-fidelity live Inspector HUD instead
+              external: (context) => {
+                const tooltipModel = context.tooltip;
+                if (!tooltipModel || tooltipModel.opacity === 0) return;
+                const idx = tooltipModel.dataPoints?.[0]?.dataIndex;
+                if (idx !== undefined && subset[idx]) {
+                  scrubSleepCallout(subset[idx]);
                 }
               }
             }
@@ -1016,12 +1376,106 @@
           }
         }
       });
+
+      // Bind direct touch and pointer scrubber on canvas
+      bindScrubberEvents(document.getElementById("sleepChart"), (idx) => {
+        if (subset[idx]) scrubSleepCallout(subset[idx]);
+      }, subset.length);
+
+      // Reset HUD to latest record initially
+      if (subset.length > 0) {
+        scrubSleepCallout(subset[subset.length - 1]);
+      }
     }
 
-    // ==========================================
-    // CHART 2: HRV STABILITY (INTERACTIVE)
-    // ==========================================
-    let hrvChartInstance = null;
+    function scrubSleepCallout(item) {
+      if (!item) return;
+      document.getElementById("sleepHudDate").textContent = item.date || '--';
+      document.getElementById("sleepHudScore").textContent = `Score: ${item.score || '--'}`;
+      
+      const totSec = item.total_seconds || 0;
+      const totH = Math.floor(totSec / 3600);
+      const totM = Math.floor((totSec % 3600) / 60);
+      document.getElementById("sleepHudTotal").textContent = `${totH}h ${totM}m`;
+
+      const deepSec = item.deep_seconds || 0;
+      const deepH = Math.floor(deepSec / 3600);
+      const deepM = Math.floor((deepSec % 3600) / 60);
+      const deepPct = totSec ? ((deepSec / totSec) * 100).toFixed(1) : '0';
+      document.getElementById("sleepHudDeep").textContent = `${deepH}h ${deepM}m (${deepPct}%)`;
+
+      const remSec = item.rem_seconds || 0;
+      const remH = Math.floor(remSec / 3600);
+      const remM = Math.floor((remSec % 3600) / 60);
+      const remPct = totSec ? ((remSec / totSec) * 100).toFixed(1) : '0';
+      document.getElementById("sleepHudRem").textContent = `${remH}h ${remM}m (${remPct}%)`;
+
+      const lightSec = item.light_seconds || 0;
+      const lightH = Math.floor(lightSec / 3600);
+      const lightM = Math.floor((lightSec % 3600) / 60);
+      document.getElementById("sleepHudLight").textContent = `${lightH}h ${lightM}m`;
+
+      document.getElementById("sleepHudStress").textContent = `${item.avg_stress || 16}/100`;
+      document.getElementById("sleepHudResp").textContent = `${item.avg_respiration || 13.0} brpm`;
+    }
+
+
+    // ========================================================
+    // CHART 1B: SLEEP STAGES DOUGHNUT CHART
+    // ========================================================
+    function renderSleepDoughnut(today) {
+      const ctx = document.getElementById("sleepDoughnutChart").getContext("2d");
+      if (doughnutChartInstance) doughnutChartInstance.destroy();
+
+      const deepSec = today.deep_sleep_seconds || 5580;
+      const remSec = today.rem_sleep_seconds || 3780;
+      const lightSec = today.light_sleep_seconds || 14340;
+      const awakeSec = today.awake_sleep_seconds || 0;
+      const totalSec = today.sleep_time_seconds || 23700;
+
+      const deepPct = (deepSec / totalSec * 100).toFixed(1);
+      const remPct = (remSec / totalSec * 100).toFixed(1);
+      const lightPct = (lightSec / totalSec * 100).toFixed(1);
+      const awakePct = (awakeSec / totalSec * 100).toFixed(1);
+
+      document.getElementById("doughnutScoreVal").textContent = today.sleep_score || 78;
+      document.getElementById("stageDeepPct").textContent = `${deepPct}%`;
+      document.getElementById("stageRemPct").textContent = `${remPct}%`;
+      document.getElementById("stageLightPct").textContent = `${lightPct}%`;
+      document.getElementById("stageAwakePct").textContent = `${awakePct}%`;
+
+      doughnutChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Deep Sleep', 'REM Sleep', 'Light Sleep', 'Awake'],
+          datasets: [{
+            data: [+(deepSec/3600).toFixed(2), +(remSec/3600).toFixed(2), +(lightSec/3600).toFixed(2), +(awakeSec/3600).toFixed(2)],
+            backgroundColor: ['#6366f1', '#06b6d4', '#334155', '#f43f5e'],
+            borderWidth: 2,
+            borderColor: '#0e182e',
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '72%',
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => `${ctx.label}: ${ctx.parsed} hrs`
+              }
+            }
+          }
+        }
+      });
+    }
+
+
+    // ========================================================
+    // CHART 2: HRV STABILITY (TOUCH & MOUSE SCRUBBER)
+    // ========================================================
     function changeHrvTimeframe(days) {
       currentHrvTf = days;
       document.querySelectorAll('[data-hrv-tf]').forEach(btn => {
@@ -1070,11 +1524,30 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          hover: {
+            mode: 'index',
+            intersect: false
+          },
           plugins: {
             legend: {
               display: true,
               position: 'top',
               labels: { color: '#94a3b8', font: { size: 10 } }
+            },
+            tooltip: {
+              enabled: false,
+              external: (context) => {
+                const tooltipModel = context.tooltip;
+                if (!tooltipModel || tooltipModel.opacity === 0) return;
+                const idx = tooltipModel.dataPoints?.[0]?.dataIndex;
+                if (idx !== undefined && subset[idx]) {
+                  scrubHrvCallout(subset[idx]);
+                }
+              }
             }
           },
           scales: {
@@ -1091,12 +1564,33 @@
           }
         }
       });
+
+      bindScrubberEvents(document.getElementById("hrvChart"), (idx) => {
+        if (subset[idx]) scrubHrvCallout(subset[idx]);
+      }, subset.length);
+
+      if (subset.length > 0) {
+        scrubHrvCallout(subset[subset.length - 1]);
+      }
     }
 
-    // ==========================================
-    // CHART 3: 4-YEAR CARDIOVASCULAR RHR
-    // ==========================================
-    let rhrChartInstance = null;
+    function scrubHrvCallout(item) {
+      if (!item) return;
+      document.getElementById("hrvHudDate").textContent = item.date || '--';
+      const val = item.lastNightAvg || 60;
+      const base = item.weeklyAvg || 57;
+      const deltaPct = base ? (((val - base) / base) * 100).toFixed(1) : '0';
+      const sign = deltaPct >= 0 ? '+' : '';
+
+      document.getElementById("hrvHudVal").textContent = `${val} ms`;
+      document.getElementById("hrvHudBase").textContent = `${base} ms`;
+      document.getElementById("hrvHudStatus").textContent = `${item.status || 'BALANCED'} (${sign}${deltaPct}%)`;
+    }
+
+
+    // ========================================================
+    // CHART 3: 4-YEAR CARDIOVASCULAR RHR (TOUCH & MOUSE SCRUBBER)
+    // ========================================================
     function renderMultiYearRhrChart(multiYear) {
       const ctx = document.getElementById("multiYearRhrChart").getContext("2d");
       if (rhrChartInstance) rhrChartInstance.destroy();
@@ -1116,7 +1610,7 @@
               backgroundColor: 'rgba(245, 158, 11, 0.08)',
               fill: true,
               tension: 0.35,
-              pointRadius: 2,
+              pointRadius: 2.5,
               pointHoverRadius: 6
             }
           ]
@@ -1124,7 +1618,28 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          hover: {
+            mode: 'index',
+            intersect: false
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              enabled: false,
+              external: (context) => {
+                const tooltipModel = context.tooltip;
+                if (!tooltipModel || tooltipModel.opacity === 0) return;
+                const idx = tooltipModel.dataPoints?.[0]?.dataIndex;
+                if (idx !== undefined && multiYear[idx]) {
+                  scrubRhrCallout(multiYear[idx]);
+                }
+              }
+            }
+          },
           scales: {
             x: {
               grid: { display: false },
@@ -1139,11 +1654,65 @@
           }
         }
       });
+
+      bindScrubberEvents(document.getElementById("multiYearRhrChart"), (idx) => {
+        if (multiYear[idx]) scrubRhrCallout(multiYear[idx]);
+      }, multiYear.length);
+
+      if (multiYear.length > 0) {
+        scrubRhrCallout(multiYear[multiYear.length - 1]);
+      }
     }
 
-    // ==========================================
-    // SECTION 7: ACTIVITY FEED WITH CATEGORY FILTER
-    // ==========================================
+    function scrubRhrCallout(item) {
+      if (!item) return;
+      document.getElementById("rhrHudDate").textContent = `${item.month} (${item.year})`;
+      document.getElementById("rhrHudVal").textContent = `${item.rhr.toFixed(1)} bpm`;
+      const delta = (item.rhr - 50.0).toFixed(1);
+      const sign = delta >= 0 ? '+' : '';
+      document.getElementById("rhrHudDelta").textContent = `${sign}${delta} bpm vs 50.0 baseline`;
+    }
+
+
+    // ========================================================
+    // UNIFIED TOUCH & MOUSE SCRUBBING EVENT BINDER
+    // ========================================================
+    function bindScrubberEvents(canvas, callback, totalPoints) {
+      if (!canvas || totalPoints <= 0) return;
+
+      const handleScrub = (clientX) => {
+        const rect = canvas.getBoundingClientRect();
+        const relativeX = clientX - rect.left;
+        const width = rect.width;
+        if (relativeX < 0 || relativeX > width) return;
+        
+        const idx = Math.min(Math.max(Math.floor((relativeX / width) * totalPoints), 0), totalPoints - 1);
+        callback(idx);
+      };
+
+      // Pointer / Mouse Move
+      canvas.addEventListener('pointermove', (e) => {
+        handleScrub(e.clientX);
+      });
+
+      // Touch events (smooth scrubbing without page jitter)
+      canvas.addEventListener('touchmove', (e) => {
+        if (e.touches && e.touches.length > 0) {
+          handleScrub(e.touches[0].clientX);
+        }
+      }, { passive: true });
+
+      canvas.addEventListener('touchstart', (e) => {
+        if (e.touches && e.touches.length > 0) {
+          handleScrub(e.touches[0].clientX);
+        }
+      }, { passive: true });
+    }
+
+
+    // ========================================================
+    // SECTION 10: ACTIVITY FEED WITH CATEGORY FILTER
+    // ========================================================
     function filterActivities(cat) {
       currentActivityCat = cat;
       document.querySelectorAll('[data-cat]').forEach(btn => {
@@ -1177,9 +1746,9 @@
           <td class="py-2.5 px-3 mono text-amber-400 font-semibold">${a.averageHR ? a.averageHR + ' bpm' : '--'}</td>
           <td class="py-2.5 px-3 mono text-slate-400">${a.calories ? a.calories + ' kcal' : '--'}</td>
           <td class="py-2.5 px-3 mono text-[11px]">
-            <span class="text-emerald-400 font-bold">${a.aerobicTrainingEffect || '0.0'}</span>
+            <span class="text-emerald-400 font-bold">${a.aerobicTrainingEffect ? Number(a.aerobicTrainingEffect).toFixed(1) : '0.0'}</span>
             <span class="text-slate-600">/</span>
-            <span class="text-cyan-400 font-bold">${a.anaerobicTrainingEffect || '0.0'}</span>
+            <span class="text-cyan-400 font-bold">${a.anaerobicTrainingEffect ? Number(a.anaerobicTrainingEffect).toFixed(1) : '0.0'}</span>
           </td>
         </tr>
       `).join('');
