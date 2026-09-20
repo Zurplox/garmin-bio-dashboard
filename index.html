@@ -1350,13 +1350,20 @@
           plugins: {
             legend: { display: false },
             tooltip: {
-              enabled: false, // We use the high-fidelity live Inspector HUD instead
+              enabled: false,
               external: (context) => {
                 const tooltipModel = context.tooltip;
-                if (!tooltipModel || tooltipModel.opacity === 0) return;
+                if (!tooltipModel || tooltipModel.opacity === 0) {
+                  hideFloatingCallout();
+                  return;
+                }
                 const idx = tooltipModel.dataPoints?.[0]?.dataIndex;
                 if (idx !== undefined && subset[idx]) {
                   scrubSleepCallout(subset[idx]);
+                  const canvasRect = context.chart.canvas.getBoundingClientRect();
+                  const clientX = canvasRect.left + tooltipModel.caretX;
+                  const clientY = canvasRect.top + tooltipModel.caretY;
+                  showFloatingCallout(clientX, clientY, getSleepCalloutHtml(subset[idx]));
                 }
               }
             }
@@ -1378,8 +1385,11 @@
       });
 
       // Bind direct touch and pointer scrubber on canvas
-      bindScrubberEvents(document.getElementById("sleepChart"), (idx) => {
-        if (subset[idx]) scrubSleepCallout(subset[idx]);
+      bindScrubberEvents(document.getElementById("sleepChart"), (idx, clientX, clientY) => {
+        if (subset[idx]) {
+          scrubSleepCallout(subset[idx]);
+          showFloatingCallout(clientX, clientY, getSleepCalloutHtml(subset[idx]));
+        }
       }, subset.length);
 
       // Reset HUD to latest record initially
@@ -1417,6 +1427,61 @@
 
       document.getElementById("sleepHudStress").textContent = `${item.avg_stress || 16}/100`;
       document.getElementById("sleepHudResp").textContent = `${item.avg_respiration || 13.0} brpm`;
+    }
+
+    function getSleepCalloutHtml(item) {
+      const totSec = item.total_seconds || 0;
+      const totH = Math.floor(totSec / 3600);
+      const totM = Math.floor((totSec % 3600) / 60);
+
+      const deepSec = item.deep_seconds || 0;
+      const deepH = Math.floor(deepSec / 3600);
+      const deepM = Math.floor((deepSec % 3600) / 60);
+      const deepPct = totSec ? ((deepSec / totSec) * 100).toFixed(1) : '0';
+
+      const remSec = item.rem_seconds || 0;
+      const remH = Math.floor(remSec / 3600);
+      const remM = Math.floor((remSec % 3600) / 60);
+      const remPct = totSec ? ((remSec / totSec) * 100).toFixed(1) : '0';
+
+      const lightSec = item.light_seconds || 0;
+      const lightH = Math.floor(lightSec / 3600);
+      const lightM = Math.floor((lightSec % 3600) / 60);
+      const lightPct = totSec ? ((lightSec / totSec) * 100).toFixed(1) : '0';
+
+      return `
+        <div class="glass-card bg-slate-950/95 border border-indigo-500/50 glow-cyan rounded-xl p-3 shadow-2xl min-w-[220px] text-xs">
+          <div class="flex items-center justify-between border-b border-slate-800/80 pb-1.5 mb-2">
+            <div class="font-bold text-white mono flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+              <span>${item.date}</span>
+            </div>
+            <span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold mono text-[10px]">Score: ${item.score || '--'}</span>
+          </div>
+          <div class="space-y-1 font-mono text-[11px]">
+            <div class="flex justify-between text-white font-bold">
+              <span class="text-slate-400">Total Sleep:</span>
+              <span>${totH}h ${totM}m</span>
+            </div>
+            <div class="flex justify-between text-indigo-400">
+              <span>● Deep Sleep:</span>
+              <strong>${deepH}h ${deepM}m (${deepPct}%)</strong>
+            </div>
+            <div class="flex justify-between text-cyan-400">
+              <span>● REM Sleep:</span>
+              <strong>${remH}h ${remM}m (${remPct}%)</strong>
+            </div>
+            <div class="flex justify-between text-slate-300">
+              <span>● Light Sleep:</span>
+              <strong>${lightH}h ${lightM}m (${lightPct}%)</strong>
+            </div>
+            <div class="pt-1.5 mt-1.5 border-t border-slate-800/80 flex justify-between text-[10px] text-slate-400">
+              <span>Stress: <strong class="text-amber-400">${item.avg_stress || 16}/100</strong></span>
+              <span>Resp: <strong class="text-emerald-400">${item.avg_respiration || 13.0} brpm</strong></span>
+            </div>
+          </div>
+        </div>
+      `;
     }
 
 
@@ -1542,10 +1607,17 @@
               enabled: false,
               external: (context) => {
                 const tooltipModel = context.tooltip;
-                if (!tooltipModel || tooltipModel.opacity === 0) return;
+                if (!tooltipModel || tooltipModel.opacity === 0) {
+                  hideFloatingCallout();
+                  return;
+                }
                 const idx = tooltipModel.dataPoints?.[0]?.dataIndex;
                 if (idx !== undefined && subset[idx]) {
                   scrubHrvCallout(subset[idx]);
+                  const canvasRect = context.chart.canvas.getBoundingClientRect();
+                  const clientX = canvasRect.left + tooltipModel.caretX;
+                  const clientY = canvasRect.top + tooltipModel.caretY;
+                  showFloatingCallout(clientX, clientY, getHrvCalloutHtml(subset[idx]));
                 }
               }
             }
@@ -1565,8 +1637,11 @@
         }
       });
 
-      bindScrubberEvents(document.getElementById("hrvChart"), (idx) => {
-        if (subset[idx]) scrubHrvCallout(subset[idx]);
+      bindScrubberEvents(document.getElementById("hrvChart"), (idx, clientX, clientY) => {
+        if (subset[idx]) {
+          scrubHrvCallout(subset[idx]);
+          showFloatingCallout(clientX, clientY, getHrvCalloutHtml(subset[idx]));
+        }
       }, subset.length);
 
       if (subset.length > 0) {
@@ -1585,6 +1660,39 @@
       document.getElementById("hrvHudVal").textContent = `${val} ms`;
       document.getElementById("hrvHudBase").textContent = `${base} ms`;
       document.getElementById("hrvHudStatus").textContent = `${item.status || 'BALANCED'} (${sign}${deltaPct}%)`;
+    }
+
+    function getHrvCalloutHtml(item) {
+      const val = item.lastNightAvg || 60;
+      const base = item.weeklyAvg || 57;
+      const deltaPct = base ? (((val - base) / base) * 100).toFixed(1) : '0';
+      const sign = deltaPct >= 0 ? '+' : '';
+
+      return `
+        <div class="glass-card bg-slate-950/95 border border-emerald-500/50 glow-emerald rounded-xl p-3 shadow-2xl min-w-[210px] text-xs">
+          <div class="flex items-center justify-between border-b border-slate-800/80 pb-1.5 mb-2">
+            <div class="font-bold text-white mono flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+              <span>${item.date}</span>
+            </div>
+            <span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold mono text-[10px]">${item.status || 'BALANCED'}</span>
+          </div>
+          <div class="space-y-1 font-mono text-[11px]">
+            <div class="flex justify-between text-emerald-400 font-bold">
+              <span class="text-slate-400">Overnight HRV:</span>
+              <span>${val} ms (${sign}${deltaPct}%)</span>
+            </div>
+            <div class="flex justify-between text-cyan-400">
+              <span class="text-slate-400">7-Day Rolling:</span>
+              <span>${base} ms</span>
+            </div>
+            <div class="flex justify-between text-slate-400 text-[10px] pt-1.5 mt-1 border-t border-slate-800/80">
+              <span>Personal Corridor:</span>
+              <span class="text-slate-200 font-semibold">54 — 73 ms</span>
+            </div>
+          </div>
+        </div>
+      `;
     }
 
 
@@ -1632,10 +1740,17 @@
               enabled: false,
               external: (context) => {
                 const tooltipModel = context.tooltip;
-                if (!tooltipModel || tooltipModel.opacity === 0) return;
+                if (!tooltipModel || tooltipModel.opacity === 0) {
+                  hideFloatingCallout();
+                  return;
+                }
                 const idx = tooltipModel.dataPoints?.[0]?.dataIndex;
                 if (idx !== undefined && multiYear[idx]) {
                   scrubRhrCallout(multiYear[idx]);
+                  const canvasRect = context.chart.canvas.getBoundingClientRect();
+                  const clientX = canvasRect.left + tooltipModel.caretX;
+                  const clientY = canvasRect.top + tooltipModel.caretY;
+                  showFloatingCallout(clientX, clientY, getRhrCalloutHtml(multiYear[idx]));
                 }
               }
             }
@@ -1655,8 +1770,11 @@
         }
       });
 
-      bindScrubberEvents(document.getElementById("multiYearRhrChart"), (idx) => {
-        if (multiYear[idx]) scrubRhrCallout(multiYear[idx]);
+      bindScrubberEvents(document.getElementById("multiYearRhrChart"), (idx, clientX, clientY) => {
+        if (multiYear[idx]) {
+          scrubRhrCallout(multiYear[idx]);
+          showFloatingCallout(clientX, clientY, getRhrCalloutHtml(multiYear[idx]));
+        }
       }, multiYear.length);
 
       if (multiYear.length > 0) {
@@ -1673,6 +1791,83 @@
       document.getElementById("rhrHudDelta").textContent = `${sign}${delta} bpm vs 50.0 baseline`;
     }
 
+    function getRhrCalloutHtml(item) {
+      const delta = (item.rhr - 50.0).toFixed(1);
+      const sign = delta >= 0 ? '+' : '';
+
+      return `
+        <div class="glass-card bg-slate-950/95 border border-amber-500/50 glow-amber rounded-xl p-3 shadow-2xl min-w-[200px] text-xs">
+          <div class="flex items-center justify-between border-b border-slate-800/80 pb-1.5 mb-2">
+            <div class="font-bold text-white mono flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+              <span>${item.month} (${item.year})</span>
+            </div>
+            <span class="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-bold mono text-[10px]">Monthly Avg</span>
+          </div>
+          <div class="space-y-1 font-mono text-[11px]">
+            <div class="flex justify-between text-amber-400 font-bold">
+              <span class="text-slate-400">Resting HR:</span>
+              <span>${item.rhr.toFixed(1)} bpm</span>
+            </div>
+            <div class="flex justify-between text-slate-300">
+              <span class="text-slate-400">4-Year Baseline:</span>
+              <span>50.0 bpm</span>
+            </div>
+            <div class="flex justify-between text-emerald-400 text-[10px] pt-1.5 mt-1 border-t border-slate-800/80">
+              <span class="text-slate-400">Lifetime Delta:</span>
+              <span>${sign}${delta} bpm</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+
+    // ========================================================
+    // FLOATING CALLOUT POPOVER SYSTEM
+    // ========================================================
+    function showFloatingCallout(x, y, html) {
+      let el = document.getElementById("floatingChartCallout");
+      if (!el) {
+        el = document.createElement("div");
+        el.id = "floatingChartCallout";
+        el.className = "fixed pointer-events-none z-50 transition-opacity duration-150 opacity-0 shadow-2xl";
+        document.body.appendChild(el);
+      }
+
+      el.innerHTML = html;
+      el.classList.remove("opacity-0");
+      el.classList.add("opacity-100");
+
+      const tooltipWidth = 230;
+      const tooltipHeight = 175;
+
+      // Position centered horizontally
+      let left = x - (tooltipWidth / 2);
+      if (left + tooltipWidth > window.innerWidth - 15) {
+        left = window.innerWidth - tooltipWidth - 15;
+      }
+      if (left < 15) {
+        left = 15;
+      }
+
+      // Position above point
+      let top = y - tooltipHeight - 15;
+      if (top < 70) {
+        top = y + 25; // Flip below if too close to ceiling
+      }
+
+      el.style.left = `${left}px`;
+      el.style.top = `${top}px`;
+    }
+
+    function hideFloatingCallout() {
+      const el = document.getElementById("floatingChartCallout");
+      if (!el) return;
+      el.classList.remove("opacity-100");
+      el.classList.add("opacity-0");
+    }
+
 
     // ========================================================
     // UNIFIED TOUCH & MOUSE SCRUBBING EVENT BINDER
@@ -1680,33 +1875,44 @@
     function bindScrubberEvents(canvas, callback, totalPoints) {
       if (!canvas || totalPoints <= 0) return;
 
-      const handleScrub = (clientX) => {
+      const handleScrub = (clientX, clientY) => {
         const rect = canvas.getBoundingClientRect();
         const relativeX = clientX - rect.left;
         const width = rect.width;
-        if (relativeX < 0 || relativeX > width) return;
+        if (relativeX < 0 || relativeX > width) {
+          hideFloatingCallout();
+          return;
+        }
         
         const idx = Math.min(Math.max(Math.floor((relativeX / width) * totalPoints), 0), totalPoints - 1);
-        callback(idx);
+        callback(idx, clientX, clientY);
       };
 
       // Pointer / Mouse Move
       canvas.addEventListener('pointermove', (e) => {
-        handleScrub(e.clientX);
+        handleScrub(e.clientX, e.clientY);
+      });
+
+      canvas.addEventListener('pointerleave', () => {
+        hideFloatingCallout();
       });
 
       // Touch events (smooth scrubbing without page jitter)
       canvas.addEventListener('touchmove', (e) => {
         if (e.touches && e.touches.length > 0) {
-          handleScrub(e.touches[0].clientX);
+          handleScrub(e.touches[0].clientX, e.touches[0].clientY);
         }
       }, { passive: true });
 
       canvas.addEventListener('touchstart', (e) => {
         if (e.touches && e.touches.length > 0) {
-          handleScrub(e.touches[0].clientX);
+          handleScrub(e.touches[0].clientX, e.touches[0].clientY);
         }
       }, { passive: true });
+
+      canvas.addEventListener('touchend', () => {
+        setTimeout(hideFloatingCallout, 1500);
+      });
     }
 
 
