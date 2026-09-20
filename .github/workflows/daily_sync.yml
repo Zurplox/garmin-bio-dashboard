@@ -1,0 +1,59 @@
+name: Daily Biometrics Sync & AI Analysis
+
+on:
+  schedule:
+    # 06:30 AM SGT (UTC+8) -> 22:30 UTC
+    - cron: '30 22 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  sync-biometrics:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install garminconnect cryptography
+
+      - name: Restore Garmin Session Tokens
+        env:
+          GARMIN_TOKENS: ${{ secrets.GARMIN_TOKENS }}
+        run: |
+          mkdir -p ~/.garminconnect
+          echo "$GARMIN_TOKENS" | base64 -d > ~/.garminconnect/garmin_tokens.json
+          chmod 600 ~/.garminconnect/garmin_tokens.json
+
+      - name: Run Biometric Ingestion & Baseline Sync
+        run: |
+          python sync.py
+
+      - name: Encrypt Biometric Dataset (Zero-Exposure)
+        env:
+          GARMIN_DASHBOARD_PASS: ${{ secrets.GARMIN_DASHBOARD_PASS || 'Capybara' }}
+        run: |
+          python encrypt_data.py
+
+      - name: Commit & Push Encrypted Dashboard Data
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/biometrics.enc.json data/status.json data/cache/
+          if git diff --staged --quiet; then
+            echo "No biometric changes to commit."
+          else
+            git commit -m "Auto-sync biometrics [$(date -u +'%Y-%m-%d %H:%M UTC')]"
+            git push
+          fi

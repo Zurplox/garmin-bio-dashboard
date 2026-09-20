@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Sensitive Plaintext Biometrics (NEVER commit plaintext health data!)
+data/biometrics.json
+data/cache/
+sample_garmin_data.json
+*.tmp
+
+# Local Garmin Tokens (Stored in GitHub Secrets instead)
+garmin_tokens.json
+.garminconnect/
+
+# OS
+.DS_Store
+Thumbs.db

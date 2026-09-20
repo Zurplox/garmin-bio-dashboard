@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Garmin Bio-Intelligence Dashboard // Harvin</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            bio: {
+              bg: '#080d16',
+              surface: '#0f172a',
+              card: '#131e36',
+              border: '#1e293b',
+              accent: '#06b6d4',
+              emerald: '#10b981',
+              violet: '#8b5cf6',
+              amber: '#f59e0b',
+              rose: '#f43f5e'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #080d16;
+      color: #e2e8f0;
+    }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .glass-card {
+      background: rgba(19, 30, 54, 0.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glow-cyan {
+      box-shadow: 0 0 25px -5px rgba(6, 182, 212, 0.25);
+    }
+    .glow-rose {
+      box-shadow: 0 0 30px -5px rgba(244, 63, 94, 0.35);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-bio-bg selection:bg-cyan-500 selection:text-black">
+
+  <!-- ======================================================== -->
+  <!-- 1. AUTH / LOCK OVERLAY (Visible until decrypted)         -->
+  <!-- ======================================================== -->
+  <div id="lockScreen" class="fixed inset-0 z-50 flex items-center justify-center bg-bio-bg p-4 transition-all duration-300">
+    <div class="relative w-full max-w-md p-8 rounded-2xl glass-card border border-slate-700/60 shadow-2xl text-center">
+      
+      <!-- Vault Icon -->
+      <div id="vaultIconContainer" class="mx-auto w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center mb-6 text-cyan-400">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+        </svg>
+      </div>
+
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-semibold tracking-wider uppercase mb-3">
+        <span>●</span> End-to-End Encrypted Vault
+      </div>
+      
+      <h1 id="lockTitle" class="text-2xl font-bold text-white tracking-tight mb-1">Garmin Bio-Intelligence</h1>
+      <p id="lockSubtitle" class="text-xs text-slate-400 mb-6">Enter passphrase to decrypt personal biometric records</p>
+
+      <!-- Passphrase Form -->
+      <form id="passForm" onsubmit="handleUnlock(event)" class="space-y-4">
+        <div class="relative">
+          <input 
+            type="password" 
+            id="passInput" 
+            autocomplete="current-password"
+            placeholder="Enter passphrase..." 
+            class="w-full px-4 py-3 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 outline-none text-white text-center text-sm font-medium tracking-wide transition placeholder-slate-500"
+            required
+            autofocus
+          />
+        </div>
+
+        <button 
+          type="submit" 
+          id="unlockBtn"
+          class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-semibold text-sm transition-all duration-200 shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 cursor-pointer"
+        >
+          <span>Decrypt & Access Dashboard</span>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+          </svg>
+        </button>
+      </form>
+
+      <!-- Error message container -->
+      <div id="authError" class="hidden mt-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs text-center font-medium"></div>
+
+      <!-- Master Lock Indicator banner (when Master Locked) -->
+      <div id="masterLockBanner" class="hidden mt-4 p-4 rounded-xl bg-red-950/80 border border-red-500/60 text-red-300 text-xs text-left">
+        <div class="font-bold text-red-200 flex items-center gap-1.5 mb-1 text-sm">
+          <span>⛔</span> EMERGENCY MASTER LOCKOUT ACTIVE
+        </div>
+        <p class="leading-relaxed">This biometric vault is currently under administrative lockdown. Standard 'Capybara' access is disabled.</p>
+        <p class="mt-2 text-red-400 font-mono text-[11px]">Enter Master Passphrase (Barabara) to deactivate lockdown.</p>
+      </div>
+
+      <div class="mt-6 pt-4 border-t border-slate-800 text-[11px] text-slate-500 mono">
+        AES-256-GCM // PBKDF2 100K Rounds // Zero-Knowledge Client Decrypt
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ======================================================== -->
+  <!-- 2. MASTER LOCK MODAL                                     -->
+  <!-- ======================================================== -->
+  <div id="masterLockModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    <div class="relative w-full max-w-md p-6 rounded-2xl glass-card border border-rose-500/40 glow-rose shadow-2xl">
+      <div class="flex items-center gap-3 text-rose-400 mb-3">
+        <div class="p-2 rounded-xl bg-rose-500/10 border border-rose-500/30">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+        </div>
+        <div>
+          <h2 class="text-lg font-bold text-white">Emergency Master Lock</h2>
+          <p class="text-xs text-rose-300/80">Full System Administrative Lockout</p>
+        </div>
+      </div>
+
+      <p class="text-xs text-slate-300 leading-relaxed mb-4">
+        Arming the Master Lock will immediately purge memory and seal this terminal. Standard credentials (<span class="font-mono text-cyan-400 font-bold">Capybara</span>) will be completely rejected until unlocked with Master credentials.
+      </p>
+
+      <form onsubmit="handleArmMasterLock(event)" class="space-y-3">
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Enter Master Passphrase:</label>
+          <input 
+            type="password" 
+            id="masterPassInput" 
+            placeholder="Enter Barabara to lock..."
+            class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-rose-500/40 focus:border-rose-400 focus:ring-2 focus:ring-rose-500/20 outline-none text-white text-sm"
+            required
+          />
+        </div>
+
+        <div id="masterLockModalError" class="hidden text-xs text-rose-400"></div>
+
+        <div class="flex items-center gap-3 pt-2">
+          <button 
+            type="button" 
+            onclick="closeMasterLockModal()"
+            class="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs transition cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button 
+            type="submit" 
+            class="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs transition shadow-lg shadow-rose-600/30 cursor-pointer"
+          >
+            Arm Lockdown Now
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- ======================================================== -->
+  <!-- 3. MAIN DASHBOARD CONTENT (Rendered upon decryption)     -->
+  <!-- ======================================================== -->
+  <div id="mainDashboard" class="hidden flex-1 flex flex-col">
+    
+    <!-- Top Navigation Bar -->
+    <header class="border-b border-slate-800/80 bg-bio-surface/60 backdrop-blur-md sticky top-0 z-30 px-4 lg:px-8 py-3.5">
+      <div class="max-w-7xl mx-auto flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-black font-bold text-sm shadow-md shadow-cyan-500/20">
+            GB
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-white text-base tracking-tight">Garmin Bio-Intelligence</span>
+              <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-semibold uppercase tracking-wider">LIVE</span>
+            </div>
+            <div class="text-[11px] text-slate-400 flex items-center gap-2">
+              <span>Athlete: <strong id="headerAthlete" class="text-slate-200">Harvin</strong></span>
+              <span>•</span>
+              <span id="headerSyncTime" class="mono text-slate-400">Sync: --</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2.5">
+          <!-- Emergency Master Lock Button -->
+          <button 
+            type="button" 
+            onclick="openMasterLockModal()" 
+            class="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
+            title="Arm emergency master lockout"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+            <span>Master Lock</span>
+          </button>
+
+          <!-- Sign Out Button -->
+          <button 
+            type="button" 
+            onclick="logout()" 
+            class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
+            title="Lock Vault"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 space-y-6">
+
+      <!-- AI BIO-INTELLIGENCE BRIEFING BANNER -->
+      <section class="glass-card rounded-2xl p-5 lg:p-6 border border-cyan-500/20 glow-cyan relative overflow-hidden">
+        <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+          <div class="flex items-center gap-3">
+            <div class="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              </svg>
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-cyan-400 tracking-wider uppercase">Google AI Studio // Gemini 2.0 Biometric Intelligence</div>
+              <h2 class="text-lg font-bold text-white tracking-tight">Morning Physiological Readiness</h2>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-400">Readiness Score:</span>
+            <span id="aiRecoveryScore" class="px-3 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold font-mono text-sm">88 / 100</span>
+            <span id="aiStateBadge" class="px-2.5 py-1 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-semibold text-xs">OPTIMAL ADAPTATION</span>
+          </div>
+        </div>
+
+        <div class="mt-4 space-y-3">
+          <p id="aiVerdict" class="text-sm text-slate-200 leading-relaxed font-medium">
+            Loading AI intelligence analysis...
+          </p>
+          <div id="aiRecommendations" class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </section>
+
+      <!-- 4 TOP KPI CARDS -->
+      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        <!-- Sleep Score Card -->
+        <div class="glass-card rounded-2xl p-5 border border-slate-800">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">Sleep Architecture</span>
+            <span class="text-cyan-400 text-xs font-mono">🌙</span>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <span id="kpiSleepScore" class="text-3xl font-extrabold text-white mono">--</span>
+            <span class="text-xs text-slate-400 font-medium">/ 100</span>
+            <span id="kpiSleepQualifier" class="ml-auto text-xs px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 font-semibold">--</span>
+          </div>
+          <div class="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400 flex justify-between">
+            <span>Duration: <strong id="kpiSleepDuration" class="text-slate-200">--</strong></span>
+            <span>Deep: <strong id="kpiSleepDeep" class="text-emerald-400">--</strong></span>
+          </div>
+        </div>
+
+        <!-- HRV Card -->
+        <div class="glass-card rounded-2xl p-5 border border-slate-800">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">Overnight HRV</span>
+            <span class="text-rose-400 text-xs font-mono">❤️</span>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <span id="kpiHrvValue" class="text-3xl font-extrabold text-white mono">--</span>
+            <span class="text-xs text-slate-400 font-medium">ms</span>
+            <span id="kpiHrvStatus" class="ml-auto text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-semibold">BALANCED</span>
+          </div>
+          <div class="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400 flex justify-between">
+            <span>Baseline 7d: <strong id="kpiHrvBaseline" class="text-slate-200">--</strong></span>
+            <span>Normal: <strong id="kpiHrvRange" class="text-slate-300">--</strong></span>
+          </div>
+        </div>
+
+        <!-- Resting Heart Rate Card -->
+        <div class="glass-card rounded-2xl p-5 border border-slate-800">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">Resting Heart Rate</span>
+            <span class="text-amber-400 text-xs font-mono">⚡</span>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <span id="kpiRhrValue" class="text-3xl font-extrabold text-white mono">--</span>
+            <span class="text-xs text-slate-400 font-medium">bpm</span>
+            <span class="ml-auto text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-semibold">ATHLETIC</span>
+          </div>
+          <div class="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400 flex justify-between">
+            <span>30d Avg: <strong id="kpiRhr30d" class="text-slate-200">--</strong></span>
+            <span>4y Baseline: <strong id="kpiRhrAllTime" class="text-slate-300">--</strong></span>
+          </div>
+        </div>
+
+        <!-- Energy & Stress Dynamics Card -->
+        <div class="glass-card rounded-2xl p-5 border border-slate-800">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">Energy & Stress</span>
+            <span class="text-emerald-400 text-xs font-mono">🔋</span>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <span id="kpiBodyBattery" class="text-3xl font-extrabold text-white mono">+38</span>
+            <span class="text-xs text-slate-400 font-medium">charged</span>
+            <span id="kpiStressBadge" class="ml-auto text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-semibold">LOW STRESS</span>
+          </div>
+          <div class="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400 flex justify-between">
+            <span>Avg Stress: <strong id="kpiStressAvg" class="text-slate-200">15 / 100</strong></span>
+            <span>Sleep Stress: <strong id="kpiSleepStress" class="text-slate-300">16 / 100</strong></span>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- CHART 1 & 2 (GRID) -->
+      <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Sleep Architecture Breakdown -->
+        <div class="glass-card rounded-2xl p-5 lg:p-6 border border-slate-800">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-sm font-bold text-white tracking-tight">Sleep Architecture (Last 30 Days)</h3>
+              <p class="text-xs text-slate-400">Deep, REM, and Light Sleep breakdown (Hours)</p>
+            </div>
+            <div class="flex items-center gap-3 text-[11px]">
+              <span class="flex items-center gap-1 text-indigo-400">● Deep</span>
+              <span class="flex items-center gap-1 text-cyan-400">● REM</span>
+              <span class="flex items-center gap-1 text-slate-400">● Light</span>
+            </div>
+          </div>
+          <div class="relative h-64">
+            <canvas id="sleepChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Overnight HRV vs Baseline Band -->
+        <div class="glass-card rounded-2xl p-5 lg:p-6 border border-slate-800">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-sm font-bold text-white tracking-tight">Autonomic HRV Stability (Last 30 Days)</h3>
+              <p class="text-xs text-slate-400">Daily Overnight HRV (ms) vs 7-Day Baseline</p>
+            </div>
+            <span class="text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+              Band: 54 - 73 ms
+            </span>
+          </div>
+          <div class="relative h-64">
+            <canvas id="hrvChart"></canvas>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- CHART 3: 4-YEAR CARDIOVASCULAR ADAPTATION (RHR 2022-2026) -->
+      <section class="glass-card rounded-2xl p-5 lg:p-6 border border-slate-800">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="text-sm font-bold text-white tracking-tight">4-Year Cardiovascular Fitness Adaptation</h3>
+              <span class="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 text-[10px] font-semibold mono">2022 — 2026</span>
+            </div>
+            <p class="text-xs text-slate-400">Monthly Average Resting Heart Rate (bpm) across 1,500+ days</p>
+          </div>
+          <div class="text-xs text-slate-400 mono">
+            Peak: <span class="text-amber-400 font-bold">53.4</span> bpm (2022) → Now: <span class="text-emerald-400 font-bold">49.1</span> bpm
+          </div>
+        </div>
+        <div class="relative h-56">
+          <canvas id="multiYearRhrChart"></canvas>
+        </div>
+      </section>
+
+      <!-- RECENT ACTIVITIES FEED -->
+      <section class="glass-card rounded-2xl p-5 lg:p-6 border border-slate-800">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-sm font-bold text-white tracking-tight">Recent Training & Workout Log</h3>
+            <p class="text-xs text-slate-400">Cardio, endurance, and physical loading sessions</p>
+          </div>
+          <span class="text-xs text-slate-400 mono" id="activityCountLabel">50 Sessions</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
+              <tr>
+                <th class="py-2.5 px-3">Date</th>
+                <th class="py-2.5 px-3">Activity</th>
+                <th class="py-2.5 px-3">Type</th>
+                <th class="py-2.5 px-3">Distance</th>
+                <th class="py-2.5 px-3">Duration</th>
+                <th class="py-2.5 px-3">Avg HR</th>
+                <th class="py-2.5 px-3">Energy</th>
+              </tr>
+            </thead>
+            <tbody id="activityTableBody" class="divide-y divide-slate-800/60 text-slate-300">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800/80 bg-bio-surface/40 py-4 px-4 text-center text-xs text-slate-500 mono">
+      Garmin Connect™ Data Pipeline // End-to-End Encrypted // Built for Harvin (Zurplox)
+    </footer>
+  </div>
+
+
+  <!-- ======================================================== -->
+  <!-- 4. CORE ENGINE JAVASCRIPT (CRYPTO + RENDERING + LOCKS)   -->
+  <!-- ======================================================== -->
+  <script>
+    // Master Lock Hash: SHA-256("Barabara")
+    const MASTER_LOCK_HASH = "ae5338f6bab31814a680161782cb13040c2647b0065ada8b9b105baa8c95e62b";
+    let decryptedBio = null;
+
+    // Check Master Lock status on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      checkMasterLockState();
+    });
+
+    async function sha256(text) {
+      const msgUint8 = new TextEncoder().encode(text);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function checkMasterLockState() {
+      const isMasterLocked = localStorage.getItem("garmin_master_locked") === "true";
+      const banner = document.getElementById("masterLockBanner");
+      const lockTitle = document.getElementById("lockTitle");
+      const lockSubtitle = document.getElementById("lockSubtitle");
+      const passInput = document.getElementById("passInput");
+      const unlockBtn = document.getElementById("unlockBtn");
+      const vaultIcon = document.getElementById("vaultIconContainer");
+
+      if (isMasterLocked) {
+        banner.classList.remove("hidden");
+        lockTitle.textContent = "Vault Master-Locked";
+        lockTitle.classList.add("text-rose-400");
+        lockSubtitle.textContent = "Standard access disabled. Enter Master Passphrase to unlock.";
+        passInput.placeholder = "Enter Master Passphrase (Barabara)...";
+        unlockBtn.classList.remove("from-cyan-500", "to-blue-600", "text-black");
+        unlockBtn.classList.add("bg-rose-600", "hover:bg-rose-500", "text-white");
+        unlockBtn.querySelector("span").textContent = "Master Unlock System";
+        vaultIcon.classList.remove("bg-cyan-500/10", "border-cyan-500/30", "text-cyan-400");
+        vaultIcon.classList.add("bg-rose-500/10", "border-rose-500/40", "text-rose-400");
+      } else {
+        banner.classList.add("hidden");
+        lockTitle.textContent = "Garmin Bio-Intelligence";
+        lockTitle.classList.remove("text-rose-400");
+        lockSubtitle.textContent = "Enter passphrase to decrypt personal biometric records";
+        passInput.placeholder = "Enter passphrase...";
+        unlockBtn.classList.add("from-cyan-500", "to-blue-600", "text-black");
+        unlockBtn.classList.remove("bg-rose-600", "hover:bg-rose-500", "text-white");
+        unlockBtn.querySelector("span").textContent = "Decrypt & Access Dashboard";
+        vaultIcon.classList.add("bg-cyan-500/10", "border-cyan-500/30", "text-cyan-400");
+        vaultIcon.classList.remove("bg-rose-500/10", "border-rose-500/40", "text-rose-400");
+      }
+    }
+
+    // Decrypt AES-256-GCM via Web Crypto API
+    async function decryptPayload(encPayload, password) {
+      const salt = Uint8Array.from(atob(encPayload.salt), c => c.charCodeAt(0));
+      const iv = Uint8Array.from(atob(encPayload.iv), c => c.charCodeAt(0));
+      const ciphertext = Uint8Array.from(atob(encPayload.data), c => c.charCodeAt(0));
+
+      const pwKey = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(password),
+        'PBKDF2',
+        false,
+        ['deriveKey']
+      );
+
+      const aesKey = await crypto.subtle.deriveKey(
+        {
+          name: 'PBKDF2',
+          salt: salt,
+          iterations: 100000,
+          hash: 'SHA-256'
+        },
+        pwKey,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['decrypt']
+      );
+
+      const decrypted = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: iv },
+        aesKey,
+        ciphertext
+      );
+
+      return JSON.parse(new TextDecoder().decode(decrypted));
+    }
+
+    // Handle Unlock Form
+    async function handleUnlock(event) {
+      event.preventDefault();
+      const input = document.getElementById("passInput").value.trim();
+      const errorDiv = document.getElementById("authError");
+      const btn = document.getElementById("unlockBtn");
+      errorDiv.classList.add("hidden");
+
+      const isMasterLocked = localStorage.getItem("garmin_master_locked") === "true";
+
+      // If system is currently Master Locked:
+      if (isMasterLocked) {
+        const inputHash = await sha256(input);
+        if (inputHash === MASTER_LOCK_HASH) {
+          // Deactivate Master Lock!
+          localStorage.removeItem("garmin_master_locked");
+          checkMasterLockState();
+          document.getElementById("passInput").value = "";
+          errorDiv.className = "mt-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs text-center font-medium";
+          errorDiv.textContent = "✅ Master Lock Deactivated. Enter Capybara to view dashboard.";
+          errorDiv.classList.remove("hidden");
+          return;
+        } else {
+          errorDiv.className = "mt-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs text-center font-medium";
+          errorDiv.textContent = "⛔ SYSTEM MASTER-LOCKED: Capybara access is suspended. Valid Master Passphrase required.";
+          errorDiv.classList.remove("hidden");
+          return;
+        }
+      }
+
+      // Normal mode: Fetch encrypted data and attempt decryption
+      btn.disabled = true;
+      btn.querySelector("span").textContent = "Decrypting...";
+
+      try {
+        const resp = await fetch('data/biometrics.enc.json?v=' + Date.now());
+        if (!resp.ok) {
+          throw new Error("Could not load biometrics.enc.json. Ensure sync has run.");
+        }
+        const encData = await resp.json();
+        
+        decryptedBio = await decryptPayload(encData, input);
+        
+        // Success! Render dashboard
+        renderDashboard(decryptedBio);
+        document.getElementById("lockScreen").classList.add("opacity-0", "pointer-events-none");
+        setTimeout(() => {
+          document.getElementById("lockScreen").classList.add("hidden");
+          document.getElementById("mainDashboard").classList.remove("hidden");
+        }, 300);
+
+      } catch (err) {
+        console.error(err);
+        errorDiv.className = "mt-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs text-center font-medium";
+        errorDiv.textContent = "❌ Invalid passphrase or corrupted vault. Decryption failed.";
+        errorDiv.classList.remove("hidden");
+      } finally {
+        btn.disabled = false;
+        btn.querySelector("span").textContent = "Decrypt & Access Dashboard";
+      }
+    }
+
+    // Master Lock Modal Controls
+    function openMasterLockModal() {
+      document.getElementById("masterLockModal").classList.remove("hidden");
+      document.getElementById("masterPassInput").focus();
+    }
+
+    function closeMasterLockModal() {
+      document.getElementById("masterLockModal").classList.add("hidden");
+      document.getElementById("masterPassInput").value = "";
+      document.getElementById("masterLockModalError").classList.add("hidden");
+    }
+
+    async function handleArmMasterLock(event) {
+      event.preventDefault();
+      const input = document.getElementById("masterPassInput").value.trim();
+      const errorDiv = document.getElementById("masterLockModalError");
+
+      const inputHash = await sha256(input);
+      if (inputHash === MASTER_LOCK_HASH) {
+        // Arm Master Lock!
+        localStorage.setItem("garmin_master_locked", "true");
+        closeMasterLockModal();
+        logout();
+      } else {
+        errorDiv.textContent = "❌ Incorrect Master Passphrase.";
+        errorDiv.classList.remove("hidden");
+      }
+    }
+
+    function logout() {
+      decryptedBio = null;
+      document.getElementById("passInput").value = "";
+      document.getElementById("mainDashboard").classList.add("hidden");
+      const lockScreen = document.getElementById("lockScreen");
+      lockScreen.classList.remove("hidden");
+      setTimeout(() => {
+        lockScreen.classList.remove("opacity-0", "pointer-events-none");
+      }, 10);
+      checkMasterLockState();
+    }
+
+    // ==========================================
+    // DASHBOARD RENDERING & CHARTS
+    // ==========================================
+    function formatHours(seconds) {
+      if (!seconds) return "0h 0m";
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      return `${h}h ${m}m`;
+    }
+
+    function renderDashboard(data) {
+      const today = data.today || {};
+      const baselines = data.baselines || {};
+      const history = data.history || {};
+      const ai = data.ai_intelligence || {};
+
+      // Headers
+      document.getElementById("headerAthlete").textContent = data.athlete?.name || "Harvin";
+      const syncDate = new Date(data.updated_at);
+      document.getElementById("headerSyncTime").textContent = `Sync: ${syncDate.toLocaleDateString()} ${syncDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+
+      // AI Briefing
+      document.getElementById("aiRecoveryScore").textContent = `${ai.recovery_score || 88} / 100`;
+      document.getElementById("aiStateBadge").textContent = ai.readiness_state?.replace('_', ' ') || "OPTIMAL ADAPTATION";
+      document.getElementById("aiVerdict").textContent = ai.verdict || "Physiological systems balanced.";
+      
+      const recsContainer = document.getElementById("aiRecommendations");
+      recsContainer.innerHTML = (ai.recommendations || []).map(r => `
+        <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-300 flex items-start gap-2">
+          <span class="text-cyan-400 font-bold">›</span>
+          <span>${r}</span>
+        </div>
+      `).join('');
+
+      // KPI 1: Sleep
+      document.getElementById("kpiSleepScore").textContent = today.sleep_score || 78;
+      document.getElementById("kpiSleepQualifier").textContent = today.sleep_score >= 80 ? "GOOD" : "FAIR";
+      document.getElementById("kpiSleepDuration").textContent = formatHours(today.sleep_time_seconds);
+      const deepPct = today.sleep_time_seconds ? Math.round((today.deep_sleep_seconds / today.sleep_time_seconds) * 100) : 24;
+      document.getElementById("kpiSleepDeep").textContent = `${deepPct}% (${formatHours(today.deep_sleep_seconds)})`;
+
+      // KPI 2: HRV
+      document.getElementById("kpiHrvValue").textContent = today.hrv_last_night || 60;
+      document.getElementById("kpiHrvStatus").textContent = today.hrv_status || "BALANCED";
+      document.getElementById("kpiHrvBaseline").textContent = `${today.hrv_weekly_avg || 57} ms`;
+      document.getElementById("kpiHrvRange").textContent = `${today.hrv_baseline_low || 54} - ${today.hrv_baseline_high || 73} ms`;
+
+      // KPI 3: RHR
+      document.getElementById("kpiRhrValue").textContent = Math.round(today.rhr || 51);
+      document.getElementById("kpiRhr30d").textContent = `${baselines.rhr_30d || 49} bpm`;
+      document.getElementById("kpiRhrAllTime").textContent = `${baselines.rhr_all_time || 50} bpm`;
+
+      // KPI 4: Energy & Stress
+      document.getElementById("kpiBodyBattery").textContent = `+${today.body_battery_charged || 38}`;
+      document.getElementById("kpiStressAvg").textContent = `${today.stress_avg || 15} / 100`;
+      document.getElementById("kpiSleepStress").textContent = `${today.sleep_stress || 16} / 100`;
+
+      // Render Charts
+      renderSleepChart(history.daily_sleep_90d || []);
+      renderHrvChart(history.daily_hrv_90d || [], baselines.hrv_normal_range || [54, 73]);
+      renderMultiYearRhrChart(history.rhr_multi_year || []);
+
+      // Render Activities Table
+      renderActivitiesTable(history.recent_activities || []);
+    }
+
+    // Chart 1: Sleep Architecture
+    let sleepChartInstance = null;
+    function renderSleepChart(sleepDays) {
+      const ctx = document.getElementById("sleepChart").getContext("2d");
+      if (sleepChartInstance) sleepChartInstance.destroy();
+
+      const recent30 = sleepDays.slice(-30);
+      const labels = recent30.map(d => d.date.slice(5)); // MM-DD
+      const deepHours = recent30.map(d => +(d.deep_seconds / 3600).toFixed(2));
+      const remHours = recent30.map(d => +(d.rem_seconds / 3600).toFixed(2));
+      const lightHours = recent30.map(d => +(d.light_seconds / 3600).toFixed(2));
+
+      sleepChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Deep Sleep',
+              data: deepHours,
+              backgroundColor: '#6366f1', // Indigo
+              stack: 'Stack 0',
+              borderRadius: 2
+            },
+            {
+              label: 'REM Sleep',
+              data: remHours,
+              backgroundColor: '#06b6d4', // Cyan
+              stack: 'Stack 0',
+              borderRadius: 2
+            },
+            {
+              label: 'Light Sleep',
+              data: lightHours,
+              backgroundColor: '#475569', // Slate
+              stack: 'Stack 0',
+              borderRadius: 4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                footer: (items) => {
+                  let total = 0;
+                  items.forEach(i => total += i.parsed.y);
+                  return `Total Sleep: ${total.toFixed(1)} hrs`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              stacked: true,
+              grid: { display: false },
+              ticks: { color: '#64748b', font: { size: 10, family: 'JetBrains Mono' } }
+            },
+            y: {
+              stacked: true,
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: { color: '#64748b', font: { size: 10, family: 'JetBrains Mono' }, callback: v => v + 'h' },
+              title: { display: true, text: 'Hours', color: '#64748b', font: { size: 10 } }
+            }
+          }
+        }
+      });
+    }
+
+    // Chart 2: HRV vs Baseline
+    let hrvChartInstance = null;
+    function renderHrvChart(hrvDays, normalRange) {
+      const ctx = document.getElementById("hrvChart").getContext("2d");
+      if (hrvChartInstance) hrvChartInstance.destroy();
+
+      const recent30 = hrvDays.slice(-30);
+      const labels = recent30.map(d => d.date ? d.date.slice(5) : '--');
+      const lastNightVals = recent30.map(d => d.lastNightAvg || null);
+      const weeklyVals = recent30.map(d => d.weeklyAvg || null);
+
+      hrvChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Overnight HRV',
+              data: lastNightVals,
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 3,
+              pointHoverRadius: 5
+            },
+            {
+              label: '7-Day Rolling Avg',
+              data: weeklyVals,
+              borderColor: '#06b6d4',
+              borderDash: [4, 4],
+              pointRadius: 0,
+              tension: 0.2
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+              labels: { color: '#94a3b8', font: { size: 10 } }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: '#64748b', font: { size: 10, family: 'JetBrains Mono' } }
+            },
+            y: {
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: { color: '#64748b', font: { size: 10, family: 'JetBrains Mono' } },
+              suggestedMin: 45,
+              suggestedMax: 80
+            }
+          }
+        }
+      });
+    }
+
+    // Chart 3: Multi-Year RHR (2022-2026)
+    let rhrChartInstance = null;
+    function renderMultiYearRhrChart(multiYear) {
+      const ctx = document.getElementById("multiYearRhrChart").getContext("2d");
+      if (rhrChartInstance) rhrChartInstance.destroy();
+
+      const labels = multiYear.map(m => m.month);
+      const vals = multiYear.map(m => m.rhr);
+
+      rhrChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Monthly RHR (bpm)',
+              data: vals,
+              borderColor: '#f59e0b',
+              backgroundColor: 'rgba(245, 158, 11, 0.08)',
+              fill: true,
+              tension: 0.35,
+              pointRadius: 2,
+              pointHoverRadius: 5
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: {
+                color: '#64748b',
+                font: { size: 9, family: 'JetBrains Mono' },
+                maxTicksLimit: 12
+              }
+            },
+            y: {
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: { color: '#64748b', font: { size: 10, family: 'JetBrains Mono' } },
+              suggestedMin: 46,
+              suggestedMax: 56
+            }
+          }
+        }
+      });
+    }
+
+    // Activities Table
+    function renderActivitiesTable(activities) {
+      const tbody = document.getElementById("activityTableBody");
+      document.getElementById("activityCountLabel").textContent = `${activities.length} Recorded`;
+      
+      if (!activities || activities.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="py-4 text-center text-slate-500">No workout records found.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = activities.slice(0, 15).map(a => `
+        <tr class="hover:bg-slate-800/40 transition">
+          <td class="py-2.5 px-3 mono text-slate-400">${a.startTimeLocal ? a.startTimeLocal.slice(0, 10) : '--'}</td>
+          <td class="py-2.5 px-3 font-medium text-white">${a.activityName || 'Activity'}</td>
+          <td class="py-2.5 px-3">
+            <span class="px-2 py-0.5 rounded bg-slate-800 text-cyan-400 font-mono text-[10px] uppercase">${a.activityType || 'other'}</span>
+          </td>
+          <td class="py-2.5 px-3 mono text-slate-300">${a.distance_km ? a.distance_km + ' km' : '--'}</td>
+          <td class="py-2.5 px-3 mono text-slate-300">${a.duration_min ? a.duration_min + ' min' : '--'}</td>
+          <td class="py-2.5 px-3 mono text-amber-400">${a.averageHR ? a.averageHR + ' bpm' : '--'}</td>
+          <td class="py-2.5 px-3 mono text-slate-400">${a.calories ? a.calories + ' kcal' : '--'}</td>
+        </tr>
+      `).join('');
+    }
+  </script>
+</body>
+</html>
