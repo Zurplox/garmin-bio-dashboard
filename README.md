@@ -32,7 +32,7 @@ Scheduled to run automatically every day at **08:00 AM SGT (00:00 UTC)** with an
 1. Authenticates headlessly with Garmin SSO using encrypted session tokens in GitHub Secrets (`GARMIN_TOKENS`).
 2. Ingests nocturnal sleep architecture, HRV stability, 4-year resting heart rate baselines, and workout activities.
 3. Synthesizes clinical recovery and early infection warnings via **Google AI Studio (Gemini Flash)**.
-4. Calculates Whoop 4.0 Strain/Sleep Need and Fitbit Premium 5-Pillar Health Metrics.
+4. Calculates Bio-Recovery Engine Strain/Sleep Need and Fitbit Premium 5-Pillar Health Metrics.
 5. Encrypts payload with AES-256-GCM and deploys automatically to GitHub Pages.
 
 ---
