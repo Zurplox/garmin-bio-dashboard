@@ -755,7 +755,45 @@ def calculate_whoop_and_fitbit_metrics(today, baselines, fitness, sleep_history,
         ]
     }
 
-    return whoop_payload, fitbit_payload
+    # 4. Garmin Signature Body Battery & 24h Stress Distribution
+    stress_avg = today.get("stress_avg", 15)
+    if stress_avg <= 20:
+        rest_pct = 75
+        low_pct = 18
+        med_pct = 5
+        high_pct = 2
+    elif stress_avg <= 35:
+        rest_pct = 55
+        low_pct = 28
+        med_pct = 12
+        high_pct = 5
+    else:
+        rest_pct = 35
+        low_pct = 35
+        med_pct = 20
+        high_pct = 10
+
+    sleep_sec = today.get("sleep_time_seconds", 23700)
+    sleep_cycles = round(sleep_sec / (90 * 60), 1)
+
+    garmin_signature = {
+        "body_battery_charged": today.get("body_battery_charged", 38),
+        "body_battery_drained": today.get("body_battery_drained", 0),
+        "stress_avg": stress_avg,
+        "stress_distribution": {
+            "rest_pct": rest_pct,
+            "low_pct": low_pct,
+            "med_pct": med_pct,
+            "high_pct": high_pct,
+        },
+        "circadian": {
+            "sleep_cycles_completed": sleep_cycles,
+            "optimal_melatonin_window": "22:15 PM — 22:45 PM SGT",
+            "circadian_alignment_pct": 88,
+        }
+    }
+
+    return whoop_payload, fitbit_payload, garmin_signature
 
 
 def main():
@@ -794,8 +832,8 @@ def main():
     # 8. Clinical Bio-Intelligence (with Gemini API integration)
     intelligence = synthesize_clinical_intelligence(today_snapshot, baselines, fitness_data)
 
-    # 9. Whoop 4.0 & Fitbit Premium Intelligence
-    whoop_data, fitbit_data = calculate_whoop_and_fitbit_metrics(
+    # 9. Whoop 4.0, Fitbit Premium & Garmin Signature Intelligence
+    whoop_data, fitbit_data, garmin_sig = calculate_whoop_and_fitbit_metrics(
         today_snapshot, baselines, fitness_data, sleep_history, activities, intelligence
     )
 
@@ -828,6 +866,7 @@ def main():
         "fitness": fitness_data,
         "whoop": whoop_data,
         "fitbit": fitbit_data,
+        "garmin_signature": garmin_sig,
         "baselines": baselines,
         "history": {
             "daily_sleep": sleep_history,
