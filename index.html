@@ -249,7 +249,7 @@
 
 
   <!-- ======================================================== -->
-  <!-- 3. MAIN DASHBOARD (WHOOP 4.0 / FITBIT PREMIUM TIER)      -->
+  <!-- 3. MAIN DASHBOARD (BIO-INTELLIGENCE TERMINAL)      -->
   <!-- ======================================================== -->
   <div id="mainDashboard" class="hidden flex-1 flex flex-col">
     
@@ -334,14 +334,53 @@
     <!-- Main Content Container -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 space-y-6">
 
-      <!-- SECTION 1: WHOOP 4.0 TRI-PILLAR HERO (RECOVERY + DAY STRAIN + SLEEP NEED) -->
+      <!-- SECTION 0: AI DAILY BRIEFING (PERSONALIZED SUMMARY) -->
+      <section class="glass-card rounded-2xl p-5 lg:p-6 border border-violet-500/20" style="background: linear-gradient(135deg, rgba(139,92,246,0.08) 0%, rgba(14,24,46,0.9) 60%);">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
+          <div class="flex items-center gap-2.5">
+            <div class="p-2 rounded-xl bg-violet-500/15 border border-violet-500/30 text-violet-400">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+              </svg>
+            </div>
+            <div>
+              <span class="text-[10px] font-bold tracking-wider text-violet-400 uppercase">Gemini AI Daily Briefing</span>
+              <h2 class="text-base font-bold text-white tracking-tight">Good morning, Harvin 👋</h2>
+            </div>
+          </div>
+          <span id="aiSummaryDate" class="sm:ml-auto text-xs text-slate-500 mono"></span>
+        </div>
+        <p id="aiDailySummary" class="text-sm text-slate-200 leading-relaxed font-medium">
+          Loading your personalised daily briefing...
+        </p>
+        <div class="mt-3 pt-3 border-t border-slate-800/60 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] mono">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full" id="summaryRecDot"></span>
+            <span class="text-slate-400">Recovery: <strong id="summaryRecLabel" class="text-white">—</strong></span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full" id="summaryHrvDot"></span>
+            <span class="text-slate-400">HRV: <strong id="summaryHrvLabel" class="text-white">—</strong></span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full" id="summaryReadinessDot"></span>
+            <span class="text-slate-400">Readiness: <strong id="summaryReadinessLabel" class="text-white">—</strong></span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full" id="summaryInjuryDot"></span>
+            <span class="text-slate-400">Injury Risk: <strong id="summaryInjuryLabel" class="text-white">—</strong></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 1: BIO-INTELLIGENCE TRI-PILLAR HERO (RECOVERY + DAY STRAIN + SLEEP NEED) -->
       <section class="grid grid-cols-1 md:grid-cols-3 gap-5">
         
-        <!-- CARD 1A: WHOOP RECOVERY DIAL -->
+        <!-- CARD 1A: RECOVERY DIAL -->
         <div class="glass-card rounded-2xl p-5 border border-emerald-500/20 glow-emerald flex flex-col justify-between relative overflow-hidden">
           <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
             <div>
-              <span class="text-[10px] font-bold tracking-wider text-emerald-400 uppercase">Whoop 4.0 Engine</span>
+              <span class="text-[10px] font-bold tracking-wider text-emerald-400 uppercase">Bio-Recovery Engine</span>
               <h2 class="text-sm font-bold text-white tracking-tight">Physiological Recovery</h2>
             </div>
             <span id="recoveryScoreZone" class="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-[10px] uppercase">
@@ -371,14 +410,24 @@
               <span class="text-slate-400">Resting Heart Rate:</span>
               <strong id="cardRhrVal" class="text-white mono">51 bpm</strong>
             </div>
+            <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+              <span>ⓘ What does this score mean?</span>
+            </button>
+            <div class="hidden mt-2 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1.5">
+              <p><strong class="text-emerald-400">Recovery Score</strong> is like a daily "readiness percentage" for your body. It's calculated by your watch overnight using your HRV, RHR, and sleep quality.</p>
+              <p>🟢 <strong class="text-white">67–100%</strong> = Your body is fully recharged. Go hard today — train intensely.</p>
+              <p>🟡 <strong class="text-white">34–66%</strong> = Moderate recovery. Stick to easy training or active recovery.</p>
+              <p>🔴 <strong class="text-white">0–33%</strong> = Your body is still rebuilding. Rest or very light movement only.</p>
+              <p class="text-slate-500">Think of it as your phone battery % — but for your body's ability to handle stress.</p>
+            </div>
           </div>
         </div>
 
-        <!-- CARD 1B: WHOOP DAY STRAIN GAUGE & TARGET BAND -->
+        <!-- CARD 1B: DAY STRAIN GAUGE & TARGET BAND -->
         <div class="glass-card rounded-2xl p-5 border border-cyan-500/20 glow-cyan flex flex-col justify-between relative overflow-hidden">
           <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
             <div>
-              <span class="text-[10px] font-bold tracking-wider text-cyan-400 uppercase">Whoop Strain Coach</span>
+              <span class="text-[10px] font-bold tracking-wider text-cyan-400 uppercase">Strain Intelligence Coach</span>
               <h2 class="text-sm font-bold text-white tracking-tight">Day Strain Accumulation</h2>
             </div>
             <span id="strainZoneBadge" class="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-bold text-[10px] uppercase">
@@ -411,10 +460,21 @@
             <p id="strainAdviceText" class="text-[11px] text-slate-400 leading-tight">
               High recovery capacity today. Prime for high-intensity intervals or strength volume.
             </p>
+            <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+              <span>ⓘ What is Day Strain?</span>
+            </button>
+            <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1.5">
+              <p><strong class="text-cyan-400">Day Strain</strong> is a 0–21 scale measuring how hard your cardiovascular system worked today. It's not just about exercise — stress, standing, and daily movement all count.</p>
+              <p>🔵 <strong class="text-white">0–9</strong> = Light day (rest, recovery, desk work)</p>
+              <p>🟡 <strong class="text-white">10–13</strong> = Moderate (brisk walk, easy gym session)</p>
+              <p>🟠 <strong class="text-white">14–17</strong> = Hard training (ideal for building fitness)</p>
+              <p>🔴 <strong class="text-white">18–21</strong> = Maximal effort (marathon, race day)</p>
+              <p class="text-slate-500">Your target window today is personalised to match your recovery level. Going too far above it risks overtraining.</p>
+            </div>
           </div>
         </div>
 
-        <!-- CARD 1C: WHOOP SLEEP NEED & BEDTIME CALCULATOR -->
+        <!-- CARD 1C: SLEEP NEED & BEDTIME CALCULATOR -->
         <div class="glass-card rounded-2xl p-5 border border-violet-500/20 flex flex-col justify-between relative overflow-hidden">
           <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
             <div>
@@ -457,6 +517,15 @@
               <span id="targetWake" class="mono text-base font-bold text-slate-200">07:00 AM</span>
             </div>
           </div>
+          <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+            <span>ⓘ How is sleep need calculated?</span>
+          </button>
+          <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1.5">
+            <p><strong class="text-violet-400">Sleep Need</strong> = Your baseline requirement + extra time to pay off sleep debt + extra time your body needs to recover from training.</p>
+            <p><strong class="text-slate-300">Sleep Debt</strong> is like a loan — every night you sleep less than needed, the deficit accumulates. Your body must "pay it back" with extra sleep later.</p>
+            <p><strong class="text-slate-300">Sleep Performance %</strong> is how close you got to meeting your sleep need last night. 100% = perfectly met your body's demand.</p>
+            <p class="text-slate-500">The recommended bedtime is reverse-calculated from your target wake time minus total sleep need. Sleeping in this window aligns with your natural circadian rhythm.</p>
+          </div>
         </div>
 
       </section>
@@ -486,21 +555,25 @@
             <div class="text-[10px] text-slate-400 uppercase font-semibold">Δ RHR vs Base</div>
             <div id="markerDeltaRhr" class="text-lg font-bold text-emerald-400 mono">+1.2 bpm</div>
             <div class="text-[10px] text-slate-500">Normal (&lt; +3.0)</div>
+            <div class="text-[10px] text-slate-600 mt-1 leading-tight">Your heart rate at rest vs your personal average. A sudden rise of +3+ bpm often signals your immune system is fighting something before you feel symptoms.</div>
           </div>
           <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
             <div class="text-[10px] text-slate-400 uppercase font-semibold">Δ HRV vs Base</div>
             <div id="markerDeltaHrv" class="text-lg font-bold text-emerald-400 mono">+8.5%</div>
             <div class="text-[10px] text-slate-500">Elevated Vagal Tone</div>
+            <div class="text-[10px] text-slate-600 mt-1 leading-tight">Change in heart rate variability vs your baseline. A sharp drop in HRV (−15% or more) is one of the earliest signals of illness — sometimes 48h before symptoms appear.</div>
           </div>
           <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
             <div class="text-[10px] text-slate-400 uppercase font-semibold">Nocturnal Resp</div>
             <div id="markerRespRate" class="text-lg font-bold text-cyan-400 mono">13.0 brpm</div>
             <div class="text-[10px] text-slate-500">Normal Range: 11.5 - 14.5</div>
+            <div class="text-[10px] text-slate-600 mt-1 leading-tight">Breaths per minute measured during sleep. Elevated breathing rate (15+) is a classic early marker of respiratory infection, fever, or overtraining stress.</div>
           </div>
           <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
             <div class="text-[10px] text-slate-400 uppercase font-semibold">Sleep Stress Index</div>
             <div id="markerSleepStress" class="text-lg font-bold text-emerald-400 mono">16 / 100</div>
             <div class="text-[10px] text-slate-500">Deep Parasympathetic</div>
+            <div class="text-[10px] text-slate-600 mt-1 leading-tight">How activated your "fight or flight" system was during sleep. Low (0–25) = deep recovery. High (60+) = your body was stressed overnight — a common pre-sickness pattern.</div>
           </div>
         </div>
 
@@ -577,6 +650,17 @@
             <span>Recovery Factor: <strong class="text-emerald-400">Optimal</strong></span>
             <span>Drain Rate: <strong class="text-cyan-400">Minimal</strong></span>
           </div>
+          <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+            <span>ⓘ What is Body Battery?</span>
+          </button>
+          <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+            <p><strong class="text-cyan-400">Body Battery</strong> is a 0–100 energy reserve score — think of it as the percentage charge left on your body's internal battery. Your watch tracks this continuously by monitoring your HRV, stress, sleep, and activity.</p>
+            <p>🔋 <strong class="text-white">75–100</strong> = Fully charged. Your body is ready for anything.</p>
+            <p>🔋 <strong class="text-white">50–74</strong> = Good energy. Suitable for training.</p>
+            <p>🔋 <strong class="text-white">25–49</strong> = Low. Light activity recommended.</p>
+            <p>🔋 <strong class="text-white">0–24</strong> = Depleted. Your body needs rest and sleep urgently.</p>
+            <p class="text-slate-500">Sleep charges your battery. Stress, exercise, and mental effort drain it. The overnight "+38 pts" means your sleep fully replenished your energy reserves.</p>
+          </div>
         </div>
 
         <!-- CARD 2: 24-HOUR STRESS ARCHITECTURE -->
@@ -629,6 +713,17 @@
           <div class="pt-2.5 border-t border-slate-800/80 text-[11px] text-slate-400 leading-tight">
             75% of your 24h cycle logged in zero-stress cellular rejuvenation mode.
           </div>
+          <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+            <span>ⓘ What is Stress Architecture?</span>
+          </button>
+          <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+            <p><strong class="text-amber-400">Stress Architecture</strong> tracks your Autonomic Nervous System (ANS) all day — the part of your nervous system you can't consciously control. It runs on two modes: "rest & digest" (recovery) and "fight or flight" (stress).</p>
+            <p>🟢 <strong class="text-white">Rest (0–25)</strong> = Your body is in repair mode — hormones regenerate, muscles rebuild, immune system strengthens.</p>
+            <p>🔵 <strong class="text-white">Low (26–50)</strong> = Light activity or mild mental engagement. Still healthy.</p>
+            <p>🟡 <strong class="text-white">Med (51–75)</strong> = Elevated sympathetic activation. Common during meetings or workouts.</p>
+            <p>🔴 <strong class="text-white">High (76–100)</strong> = Full stress response. If sustained daily, this drains recovery capacity.</p>
+            <p class="text-slate-500">Your 75% rest time is exceptional — most people spend less than 50% in rest mode.</p>
+          </div>
         </div>
 
         <!-- CARD 3: CIRCADIAN & ULTRADIAN SLEEP GATE -->
@@ -663,6 +758,15 @@
           <div class="pt-2.5 border-t border-slate-800/80 text-[11px] text-slate-400 leading-tight">
             Completed 4+ complete 90-minute REM/NREM cycles within the optimal biological chronotype gate.
           </div>
+          <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+            <span>ⓘ What are Circadian & Ultradian rhythms?</span>
+          </button>
+          <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+            <p><strong class="text-violet-400">Circadian Rhythm</strong> is your body's 24-hour internal clock — it controls when you feel sleepy, when you're alert, when your hormones peak, and when your body temperature rises/falls. Disrupting it (late nights, jet lag) degrades sleep quality and performance.</p>
+            <p><strong class="text-violet-400">Ultradian Cycles</strong> are the 90-minute loops your brain cycles through during sleep: deep sleep → light sleep → REM → repeat. More complete cycles = more growth hormone released, more memory consolidated, more physical repair done.</p>
+            <p><strong class="text-emerald-400">4+ cycles (6+ hours)</strong> is the elite athlete minimum for tissue regeneration. 5 cycles (7.5h) is optimal.</p>
+            <p class="text-slate-500">The Melatonin Gate is your body's natural "sleep onset window" — the 30-minute period when your brain is primed to fall asleep. Missing this window makes it harder to fall asleep and reduces sleep quality.</p>
+          </div>
         </div>
 
       </section>
@@ -685,6 +789,14 @@
             <span>Chronological: <strong id="kpiChronologicalAge" class="text-slate-200">29</strong></span>
             <span>Achievable: <strong class="text-cyan-400">21.1 yrs</strong></span>
           </div>
+          <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+            <span>ⓘ What is Biological Age?</span>
+          </button>
+          <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+            <p>Your <strong class="text-cyan-400">Biological Age</strong> is NOT your birthday age — it's an estimate of how old your cardiovascular and aerobic system actually <em>performs</em>, based on your VO2 max (oxygen efficiency).</p>
+            <p>A biological age <strong class="text-emerald-400">younger than your real age</strong> means your heart and lungs are in better shape than most people your age. Your <strong class="text-white">−4.3 years advantage</strong> is a genuinely impressive result.</p>
+            <p class="text-slate-500">This improves with consistent aerobic training, good sleep, and low resting heart rate.</p>
+          </div>
         </div>
 
         <!-- CARD 2: ACUTE:CHRONIC WORKLOAD RATIO (ACWR) -->
@@ -701,6 +813,16 @@
           <div class="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400 flex justify-between">
             <span>Acute: <strong id="kpiAcuteLoad" class="text-slate-200">44</strong></span>
             <span>Chronic: <strong id="kpiChronicLoad" class="text-slate-300">219</strong></span>
+          </div>
+          <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+            <span>ⓘ What is ACWR?</span>
+          </button>
+          <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+            <p><strong class="text-cyan-400">ACWR</strong> compares this week's training load ("Acute") vs the past 4-week average ("Chronic"). It tells you if you're training too hard too fast — the #1 cause of sports injuries.</p>
+            <p>🟢 <strong class="text-white">0.8 – 1.3</strong> = Sweet spot — building fitness safely</p>
+            <p>🔵 <strong class="text-white">&lt; 0.8</strong> = Fresh / undertraining — safe to increase gradually</p>
+            <p>🔴 <strong class="text-white">&gt; 1.5</strong> = Danger zone — high injury risk, pull back</p>
+            <p class="text-slate-500">Your 0.2 means you've been very light recently — great for recovery, but you can safely increase training volume over the next 1–2 weeks.</p>
           </div>
         </div>
 
@@ -719,6 +841,15 @@
             <span>30d Baseline: <strong id="kpiHrvBaseline" class="text-slate-200">55.3 ms</strong></span>
             <span>Band: <strong id="kpiHrvRange" class="text-slate-300">54 - 73 ms</strong></span>
           </div>
+          <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+            <span>ⓘ What is HRV?</span>
+          </button>
+          <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+            <p><strong class="text-emerald-400">HRV (Heart Rate Variability)</strong> measures tiny millisecond differences between each heartbeat. Counterintuitively, <strong class="text-white">MORE variation = better</strong> — it means your nervous system is flexible and responding well to life.</p>
+            <p>A LOW HRV means your body is under stress, fighting illness, or inadequately recovered. A HIGH HRV means your nervous system is calm, adapted, and ready for performance.</p>
+            <p>🏆 Elite endurance athletes: 60–100+ ms. General healthy adults: 30–60 ms.</p>
+            <p class="text-slate-500">Your HRV is best compared to YOUR OWN baseline — not population averages. What matters is whether today's reading is above or below your personal 30-day norm.</p>
+          </div>
         </div>
 
         <!-- CARD 4: RESTING HEART RATE (RHR) -->
@@ -735,6 +866,15 @@
           <div class="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400 flex justify-between">
             <span>30d Avg: <strong id="kpiRhr30d" class="text-slate-200">49.8 bpm</strong></span>
             <span>4y Baseline: <strong id="kpiRhrAllTime" class="text-slate-300">50.0 bpm</strong></span>
+          </div>
+          <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+            <span>ⓘ What is RHR?</span>
+          </button>
+          <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+            <p><strong class="text-amber-400">RHR (Resting Heart Rate)</strong> is your heart's beats-per-minute when you're completely at rest (usually measured during sleep). Lower is generally better for long-term health.</p>
+            <p>🏆 Elite athletes: 40–50 bpm | ✅ Athletic: 50–60 bpm | 🟡 Average adult: 60–80 bpm</p>
+            <p>A rising RHR trend over days is one of the earliest warning signs of illness, overtraining, or poor sleep quality — often showing up 24–48h before you feel sick.</p>
+            <p class="text-slate-500">Your 51 bpm puts you firmly in the "Athletic" zone. Your 4-year trend shows consistent cardiovascular improvement.</p>
           </div>
         </div>
 
@@ -877,13 +1017,22 @@
               <span>●</span> <span>Awake: <strong id="stageAwakePct">0.0%</strong></span>
             </div>
           </div>
+          <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+            <span>ⓘ What do these sleep stages mean?</span>
+          </button>
+          <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1.5">
+            <p>🟣 <strong class="text-indigo-400">Deep Sleep (Slow Wave)</strong> — Your body's repair phase. Growth hormone is released, muscles rebuild, immune system strengthens. Aim for 15–25%. This is the most physically restorative stage.</p>
+            <p>🔵 <strong class="text-cyan-400">REM Sleep</strong> — Your brain's processing phase. Memories are consolidated, emotions regulated, creativity enhanced. Aim for 20–25%. Low REM = foggy thinking, poor mood.</p>
+            <p>⬜ <strong class="text-slate-300">Light Sleep</strong> — The bridge between stages. Still restorative, but less critical. It's normal for 50–60% of sleep to be light.</p>
+            <p>🔴 <strong class="text-rose-400">Awake</strong> — Brief awakenings are normal (5–10 min/night). More than 30 min may indicate stress or poor sleep quality.</p>
+          </div>
         </div>
 
         <!-- SLEEP RECOVERY BENCHMARKS -->
         <div class="glass-card rounded-2xl p-5 border border-slate-800 lg:col-span-2 flex flex-col justify-between space-y-3">
           <div>
             <span class="text-[10px] font-bold tracking-wider text-cyan-400 uppercase">Clinical Benchmarks</span>
-            <h3 class="text-sm font-bold text-white tracking-tight">Sleep Restoration vs Whoop / National Sleep Foundation</h3>
+            <h3 class="text-sm font-bold text-white tracking-tight">Sleep Restoration vs Clinical Standards / National Sleep Foundation</h3>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -891,16 +1040,19 @@
               <div class="text-[10px] text-slate-400 uppercase font-semibold">Sleep Consistency</div>
               <div id="metricConsistency" class="text-2xl font-extrabold text-emerald-400 mono">82%</div>
               <div class="text-[11px] text-slate-400">Regular 14-day bedtime window</div>
+              <div class="text-[10px] text-slate-600 mt-1 leading-tight">How regular your bedtime and wake time are. High consistency = stronger circadian rhythm = better sleep quality automatically. Going to bed at the same time every night is one of the highest-impact sleep interventions.</div>
             </div>
             <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1">
               <div class="text-[10px] text-slate-400 uppercase font-semibold">Sleep Efficiency</div>
               <div id="metricEfficiency" class="text-2xl font-extrabold text-cyan-400 mono">100%</div>
               <div class="text-[11px] text-slate-400">Restorative time in bed vs awake</div>
+              <div class="text-[10px] text-slate-600 mt-1 leading-tight">The percentage of time in bed that you were actually sleeping. 100% = you fell asleep immediately and stayed asleep. Below 85% can indicate insomnia or sleep apnea risk.</div>
             </div>
             <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1">
               <div class="text-[10px] text-slate-400 uppercase font-semibold">7-Day Accumulated Debt</div>
               <div id="metric7dDebt" class="text-2xl font-extrabold text-amber-400 mono">4.7 hrs</div>
               <div class="text-[11px] text-slate-400">Pay down with +55m tonight</div>
+              <div class="text-[10px] text-slate-600 mt-1 leading-tight">The total sleep shortfall from the past 7 nights. Like financial debt — it accumulates and must be repaid. The best strategy is adding 30–60 minutes per night over 1–2 weeks rather than one long "catch-up" night.</div>
             </div>
           </div>
 
@@ -1010,6 +1162,150 @@
           <span>Horizontal Axis: Resting HR (bpm) — Baseline ~49.8 // Vertical Axis: Overnight HRV (ms) — Baseline ~55.3</span>
           <span>Hover or touch any node to inspect night's autonomic coordinate</span>
         </div>
+
+        <!-- Quadrant Explanation -->
+        <div class="mt-3 p-4 rounded-xl bg-slate-900/60 border border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
+          <div class="space-y-1">
+            <div class="text-xs font-bold text-white mb-1">How to read this chart:</div>
+            <p class="text-slate-400">Each dot = <strong class="text-white">one night's sleep</strong>. The chart plots every night's HRV (vertical) against RHR (horizontal). The crossing lines represent your personal 30-day baseline averages.</p>
+            <p class="text-slate-500 mt-1">The goal is to have as many dots in the <strong class="text-emerald-400">top-left quadrant (Q1)</strong> as possible.</p>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div class="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+              <div class="text-emerald-400 font-bold text-[10px] mb-1">🟢 Q1: PEAK RECOVERY</div>
+              <div class="text-slate-500">High HRV + Low RHR. Your nervous system is fully recovered. Train hard — your body is primed for peak performance.</div>
+            </div>
+            <div class="p-2 rounded-lg bg-amber-500/5 border border-amber-500/20">
+              <div class="text-amber-400 font-bold text-[10px] mb-1">🟡 Q2: CARDIO AROUSAL</div>
+              <div class="text-slate-500">High HRV + High RHR. Often after intense training or heat. HRV is good but heart rate is elevated — train moderately.</div>
+            </div>
+            <div class="p-2 rounded-lg bg-violet-500/5 border border-violet-500/20">
+              <div class="text-violet-400 font-bold text-[10px] mb-1">🟣 Q3: PARASYMP FATIGUE</div>
+              <div class="text-slate-500">Low HRV + Low RHR. Nervous system suppressed. Common with deep fatigue or illness onset. Prioritize sleep and rest.</div>
+            </div>
+            <div class="p-2 rounded-lg bg-rose-500/5 border border-rose-500/20">
+              <div class="text-rose-400 font-bold text-[10px] mb-1">🔴 Q4: SYSTEMIC STRAIN</div>
+              <div class="text-slate-500">Low HRV + High RHR. Worst recovery state. Indicates overtraining, illness, or high psychological stress. Rest is mandatory.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 8C: TRAINING READINESS GAUGE + INJURY RISK INDEX (NEW FEATURES) -->
+      <section class="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+        <!-- TRAINING READINESS GAUGE -->
+        <div class="glass-card rounded-2xl p-5 border border-emerald-500/20 glow-emerald">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-800/80 mb-4">
+            <div>
+              <span class="text-[10px] font-bold tracking-wider text-emerald-400 uppercase">Performance Intelligence</span>
+              <h3 class="text-sm font-bold text-white tracking-tight">Training Readiness Score</h3>
+            </div>
+            <span id="readinessBadge" class="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-[10px]">READY</span>
+          </div>
+
+          <div class="flex items-center gap-5">
+            <!-- Radial Gauge -->
+            <div class="relative w-28 h-28 flex-shrink-0">
+              <svg class="w-full h-full" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="42" stroke="#1e2942" stroke-width="10" fill="none"/>
+                <circle id="readinessGauge" cx="50" cy="50" r="42" stroke="#10b981" stroke-width="10" fill="none"
+                  stroke-dasharray="264" stroke-dashoffset="79" stroke-linecap="round" class="gauge-circle"/>
+              </svg>
+              <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span id="readinessVal" class="text-2xl font-extrabold text-white mono">70</span>
+                <span class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">/ 100</span>
+              </div>
+            </div>
+
+            <div class="flex-1 space-y-2">
+              <div class="text-[11px] text-slate-300 leading-relaxed" id="readinessText">
+                Good recovery. You can handle moderate-to-hard training today. Prioritise quality over volume.
+              </div>
+              <div class="space-y-1 text-[10px] mono">
+                <div class="flex justify-between"><span class="text-slate-500">Recovery contribution:</span><span id="readinessRecovery" class="text-emerald-400">+38 pts</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">HRV contribution:</span><span id="readinessHrv" class="text-cyan-400">+8.5%</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Strain load:</span><span id="readinessStrain" class="text-amber-400">Light</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-3 pt-3 border-t border-slate-800/80">
+            <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+              <span>ⓘ How is Training Readiness calculated?</span>
+            </button>
+            <div class="hidden mt-2 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+              <p><strong class="text-emerald-400">Training Readiness</strong> is a composite 0–100 score that tells you how primed your body is for physical performance today. It combines your recovery score, HRV trend, sleep quality, body battery, and recent training load.</p>
+              <p>🟢 <strong class="text-white">75–100</strong> = Go hard. Your body is asking to be challenged.</p>
+              <p>🟡 <strong class="text-white">50–74</strong> = Train moderately. Good but not peak capacity.</p>
+              <p>🟠 <strong class="text-white">25–49</strong> = Easy only. Active recovery, walking, light yoga.</p>
+              <p>🔴 <strong class="text-white">0–24</strong> = Rest day. Training will do more harm than good today.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- INJURY RISK INDEX -->
+        <div class="glass-card rounded-2xl p-5 border border-amber-500/20 glow-amber">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-800/80 mb-4">
+            <div>
+              <span class="text-[10px] font-bold tracking-wider text-amber-400 uppercase">Sports Medicine AI</span>
+              <h3 class="text-sm font-bold text-white tracking-tight">Injury Risk Index</h3>
+            </div>
+            <span id="injuryRiskBadge" class="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-[10px]">LOW</span>
+          </div>
+
+          <div class="space-y-3">
+            <!-- Risk bar -->
+            <div>
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-slate-400">Overall Injury Risk Level</span>
+                <span id="injuryRiskPct" class="mono font-bold text-emerald-400">12%</span>
+              </div>
+              <div class="w-full h-3 rounded-full bg-slate-900 border border-slate-800 overflow-hidden">
+                <div id="injuryRiskBar" class="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-700" style="width: 12%"></div>
+              </div>
+              <div class="flex justify-between text-[10px] text-slate-600 mt-1 mono">
+                <span>LOW RISK</span><span>CAUTION</span><span>HIGH RISK</span>
+              </div>
+            </div>
+
+            <!-- Risk factor breakdown -->
+            <div class="grid grid-cols-2 gap-2 text-[10px]">
+              <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
+                <div class="text-slate-400 mb-0.5">Workload Spike</div>
+                <div class="font-bold text-emerald-400">None — ACWR 0.2</div>
+                <div class="text-slate-600 leading-tight mt-0.5">No sudden training spike detected. Safe to build.</div>
+              </div>
+              <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
+                <div class="text-slate-400 mb-0.5">HRV Trend</div>
+                <div class="font-bold text-emerald-400">Positive (+8.5%)</div>
+                <div class="text-slate-600 leading-tight mt-0.5">Rising HRV = well-adapted, not overreaching.</div>
+              </div>
+              <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
+                <div class="text-slate-400 mb-0.5">Sleep Debt</div>
+                <div class="font-bold text-amber-400">Moderate (4.7h)</div>
+                <div class="text-slate-600 leading-tight mt-0.5">Some fatigue accumulation. Prioritise sleep tonight.</div>
+              </div>
+              <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
+                <div class="text-slate-400 mb-0.5">Recovery Score</div>
+                <div class="font-bold text-emerald-400">Green Zone (76%)</div>
+                <div class="text-slate-600 leading-tight mt-0.5">Body well-recovered. Low systemic strain.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-3 pt-3 border-t border-slate-800/80">
+            <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+              <span>ⓘ How is Injury Risk measured?</span>
+            </button>
+            <div class="hidden mt-2 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+              <p><strong class="text-amber-400">Injury Risk</strong> is derived from sports science research showing that most sports injuries occur when training load increases faster than the body can adapt.</p>
+              <p>The model combines: <strong class="text-white">ACWR</strong> (workload spike risk), <strong class="text-white">HRV trend</strong> (nervous system fatigue), <strong class="text-white">sleep debt</strong> (tissue repair deficit), and <strong class="text-white">consecutive hard days</strong>.</p>
+              <p class="text-slate-500">The most dangerous pattern is a sudden 40%+ jump in weekly training load after a rest period — exactly what your ACWR of 0.2 warns you to avoid too aggressively on the way back up.</p>
+            </div>
+          </div>
+        </div>
+
       </section>
 
       <!-- SECTION 9: INTERACTIVE CHART 3 — 4-YEAR CARDIOVASCULAR RHR (WITH TOUCH SCRUBBER CALLOUT) -->
@@ -1528,7 +1824,7 @@
       const syncDate = new Date(data.updated_at);
       document.getElementById("headerSyncTime").textContent = `Sync: ${syncDate.toLocaleDateString()} ${syncDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} • Next Sync: Daily 8:00 AM SGT`;
 
-      // 2. Whoop Recovery Score & Radial Dial
+      // 2. Recovery Score & Radial Dial
       const recScore = intel.recovery_score || 76;
       document.getElementById("recoveryScoreVal").textContent = `${recScore}%`;
       document.getElementById("recoveryScoreZone").textContent = intel.recovery_zone || "Optimal (Green)";
@@ -1545,7 +1841,7 @@
       }
       document.getElementById("cardRhrVal").textContent = `${Math.round(today.rhr || 51)} bpm`;
 
-      // 3. Whoop Day Strain & Target Strain
+      // 3. Day Strain & Target Strain
       const dayStrain = whoop.day_strain || 3.8;
       document.getElementById("strainScoreVal").textContent = dayStrain.toFixed(1);
       document.getElementById("strainZoneBadge").textContent = whoop.strain_zone || "Active Recovery";
@@ -1562,7 +1858,7 @@
         document.getElementById("strainAdviceText").textContent = whoop.strain_advice;
       }
 
-      // 4. Whoop Sleep Need Equation & Bedtime
+      // 4. Sleep Need Equation & Bedtime
       document.getElementById("sleepPerfBadge").textContent = `${whoop.sleep_performance_pct || 76}% Performance`;
       document.getElementById("needBaseline").textContent = `${whoop.baseline_sleep_need_hours || 7.5}h`;
       document.getElementById("needDebt").textContent = `+${whoop.sleep_debt_minutes || 55}m`;
@@ -1661,6 +1957,155 @@
       renderScatterMatrix(data);
       renderMultiYearRhrChart(history.rhr_multi_year || []);
       renderActivityTable();
+
+      // 10. Training Readiness Gauge (composite score)
+      const hrv = today.hrv_last_night || 60;
+      const hrv30 = baselines.hrv_30d || 55.3;
+      const hrvPctDiff = ((hrv - hrv30) / hrv30) * 100;
+      const acwr = parseFloat(fitness.acwr || 0.2);
+      const bodyBatt = charged;
+      const sleepDebt = whoop.accumulated_7d_debt_hours || 4.7;
+      
+      // Compute readiness 0-100
+      let readiness = recScore; // base from recovery
+      if (hrvPctDiff > 10) readiness += 8;
+      else if (hrvPctDiff > 0) readiness += 4;
+      else if (hrvPctDiff < -15) readiness -= 10;
+      else if (hrvPctDiff < 0) readiness -= 5;
+      if (acwr >= 0.8 && acwr <= 1.3) readiness += 5;
+      else if (acwr > 1.5) readiness -= 10;
+      if (sleepDebt < 2) readiness += 5;
+      else if (sleepDebt > 6) readiness -= 8;
+      readiness = Math.max(0, Math.min(100, Math.round(readiness)));
+      
+      const readinessGaugeEl = document.getElementById('readinessGauge');
+      const readinessValEl = document.getElementById('readinessVal');
+      const readinessBadgeEl = document.getElementById('readinessBadge');
+      const readinessTextEl = document.getElementById('readinessText');
+      if (readinessGaugeEl) {
+        readinessGaugeEl.style.strokeDashoffset = 264 - (264 * readiness / 100);
+        if (readiness >= 75) {
+          readinessGaugeEl.setAttribute('stroke', '#10b981');
+          readinessBadgeEl.textContent = 'PRIME';
+          readinessBadgeEl.className = 'px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-[10px]';
+          readinessTextEl.textContent = 'Your body is primed. This is a great day for high-intensity training, PR attempts, or competitions.';
+        } else if (readiness >= 50) {
+          readinessGaugeEl.setAttribute('stroke', '#f59e0b');
+          readinessBadgeEl.textContent = 'READY';
+          readinessBadgeEl.className = 'px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-[10px]';
+          readinessTextEl.textContent = 'Good recovery. You can handle moderate-to-hard training today. Prioritise quality over volume.';
+        } else if (readiness >= 25) {
+          readinessGaugeEl.setAttribute('stroke', '#f59e0b');
+          readinessBadgeEl.textContent = 'EASY DAY';
+          readinessBadgeEl.className = 'px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-[10px]';
+          readinessTextEl.textContent = 'Partial recovery. Keep intensity low today. Walking, yoga, or easy movement only.';
+        } else {
+          readinessGaugeEl.setAttribute('stroke', '#f43f5e');
+          readinessBadgeEl.textContent = 'REST';
+          readinessBadgeEl.className = 'px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold text-[10px]';
+          readinessTextEl.textContent = 'Your body needs rest. Training today will delay recovery and increase injury risk.';
+        }
+        readinessValEl.textContent = readiness;
+        document.getElementById('readinessRecovery').textContent = `+${bodyBatt} pts`;
+        document.getElementById('readinessHrv').textContent = `${hrvPctDiff >= 0 ? '+' : ''}${hrvPctDiff.toFixed(1)}%`;
+        document.getElementById('readinessStrain').textContent = acwr < 0.5 ? 'Very Light' : acwr < 0.8 ? 'Light' : acwr < 1.3 ? 'Moderate' : acwr < 1.5 ? 'Heavy' : 'Too Heavy';
+      }
+
+      // 11. Injury Risk Index
+      let injuryRisk = 0;
+      if (acwr > 1.5) injuryRisk += 40;
+      else if (acwr > 1.3) injuryRisk += 20;
+      else if (acwr < 0.5) injuryRisk += 5; // detraining
+      if (hrvPctDiff < -15) injuryRisk += 25;
+      else if (hrvPctDiff < -8) injuryRisk += 12;
+      if (sleepDebt > 8) injuryRisk += 15;
+      else if (sleepDebt > 5) injuryRisk += 8;
+      if (recScore < 33) injuryRisk += 15;
+      else if (recScore < 50) injuryRisk += 8;
+      injuryRisk = Math.max(0, Math.min(100, Math.round(injuryRisk)));
+      
+      const injuryBarEl = document.getElementById('injuryRiskBar');
+      const injuryPctEl = document.getElementById('injuryRiskPct');
+      const injuryBadgeEl = document.getElementById('injuryRiskBadge');
+      if (injuryBarEl) {
+        injuryBarEl.style.width = `${injuryRisk}%`;
+        injuryPctEl.textContent = `${injuryRisk}%`;
+        if (injuryRisk < 25) {
+          injuryBarEl.className = 'h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-700';
+          injuryBadgeEl.textContent = 'LOW';
+          injuryBadgeEl.className = 'px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-[10px]';
+          injuryPctEl.className = 'mono font-bold text-emerald-400';
+        } else if (injuryRisk < 55) {
+          injuryBarEl.className = 'h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-full transition-all duration-700';
+          injuryBadgeEl.textContent = 'MODERATE';
+          injuryBadgeEl.className = 'px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-[10px]';
+          injuryPctEl.className = 'mono font-bold text-amber-400';
+        } else {
+          injuryBarEl.className = 'h-full bg-gradient-to-r from-rose-600 to-rose-500 rounded-full transition-all duration-700';
+          injuryBadgeEl.textContent = 'HIGH';
+          injuryBadgeEl.className = 'px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold text-[10px]';
+          injuryPctEl.className = 'mono font-bold text-rose-400';
+        }
+        const acwrVal = typeof acwr === 'number' ? acwr.toFixed(1) : acwr;
+        document.querySelector('#injuryRiskBar').parentElement.closest('div.space-y-3')?.querySelectorAll('.font-bold.text-emerald-400, .font-bold.text-amber-400')[0]?.closest('div')?.querySelector('.font-bold')?.setAttribute('data-rendered', 'true');
+      }
+
+      // 12. AI Daily Briefing Banner (top of page)
+      renderAiDailyBriefing(recScore, hrv, hrv30, readiness, injuryRisk, sleepDebt, data);
+    }
+
+    // ========================================================
+    // AI DAILY BRIEFING GENERATOR
+    // ========================================================
+    function renderAiDailyBriefing(recScore, hrv, hrv30, readiness, injuryRisk, sleepDebt, data) {
+      const now = new Date();
+      const hour = now.getHours();
+      const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+      
+      document.getElementById('aiSummaryDate').textContent = now.toLocaleDateString('en-SG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      const h2El = document.querySelector('#aiDailySummary')?.closest('section')?.querySelector('h2');
+      if (h2El) h2El.textContent = `${greeting}, Harvin 👋`;
+
+      const hrv30d = hrv30 || 55.3;
+      const hrvDiff = hrv - hrv30d;
+      const hrvStr = hrvDiff >= 0 ? `+${hrvDiff.toFixed(0)} ms above` : `${Math.abs(hrvDiff).toFixed(0)} ms below`;
+      const recZone = recScore >= 67 ? 'Green (optimal)' : recScore >= 34 ? 'Yellow (moderate)' : 'Red (poor)';
+      const readinessLabel = readiness >= 75 ? 'prime for peak training' : readiness >= 50 ? 'ready for moderate training' : readiness >= 25 ? 'suitable for easy movement only' : 'in need of full rest';
+      const debtStr = sleepDebt > 2 ? ` You carry ${sleepDebt.toFixed(1)} hours of accumulated sleep debt — prioritise an extra 30–45 minutes tonight.` : ' Your sleep debt is minimal — excellent sleep discipline.';
+      
+      const summaryLines = [
+        `Your recovery score is <strong>${recScore}%</strong> — ${recZone} zone. `,
+        `Overnight HRV is <strong>${hrv} ms</strong> (${hrvStr} your 30-day baseline of ${hrv30d} ms), indicating your nervous system is ${hrv > hrv30d ? 'well-recovered and primed' : 'slightly under baseline — monitor for fatigue'}. `,
+        `Based on all biomarkers combined, you are <strong>${readinessLabel}</strong> today.${debtStr}`,
+      ];
+      if (injuryRisk < 25) summaryLines.push(' Injury risk is <strong class="text-emerald-400">low</strong> — safe to train and progressively increase load.');
+      else if (injuryRisk < 55) summaryLines.push(` Injury risk is <strong class="text-amber-400">moderate (${injuryRisk}%)</strong> — manage training volume carefully this week.`);
+      else summaryLines.push(` <strong class="text-rose-400">⚠️ Injury risk is elevated (${injuryRisk}%)</strong> — reduce training load significantly.`);
+      
+      document.getElementById('aiDailySummary').innerHTML = summaryLines.join('');
+
+      // Status dots
+      const setDot = (dotId, labelId, value, label, levels) => {
+        const el = document.getElementById(dotId);
+        const lbl = document.getElementById(labelId);
+        if (!el || !lbl) return;
+        if (value >= levels[0]) { el.classList.add('bg-emerald-400'); }
+        else if (value >= levels[1]) { el.classList.add('bg-amber-400'); }
+        else { el.classList.add('bg-rose-400'); }
+        lbl.textContent = label;
+      };
+      setDot('summaryRecDot', 'summaryRecLabel', recScore, `${recScore}%`, [67, 34]);
+      setDot('summaryHrvDot', 'summaryHrvLabel', hrv, `${hrv} ms`, [hrv30d, hrv30d * 0.85]);
+      setDot('summaryReadinessDot', 'summaryReadinessLabel', readiness, `${readiness}/100`, [75, 50]);
+      // Injury risk: lower is better, so invert
+      const injuryLbl = document.getElementById('summaryInjuryLabel');
+      const injuryDot = document.getElementById('summaryInjuryDot');
+      if (injuryLbl && injuryDot) {
+        injuryLbl.textContent = `${injuryRisk}%`;
+        if (injuryRisk < 25) injuryDot.classList.add('bg-emerald-400');
+        else if (injuryRisk < 55) injuryDot.classList.add('bg-amber-400');
+        else injuryDot.classList.add('bg-rose-400');
+      }
     }
 
 
@@ -2734,3 +3179,5 @@
   </script>
 </body>
 </html>
+
+
