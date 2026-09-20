@@ -94,6 +94,14 @@
           />
         </div>
 
+        <div class="flex items-center justify-between text-xs text-slate-400 px-1 pt-1">
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="rememberMe" checked class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-cyan-500 focus:ring-0 cursor-pointer">
+            <span>Remember this device</span>
+          </label>
+          <span class="text-slate-500 text-[11px]">Auto-unlock</span>
+        </div>
+
         <button 
           type="submit" 
           id="unlockBtn"
@@ -496,6 +504,7 @@
             <button onclick="changeSleepTimeframe(30)" class="filter-btn active px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition" data-sleep-tf="30">30D</button>
             <button onclick="changeSleepTimeframe(90)" class="filter-btn px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition" data-sleep-tf="90">90D</button>
             <button onclick="changeSleepTimeframe(180)" class="filter-btn px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition" data-sleep-tf="180">180D</button>
+            <button onclick="changeSleepTimeframe('ALL')" class="filter-btn px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition" data-sleep-tf="ALL">ALL</button>
           </div>
         </div>
 
@@ -530,6 +539,7 @@
             <button onclick="changeHrvTimeframe(30)" class="filter-btn active px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition" data-hrv-tf="30">30D</button>
             <button onclick="changeHrvTimeframe(90)" class="filter-btn px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition" data-hrv-tf="90">90D</button>
             <button onclick="changeHrvTimeframe(180)" class="filter-btn px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition" data-hrv-tf="180">180D</button>
+            <button onclick="changeHrvTimeframe('ALL')" class="filter-btn px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition" data-hrv-tf="ALL">ALL</button>
           </div>
         </div>
 
@@ -625,6 +635,12 @@
 
     window.addEventListener('DOMContentLoaded', () => {
       checkMasterLockState();
+      const isMasterLocked = localStorage.getItem("garmin_master_locked") === "true";
+      const savedPass = localStorage.getItem("garmin_vault_pass");
+      if (savedPass && !isMasterLocked) {
+        document.getElementById("passInput").value = savedPass;
+        executeUnlock(savedPass);
+      }
     });
 
     async function sha256(text) {
@@ -644,6 +660,7 @@
       const vaultIcon = document.getElementById("vaultIconContainer");
 
       if (isMasterLocked) {
+        localStorage.removeItem("garmin_vault_pass");
         banner.classList.remove("hidden");
         lockTitle.textContent = "Vault Master-Locked";
         lockTitle.classList.add("text-rose-400");
@@ -706,6 +723,10 @@
     async function handleUnlock(event) {
       event.preventDefault();
       const input = document.getElementById("passInput").value.trim();
+      executeUnlock(input);
+    }
+
+    async function executeUnlock(password) {
       const errorDiv = document.getElementById("authError");
       const btn = document.getElementById("unlockBtn");
       errorDiv.classList.add("hidden");
@@ -713,7 +734,7 @@
       const isMasterLocked = localStorage.getItem("garmin_master_locked") === "true";
 
       if (isMasterLocked) {
-        const inputHash = await sha256(input);
+        const inputHash = await sha256(password);
         if (inputHash === MASTER_LOCK_HASH) {
           localStorage.removeItem("garmin_master_locked");
           checkMasterLockState();
@@ -738,17 +759,36 @@
         if (!resp.ok) throw new Error("Vault not accessible.");
         const encData = await resp.json();
         
-        globalBioData = await decryptPayload(encData, input);
+        globalBioData = await decryptPayload(encData, password);
         
-        renderDashboard(globalBioData);
-        document.getElementById("lockScreen").classList.add("opacity-0", "pointer-events-none");
+        // Remember password in localStorage if requested
+        if (document.getElementById("rememberMe")?.checked) {
+          localStorage.setItem("garmin_vault_pass", password);
+        }
+
+        // CRITICAL: Unhide dashboard BEFORE calling render so canvas clientWidth > 0
+        const mainDash = document.getElementById("mainDashboard");
+        const lockScrn = document.getElementById("lockScreen");
+        
+        mainDash.classList.remove("hidden");
+        lockScrn.classList.add("opacity-0", "pointer-events-none");
         setTimeout(() => {
-          document.getElementById("lockScreen").classList.add("hidden");
-          document.getElementById("mainDashboard").classList.remove("hidden");
-        }, 300);
+          lockScrn.classList.add("hidden");
+        }, 250);
+
+        renderDashboard(globalBioData);
+
+        // Force canvas resize on next frame
+        requestAnimationFrame(() => {
+          window.dispatchEvent(new Event('resize'));
+          sleepChartInstance?.resize();
+          hrvChartInstance?.resize();
+          rhrChartInstance?.resize();
+        });
 
       } catch (err) {
         console.error(err);
+        localStorage.removeItem("garmin_vault_pass");
         errorDiv.className = "mt-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs text-center font-medium";
         errorDiv.textContent = "❌ Invalid passphrase or corrupted vault. Decryption failed.";
         errorDiv.classList.remove("hidden");
@@ -777,6 +817,7 @@
       const inputHash = await sha256(input);
       if (inputHash === MASTER_LOCK_HASH) {
         localStorage.setItem("garmin_master_locked", "true");
+        localStorage.removeItem("garmin_vault_pass");
         closeMasterLockModal();
         logout();
       } else {
@@ -787,6 +828,7 @@
 
     function logout() {
       globalBioData = null;
+      localStorage.removeItem("garmin_vault_pass");
       document.getElementById("passInput").value = "";
       document.getElementById("mainDashboard").classList.add("hidden");
       const lockScreen = document.getElementById("lockScreen");
@@ -898,7 +940,7 @@
     function changeSleepTimeframe(days) {
       currentSleepTf = days;
       document.querySelectorAll('[data-sleep-tf]').forEach(btn => {
-        btn.classList.toggle('active', parseInt(btn.dataset.sleepTf) === days);
+        btn.classList.toggle('active', btn.dataset.sleepTf == days);
       });
       updateSleepChart();
     }
@@ -906,7 +948,7 @@
     function updateSleepChart() {
       if (!globalBioData) return;
       const allSleep = globalBioData.history?.daily_sleep || [];
-      const subset = allSleep.slice(-currentSleepTf);
+      const subset = (currentSleepTf === 'ALL') ? allSleep : allSleep.slice(-currentSleepTf);
 
       const ctx = document.getElementById("sleepChart").getContext("2d");
       if (sleepChartInstance) sleepChartInstance.destroy();
@@ -983,7 +1025,7 @@
     function changeHrvTimeframe(days) {
       currentHrvTf = days;
       document.querySelectorAll('[data-hrv-tf]').forEach(btn => {
-        btn.classList.toggle('active', parseInt(btn.dataset.hrvTf) === days);
+        btn.classList.toggle('active', btn.dataset.hrvTf == days);
       });
       updateHrvChart();
     }
@@ -991,7 +1033,7 @@
     function updateHrvChart() {
       if (!globalBioData) return;
       const allHrv = globalBioData.history?.daily_hrv || [];
-      const subset = allHrv.slice(-currentHrvTf);
+      const subset = (currentHrvTf === 'ALL') ? allHrv : allHrv.slice(-currentHrvTf);
 
       const ctx = document.getElementById("hrvChart").getContext("2d");
       if (hrvChartInstance) hrvChartInstance.destroy();
