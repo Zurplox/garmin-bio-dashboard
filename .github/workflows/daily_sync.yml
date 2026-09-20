@@ -37,6 +37,8 @@ jobs:
           chmod 600 ~/.garminconnect/garmin_tokens.json
 
       - name: Run Biometric Ingestion & Baseline Sync
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python sync.py
 

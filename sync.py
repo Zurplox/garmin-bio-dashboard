@@ -407,13 +407,12 @@ def build_today_snapshot(client, latest_sleep, latest_hrv, all_rhr):
 
 
 def query_gemini_api(today, baselines, fitness):
-    """Query Google AI Studio (Gemini 2.0) if GEMINI_API_KEY is present in environment."""
+    """Query Google AI Studio (Gemini Flash) if GEMINI_API_KEY is present in environment."""
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return None
 
-    print("🤖 Querying Google AI Studio (Gemini 2.0 Flash) for clinical biometric synthesis...")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    candidate_models = ["gemini-3.5-flash", "gemini-3.7-flash"]
 
     prompt = f"""
     You are an elite sports cardiologist and Whoop/Oura lead recovery scientist.
@@ -456,22 +455,33 @@ def query_gemini_api(today, baselines, fitness):
         "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"}
     }
 
-    try:
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST"
-        )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            text = data["candidates"][0]["content"]["parts"][0]["text"]
-            parsed = json.loads(text)
-            print("   ✅ Successfully received real Gemini 2.0 AI synthesis!")
-            return parsed
-    except Exception as e:
-        print(f"   ⚠️ Gemini API call failed or timed out ({e}). Falling back to clinical rule engine.")
-        return None
+    for model in candidate_models:
+        print(f"🤖 Querying Google AI Studio ({model}) for clinical biometric synthesis...")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        try:
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=40) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                if text.startswith("```json"):
+                    text = text[7:]
+                elif text.startswith("```"):
+                    text = text[3:]
+                if text.endswith("```"):
+                    text = text[:-3]
+                parsed = json.loads(text.strip())
+                print(f"   ✅ Successfully received real {model} AI synthesis!")
+                return parsed
+        except Exception as e:
+            print(f"   ⚠️ {model} call failed ({e}). Trying next model...")
+
+    print("   ⚠️ All Gemini models failed or timed out. Falling back to deterministic clinical rule engine.")
+    return None
 
 
 def synthesize_clinical_intelligence(today, baselines, fitness):
