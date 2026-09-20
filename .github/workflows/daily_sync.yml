@@ -2,8 +2,10 @@ name: Daily Biometrics Sync & AI Analysis
 
 on:
   schedule:
-    # 06:30 AM SGT (UTC+8) -> 22:30 UTC
-    - cron: '30 22 * * *'
+    # 08:00 AM SGT (UTC+8) -> 00:00 UTC
+    - cron: '0 0 * * *'
+    # 08:30 AM SGT catch-up run for any delayed sleep finalization
+    - cron: '30 0 * * *'
   workflow_dispatch:
 
 permissions:

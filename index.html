@@ -1124,7 +1124,7 @@
       document.getElementById("headerAthlete").textContent = athlete.name || "Harvin";
       document.getElementById("headerDevice").textContent = athlete.primary_device || "fenix 6S Sapphire";
       const syncDate = new Date(data.updated_at);
-      document.getElementById("headerSyncTime").textContent = `Sync: ${syncDate.toLocaleDateString()} ${syncDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+      document.getElementById("headerSyncTime").textContent = `Sync: ${syncDate.toLocaleDateString()} ${syncDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} • Next Sync: Daily 8:00 AM SGT`;
 
       // 2. Whoop Recovery Score & Radial Dial
       const recScore = intel.recovery_score || 76;

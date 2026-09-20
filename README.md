@@ -28,11 +28,12 @@ Because this repository powers a public **GitHub Pages** deployment, all persona
 
 ## ⚙️ Automated Pipeline (GitHub Actions)
 
-Scheduled to run daily at **22:30 UTC (06:30 AM SGT)**:
+Scheduled to run automatically every day at **08:00 AM SGT (00:00 UTC)** with an automated **08:30 AM SGT** catch-up run:
 1. Authenticates headlessly with Garmin SSO using encrypted session tokens in GitHub Secrets (`GARMIN_TOKENS`).
-2. Ingests nocturnal sleep, HRV, RHR, and activities.
-3. Calculates updated 7-day, 30-day, and all-time physiological baselines.
-4. Encrypts payload with AES-256-GCM and deploys automatically to GitHub Pages.
+2. Ingests nocturnal sleep architecture, HRV stability, 4-year resting heart rate baselines, and workout activities.
+3. Synthesizes clinical recovery and early infection warnings via **Google AI Studio (Gemini Flash)**.
+4. Calculates Whoop 4.0 Strain/Sleep Need and Fitbit Premium 5-Pillar Health Metrics.
+5. Encrypts payload with AES-256-GCM and deploys automatically to GitHub Pages.
 
 ---
 
