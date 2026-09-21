@@ -53,6 +53,12 @@ STRESS_MED_MAX = 75
 BODY_BATTERY_FULL_MIN = 35
 BODY_BATTERY_PARTIAL_MIN = 20
 
+# Resting heart rate, measured against the population ladder the dashboard's RHR
+# panel documents (elite 38-48, athletic 48-58, average 60-80).
+RHR_ELITE_MAX = 48
+RHR_ATHLETIC_MAX = 58
+RHR_AVERAGE_MAX = 80
+
 DAY_STRAIN_SCALE_MAX = 21.0
 HRV_LOW_BASELINE_RATIO = 0.85
 STALE_AFTER_HOURS = 30
@@ -171,6 +177,15 @@ BODY_BATTERY_BANDS = {
     "low": {"badge": "LOW RECHARGE", "tone": "rose"},
 }
 
+# Resting heart rate tiers. The badge beside the number and the panel's
+# reference bands are the same ladder, so they cannot teach different things.
+RHR_TIERS = {
+    "elite": {"badge": "ELITE", "tone": "cyan"},
+    "athletic": {"badge": "ATHLETIC", "tone": "green"},
+    "average": {"badge": "AVERAGE", "tone": "amber"},
+    "elevated": {"badge": "ELEVATED", "tone": "rose"},
+}
+
 # Overnight HRV relative to the athlete's own 30-day baseline.
 HRV_BANDS = {
     "above": {"tone": "green"},
@@ -235,6 +250,22 @@ def body_battery_band(charged):
     if charged >= BODY_BATTERY_PARTIAL_MIN:
         return "partial"
     return "low"
+
+
+def rhr_tier(value):
+    """Population tier for a resting heart rate.
+
+    The boundaries are inclusive at the top of each band so they line up with
+    the ladder the RHR info panel shows; "athletic" therefore runs 49-58 bpm and
+    nothing on the page has to re-derive the cut-offs.
+    """
+    if value <= RHR_ELITE_MAX:
+        return "elite"
+    if value <= RHR_ATHLETIC_MAX:
+        return "athletic"
+    if value <= RHR_AVERAGE_MAX:
+        return "average"
+    return "elevated"
 
 
 def hrv_band(hrv, baseline):

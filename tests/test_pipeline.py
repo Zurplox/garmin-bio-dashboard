@@ -525,6 +525,43 @@ class TodaySnapshotTests(unittest.TestCase):
         self.assertEqual(snapshot["stress_distribution"]["samples"], 60)
 
 
+class RhrTierTests(unittest.TestCase):
+    """The RHR badge follows the number; the markup used to hard-code ATHLETIC.
+
+    A 45 bpm or a 92 bpm reading displayed the same fixed label, the same defect
+    class as the static LIVE pill: a claim on screen with no owner behind it.
+    """
+
+    def test_boundaries_match_the_ladder_the_panel_documents(self):
+        for value, expected in (
+            (38, "elite"), (45, "elite"), (48, "elite"),
+            (49, "athletic"), (55, "athletic"), (58, "athletic"),
+            (59, "average"), (70, "average"), (80, "average"),
+            (81, "elevated"), (95, "elevated"),
+        ):
+            with self.subTest(value=value):
+                self.assertEqual(policy.rhr_tier(value), expected)
+
+    def test_every_tier_carries_a_badge_and_a_policy_tone(self):
+        for key in ("elite", "athletic", "average", "elevated"):
+            tier = policy.RHR_TIERS[key]
+            self.assertTrue(tier["badge"])
+            self.assertIn(tier["tone"], policy.TONE_NAMES)
+
+    def test_the_snapshot_publishes_the_tier_matching_its_own_reading(self):
+        for value, expected in ((45.0, "elite"), (52.0, "athletic"), (62.0, "average"), (90.0, "elevated")):
+            with self.subTest(rhr=value):
+                snapshot = source.fetch_today_snapshot(
+                    FakeClient(summary={"totalSteps": 8000, "averageStressLevel": 20}),
+                    "2026-09-20", make_sleep("2026-09-20"), make_hrv("2026-09-20", 1)[0],
+                    make_rhr("2026-09-20", 1, value=value),
+                )
+                self.assertEqual(snapshot["rhr"], value)
+                self.assertEqual(snapshot["rhr_tier"], expected)
+                self.assertEqual(snapshot["rhr_tier_label"], policy.RHR_TIERS[expected]["badge"])
+                self.assertEqual(snapshot["rhr_tier_tone"], policy.RHR_TIERS[expected]["tone"])
+
+
 # ---------------------------------------------------------------------------
 # Score ownership: the rules score, the model narrates
 # ---------------------------------------------------------------------------
@@ -733,6 +770,10 @@ class PayloadAssemblyTests(unittest.TestCase):
 
         self.assertEqual(payload["garmin_signature"]["stress_distribution_source"], "measured")
         self.assertEqual(payload["today"]["steps"], 9100)
+        self.assertEqual(
+            payload["today"]["rhr_tier_label"],
+            policy.RHR_TIERS[payload["today"]["rhr_tier"]]["badge"],
+        )
         self.assertEqual(payload["data_quality"]["metrics"]["circadian"]["source"], "live")
         self.assertEqual(datetime.fromisoformat(payload["updated_at"]).utcoffset(), timedelta(0))
 
