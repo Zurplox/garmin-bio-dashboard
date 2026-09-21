@@ -738,6 +738,78 @@ class HrvSingleMeaningTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Interactive instruments: the picture draws policy's bands, never its own
+# ---------------------------------------------------------------------------
+
+class InstrumentTests(unittest.TestCase):
+    """The dial, the ring and the grid lay out the engine's numbers and nothing else.
+
+    A dial is the easiest place to smuggle a threshold into the browser, so the
+    edges, the tones and the plain-English meanings all ship from policy, and an
+    unmeasured reading has to render as absent rather than as a plausible number.
+    """
+
+    def _page(self):
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+
+    def test_the_band_edges_are_contiguous_and_cover_the_dial(self):
+        ranges = policy.acwr_band_ranges()
+        self.assertEqual([r["key"] for r in ranges], ["under", "sweet", "high", "danger"])
+        self.assertEqual(ranges[0]["from"], 0.0)
+        self.assertEqual(ranges[-1]["to"], policy.ACWR_DIAL_MAX)
+        for left, right in zip(ranges, ranges[1:]):
+            with self.subTest(edge=left["to"]):
+                self.assertEqual(left["to"], right["from"])
+
+    def test_the_drawn_band_is_the_band_the_verdict_uses(self):
+        for entry in policy.acwr_band_ranges():
+            with self.subTest(band=entry["key"]):
+                inside = (entry["from"] + entry["to"]) / 2
+                self.assertEqual(policy.acwr_band(inside), entry["key"])
+                self.assertIn(entry["tone"], policy.TONE_NAMES)
+                self.assertTrue(entry["label"])
+                self.assertTrue(entry["plain"])
+        # A ratio sitting exactly on an edge reads as the band that edge closes,
+        # which is the arc the dial has just drawn under it.
+        self.assertEqual(policy.acwr_band(policy.ACWR_SWEET_MIN), "sweet")
+        self.assertEqual(policy.acwr_band(policy.ACWR_SWEET_MAX), "sweet")
+        self.assertEqual(policy.acwr_band(policy.ACWR_SAFE_MAX), "high")
+        self.assertEqual(policy.acwr_band(policy.ACWR_DIAL_MAX), "danger")
+
+    def test_the_snapshot_ships_the_scale_and_the_bands(self):
+        dial = policy.policy_snapshot()["acwr"]
+        self.assertEqual(dial["scale_max"], policy.ACWR_DIAL_MAX)
+        self.assertEqual(dial["bands"], policy.acwr_band_ranges())
+
+    def test_the_browser_holds_no_workload_threshold_of_its_own(self):
+        page = self._page()
+        dial = page.split("function acwrDialBands", 1)[1].split("function renderMovementRing", 1)[0]
+        for literal in ("0.8", "1.3", "1.5"):
+            with self.subTest(literal=literal):
+                self.assertNotIn(literal, dial)
+        # The band edges and their meanings come from the payload's policy block.
+        self.assertIn("globalBioData.policy", dial)
+
+    def test_every_instrument_reads_absent_until_the_engine_speaks(self):
+        page = self._page()
+        for element in ('id="acwrDialValue"', 'id="acwrDialBand"', 'id="movementRingPct"', 'id="consistencySummary"'):
+            with self.subTest(element=element):
+                tag = page.split(element, 1)[1].split("</", 1)[0]
+                self.assertTrue(tag.rstrip().endswith("--"), tag)
+        # Each instrument has an explicit absent path rather than a zero reading.
+        for name, marker in (
+            ("renderMovementRing", "No step count has arrived for today"),
+            ("renderConsistencyGrid", "No session has been logged in this window"),
+            ("renderAcwrDial", "so the dial has nothing to point at"),
+        ):
+            with self.subTest(function=name):
+                body = page.split(f"function {name}", 1)[1].split("\n    function ", 1)[0]
+                self.assertTrue(marker in body or marker in page, marker)
+
+
+# ---------------------------------------------------------------------------
 # Score ownership: the rules score, the model narrates
 # ---------------------------------------------------------------------------
 
@@ -792,9 +864,9 @@ class ScoreOwnershipTests(unittest.TestCase):
             clinical_engine.query_gemini_api = original
 
     def _plain_tails(self, result):
-        """The plain-English sentence closing each paragraph, without the prose above it."""
+        """The explanation paragraph following each clinical paragraph."""
         return {
-            key: result[key].split(clinical_engine.PLAIN_ENGLISH_PREFIX)[-1].strip()
+            key: result[key].split(clinical_engine.PLAIN_PARAGRAPH_SEPARATOR)[-1].strip()
             for key in clinical_engine.NARRATIVE_KEYS
         }
 
@@ -895,18 +967,23 @@ class ScoreOwnershipTests(unittest.TestCase):
         self.assertNotIn("model_score", result)
         self.assertEqual(result["narrative_source"], "gemini")
 
-    def test_every_analysis_paragraph_ends_in_plain_english(self):
+    def test_every_analysis_paragraph_is_followed_by_an_explanation(self):
         for reply in (None, self.MODEL_REPLY):
             with self.subTest(with_model=bool(reply)):
                 result = self._synthesize(reply)
                 for key in clinical_engine.NARRATIVE_KEYS:
                     with self.subTest(key=key):
-                        paragraph = result[key]
-                        self.assertIn(clinical_engine.PLAIN_ENGLISH_PREFIX, paragraph)
-                        self.assertTrue(paragraph.rstrip().endswith("."))
-                        self.assertGreater(len(paragraph.split(clinical_engine.PLAIN_ENGLISH_PREFIX)[-1].strip()), 20)
+                        clinical, _, explanation = result[key].partition(
+                            clinical_engine.PLAIN_PARAGRAPH_SEPARATOR
+                        )
+                        self.assertTrue(clinical.strip())
+                        self.assertTrue(explanation.strip())
+                        self.assertTrue(result[key].rstrip().endswith("."))
+                        self.assertGreater(len(explanation.strip()), 20)
+                        # No label: the explanation is simply the second paragraph.
+                        self.assertNotIn("In plain English", result[key])
 
-    def test_the_model_cannot_replace_the_plain_english_closing_line(self):
+    def test_the_model_cannot_replace_the_explanation_paragraph(self):
         without = self._synthesize(None)
         with_model = self._synthesize(self.MODEL_REPLY)
 
@@ -914,7 +991,7 @@ class ScoreOwnershipTests(unittest.TestCase):
         self.assertEqual(self._plain_tails(with_model), self._plain_tails(without))
         self.assertNotIn("model", self._plain_tails(with_model)["autonomic_nervous_analysis"])
 
-    def test_the_plain_english_line_restates_this_runs_measurements(self):
+    def test_the_explanation_paragraph_restates_this_runs_measurements(self):
         recovered = self._synthesize(None, hrv_last_night=60.0)
         suppressed = self._synthesize(None, hrv_last_night=40.0)
 
@@ -1055,13 +1132,13 @@ class PayloadAssemblyTests(unittest.TestCase):
         self.assertEqual(payload["data_quality"]["metrics"]["circadian"]["source"], "live")
         self.assertEqual(datetime.fromisoformat(payload["updated_at"]).utcoffset(), timedelta(0))
 
-    def test_every_published_analysis_paragraph_ends_in_plain_english(self):
+    def test_every_published_analysis_paragraph_carries_its_explanation(self):
         """The reader's takeaway ships inside the paragraph, not as a spare field."""
         intel = sync.build_payload(self.client, self.fetched, self._dq())["clinical_intelligence"]
 
         for key in clinical_engine.NARRATIVE_KEYS:
             with self.subTest(key=key):
-                self.assertIn(clinical_engine.PLAIN_ENGLISH_PREFIX, intel[key])
+                self.assertIn(clinical_engine.PLAIN_PARAGRAPH_SEPARATOR, intel[key])
         self.assertNotIn("plain_english", intel)
 
     def test_publish_gate_refuses_to_ship_fallen_back_core_metrics(self):

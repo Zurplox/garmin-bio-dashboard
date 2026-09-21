@@ -69,7 +69,7 @@ Values that are *models* rather than measurements are labelled as such: **Day St
 | Sleep need & bedtime | derived | baseline 7h30m + debt paydown + strain need, rendered as a 12-hour clock |
 | Day strain, readiness, injury risk | derived | thresholds in `bio_policy.py`, models in `bio_analytics.py` |
 | Recovery score, readiness, bands | derived by the rule engine | always computed from the measurements above; the optional model cannot change them |
-| AI clinical narrative | Gemini (optional) | prose only; the UI discloses which engine wrote the words, and each paragraph closes with a rule-written `In plain English:` sentence |
+| AI clinical narrative | Gemini (optional) | prose only; the UI discloses which engine wrote the words, and the rule engine always publishes the everyday-words explanation as the paragraph beneath it |
 | Workout feed | device | normalised into Running / Walking / Cycling / Gym |
 | Blood oxygen (SpO₂) | device Pulse Ox | sparse by nature — the card publishes `days_recorded` out of the 120-day window beside the reading, because an on-demand sensor is not a nightly average |
 | Location & travel | device activity records | the most-logged location is "home"; anywhere else is listed as travel with sessions and dates. No location is assumed |
@@ -105,6 +105,25 @@ prescription (Vesterinen 2016), sleep extension (Mah 2011) and sleep regularity
 fluid replacement (ACSM 2007) and the WHO activity floor. Each anchor publishes what
 the study found **and what it does not settle**, so a recommendation can be argued
 with rather than merely obeyed.
+
+## 🎛️ Instruments you can point at
+
+The **Load, Movement & Consistency** section turns three readings into things you can
+interrogate with a pointer or the Tab key.
+
+- **Workload balance dial** — the four ACWR bands, drawn on the exact ratios that
+  separate them, with the needle on today's ratio. Hovering or focusing an arc reads
+  its range and policy's own plain-English meaning for it. The edges, the tones and
+  the wording all arrive in the payload, so the arc you can see is the band the badge
+  and the coach are reading.
+- **Today's movement ring** — today's steps against the goal your own device set,
+  with floors, active calories and this week's intensity minutes beside it. A day with
+  no step count yet reads `--`, because "not measured" and "measured nothing" are
+  different claims.
+- **Training consistency** — one cell per day for the last 120, filled by the minutes
+  the device logged. Hover or tab to a day to read its date, session count and
+  activity types; a blank cell means no session was logged, not that the day was bad
+  for you.
 
 ## 🧱 Code structure
 
@@ -239,6 +258,17 @@ python -m http.server 8971 --bind 127.0.0.1   # then open http://127.0.0.1:8971
 * **Ordering is decided where the windows are.** Positional windows ("the last 30 days") are sliced inside `bio_analytics`, and `latest_record()` replaces `list[-1]` assumptions in the orchestrator.
 * **Prose no longer asserts unmeasured numbers.** The rule engine's verdicts were rebuilt from measured values: the hard-coded "Peak 5-minute HRV reached 89 ms", the fixed "+4.3 years younger" advantage, a literal 22:15 wind-down, and the model's own sleep-stress wording were all removed.
 * **Visible defect fixed:** the monthly RHR callout rendered `2026-09 (undefined)` because the payload never carried a `year` field.
+
+---
+
+## 🗣️ Plain-language & motion pass — 2026-09-21
+
+* **The explanation is now a paragraph, not a label.** Every analysis ships as the clinical paragraph followed by a rule-written explanation underneath it (`PLAIN_PARAGRAPH_SEPARATOR`), and the page renders the two with **no "In plain English:" prefix** anywhere in the UI. A reader who does not know the vocabulary meets the plain version automatically, and a model still cannot drop it.
+* **Written for a person, not a clinician.** First mention carries the long form in brackets (*Overnight HRV (Heart Rate Variability)*); each analysis card carries a one-line subtitle saying what it is about; the quadrant chart explains what resting heart rate and heart rate variability mean and why the two are read together; the quadrant callout now shows the scientific description *and* an everyday sentence.
+* **Today leads the quadrant chart.** The legend sorts *Today (Latest)* first, its node is drawn larger, and the note under the chart opens with tonight's coordinates before it explains the axes — previously today was the last legend entry and the reading was buried in the text.
+* **The page moves when you reach it.** `playVisuals()` replays every growing visual the first time it hits the fold: dials close, the movement ring draws itself, the battery refuels, the stress and injury bars fill, and every chart plots its points on arrival instead of animating off-screen. A scroll-position sweep is used rather than an intersection threshold, because a fast flick could otherwise skip a gauge and leave it showing an empty dial — a value that was never measured.
+* **Nothing is recomputed for motion.** Each element is already drawn at its real value; the layer only re-applies it. `prefers-reduced-motion` skips the whole layer, cards are never briefly invisible, and the hidden start state only exists once the script has marked the page motion-live.
+* **iOS-style touch feedback.** Cards and sections rise into place with a staggered ease, and every button presses in and springs back.
 
 ---
 
