@@ -332,6 +332,7 @@ def build_today_snapshot(today_str, sleep_record, hrv_record, recent_rhr, body_b
     hrv_record = hrv_record or {}
     latest_rhr_record = max(recent_rhr, key=lambda r: r.get("calendarDate") or "") if recent_rhr else None
     rhr_today = latest_rhr_record["value"] if latest_rhr_record is not None else 51.0
+    rhr_tier = policy.rhr_tier(rhr_today)
 
     stress_avg = daily_summary.get("stress_avg", 15)
     if stress.get("average") is not None:
@@ -354,6 +355,11 @@ def build_today_snapshot(today_str, sleep_record, hrv_record, recent_rhr, body_b
         "hrv_baseline_low": hrv_record.get("baseline", {}).get("balancedLow", 54),
         "hrv_baseline_high": hrv_record.get("baseline", {}).get("balancedUpper", 73),
         "rhr": rhr_today,
+        # The tier arrives resolved so the badge beside the number cannot drift
+        # from the measurement the way a fixed label did.
+        "rhr_tier": rhr_tier,
+        "rhr_tier_label": policy.RHR_TIERS[rhr_tier]["badge"],
+        "rhr_tier_tone": policy.RHR_TIERS[rhr_tier]["tone"],
         "body_battery_charged": body_battery.get("charged", 38),
         "body_battery_drained": body_battery.get("drained", 0),
         "stress_avg": stress_avg,

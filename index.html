@@ -1045,7 +1045,7 @@
           <div class="flex items-baseline gap-2">
             <span id="kpiRhrValue" class="text-3xl font-extrabold text-white mono">51</span>
             <span class="text-xs text-slate-400 font-medium">bpm</span>
-            <span class="ml-auto text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-semibold">ATHLETIC</span>
+            <span id="kpiRhrTier" class="ml-auto text-xs px-2 py-0.5 rounded bg-slate-500/10 text-slate-400 font-semibold">--</span>
           </div>
           <div class="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400 flex justify-between">
             <span>30d Avg: <strong id="kpiRhr30d" class="text-slate-200">49.8 bpm</strong></span>
@@ -2359,6 +2359,15 @@
 
       document.getElementById("kpiRhrValue").textContent = Math.round(today.rhr || 51);
       document.getElementById("infoRhrValue").textContent = Math.round(today.rhr || 51);
+
+      // The tier badge belongs to policy, not markup: it reads the label and tone
+      // the engine resolved for this reading, so a 45 or a 62 bpm value can no
+      // longer sit beside a fixed "ATHLETIC".
+      const rhrTierEl = document.getElementById("kpiRhrTier");
+      const rhrTierTone = today.rhr_tier_tone || "emerald";
+      rhrTierEl.textContent = today.rhr_tier_label || "--";
+      rhrTierEl.className =
+        `ml-auto text-xs px-2 py-0.5 rounded bg-${rhrTierTone}-500/10 text-${rhrTierTone}-400 font-semibold`;
       document.getElementById("kpiRhr30d").textContent = `${baselines.rhr_30d || 49.8} bpm`;
       document.getElementById("kpiRhrAllTime").textContent = `${baselines.rhr_all_time || 50.0} bpm`;
 
