@@ -20,7 +20,7 @@ A comprehensive, plain-English reference manual for Harvin's personal bio-intell
 
 ### 1. 🧠 Daily Briefing
 * **What it is:** A personalized daily executive briefing combining your overnight sleep, recovery, stress, and workload trends. The narrative paragraphs can be written by Google Gemini AI when a key is configured; the **Recovery and Readiness numbers inside it are always computed by the deterministic rule engine** from your own measured baselines. The badge above the briefing names which engine wrote the words, and reads `Deterministic rule engine` when no model key is present.
-* **Read the last sentence of each paragraph first.** Every analysis paragraph — whether the rule engine or Gemini wrote it — ends with a sentence beginning **`In plain English:`** that restates the same finding in everyday words, written by the rule engine from your own measurements. The clinical sentences above it carry the detail and the exact figures; the closing sentence is what it means for today. Example: *"Autonomic tone is Below Baseline… **In plain English: your overnight recovery signal reads 52 ms against your own 30-day average of 55.1 ms, so this is an ordinary day-to-day dip — train as planned, but do not chase a personal best.**"*
+* **Read the second paragraph of each analysis first.** Every analysis — whether the rule engine or Gemini wrote it — is published as two paragraphs: the clinical one, then an explanation in everyday words directly beneath it, written by the rule engine from your own measurements. There is no label between them; the plain half is simply the paragraph below, so you never have to know the vocabulary to get the verdict. Example: *"Autonomic tone is Below Baseline: overnight heart rate variability (HRV) averaged 52 ms (-5.6% versus your 30-day baseline of 55.1 ms and 6-month baseline of 58.8 ms)…"* followed by *"Your overnight recovery signal reads 52 ms against your own 30-day average of 55.1 ms, so this is an ordinary day-to-day dip — train as planned, but do not chase a personal best."*
 * **Why it matters:** Because the numbers never come from the model, the same overnight data always produces the same score, zone and training advice — a missing or failed model call changes the prose, never the verdict. The plain-English sentence is written by the rules for the same reason, so a dense or abstract model paragraph still ends with your takeaway.
 * **How to read it:** Scan the greeting and the 4 status indicators (Recovery, HRV, Readiness, Injury Risk). Green indicates primed capacity; amber signals moderate fatigue; red indicates required rest.
 
@@ -123,7 +123,8 @@ A comprehensive, plain-English reference manual for Harvin's personal bio-intell
 ---
 
 ### 13. 📊 2D Autonomic Nervous System Quadrant Matrix
-* **What it is:** A 186-night scatter plot mapping overnight HRV (vertical Y-axis) against Resting Heart Rate (horizontal X-axis).
+* **What it is:** A 186-night scatter plot mapping overnight HRV (vertical Y-axis) against Resting Heart Rate (horizontal X-axis). The legend leads with **Today (Latest)** and the sentence under the chart opens with tonight's coordinates, so the reading you came for is the first thing on screen rather than one dot lost in the cloud. Hover or touch any node for that night's numbers.
+* **Why these two together:** RHR (resting heart rate — your pulse while still) says how hard your heart works at rest; HRV (heart rate variability — how much the gap between beats varies) says how much recovery your nervous system got. Lower RHR and higher HRV normally mean a stronger, better-recovered system. When both move the wrong way at once — HRV down *and* RHR up — that is the combination that tends to appear before illness, a stretch of heavy training, or broken sleep. Read against your own 30-day baselines (the dashed lines), not against other people.
 * **The 4 Recovery Quadrants:**
   * 🟢 **Q1: Peak Recovery (Top-Left):** High HRV + Low RHR. Nervous system relaxed, cardiovascular load low. Prime training state (84+ nights).
   * 🟡 **Q2: Cardiovascular Arousal (Top-Right):** High HRV + Elevated RHR. High autonomic tone with metabolic/thermal afterburn.
@@ -190,6 +191,32 @@ A comprehensive, plain-English reference manual for Harvin's personal bio-intell
 * **Which card wins today** is a stated policy order (recovery → sleep → strength → endurance → hiking → walking) applied after urgency, so a red morning or a dangerous load ratio always outranks a volume target.
 
 ---
+
+### 21. 🎛️ Load, Movement & Consistency (Interactive Instruments)
+
+Three readings you can point at. Hover an arc, a cell or a day — or reach it with the
+Tab key — and the panel under it says what you are looking at in words.
+
+Everything that grows on this page — a dial closing, the movement ring drawing
+itself, the battery refuelling, a bar filling, a chart plotting its points — animates
+the first time it reaches your screen rather than finishing off-screen while the page
+loads. No value is recalculated to do that: each visual is already drawn at its real
+number and the motion simply replays it. If your device is set to reduce motion,
+nothing animates, cards are never briefly invisible, and every value is simply there.
+
+* **Workload balance dial** — a half-dial showing the four ACWR bands on the exact
+  ratios that separate them, with a needle on today's ratio. Pointing at a band tells
+  you its range and what it means for training, in plain English, from the same
+  policy the badge and the coach use. If no ratio was published, the dial draws no
+  bands and says so instead of pointing at a guess.
+* **Today's movement ring** — today's steps against the goal your device set, with
+  floors, active calories and this week's moderate-intensity minutes against the
+  150-minute floor. The ring stays empty and the centre reads `--` when no step count
+  has arrived yet: "not measured" is not the same as zero.
+* **Training consistency grid** — one cell per day for the last 120 days, shaded by
+  how many minutes the device logged that day. Read a day by hovering or tabbing to
+  it: date, number of sessions, total minutes and the activity types. A blank cell is
+  a day with no logged session — not a verdict about the day.
 
 ## ⌨️ Dashboard Hotkeys & Navigation
 

@@ -208,6 +208,9 @@ RHR_TIERS = {
 ACWR_SWEET_MIN = 0.8
 ACWR_SWEET_MAX = 1.3
 ACWR_SAFE_MAX = 1.5
+# The top of the dial the dashboard draws. A display scale, not a threshold: the
+# four bands are laid out across it so the picture and the verdict agree.
+ACWR_DIAL_MAX = 2.0
 
 ACWR_BANDS = {
     "under": {
@@ -705,6 +708,25 @@ def hrv_band_fields(hrv, baseline):
     }
 
 
+def acwr_band_ranges():
+    """The band edges the dial draws, derived from the thresholds above.
+
+    The dashboard draws the bands rather than comparing against them, so the edges
+    travel with the label, the tone and the plain-English meaning: the picture, the
+    badge and the paragraph can only ever describe the same band.
+    """
+    edges = (
+        ("under", 0.0, ACWR_SWEET_MIN),
+        ("sweet", ACWR_SWEET_MIN, ACWR_SWEET_MAX),
+        ("high", ACWR_SWEET_MAX, ACWR_SAFE_MAX),
+        ("danger", ACWR_SAFE_MAX, ACWR_DIAL_MAX),
+    )
+    return [
+        {"key": key, "from": low, "to": high, **ACWR_BANDS[key]}
+        for key, low, high in edges
+    ]
+
+
 def acwr_band(acwr):
     """The ACWR band key for a ratio."""
     if acwr < ACWR_SWEET_MIN:
@@ -731,4 +753,7 @@ def policy_snapshot():
     return {
         "day_strain": {"scale_max": DAY_STRAIN_SCALE_MAX},
         "freshness": {"stale_after_hours": STALE_AFTER_HOURS},
+        # The dial's scale and band edges, for drawing only. Which band a ratio is
+        # in still arrives resolved, so the browser never compares against these.
+        "acwr": {"scale_max": ACWR_DIAL_MAX, "bands": acwr_band_ranges()},
     }

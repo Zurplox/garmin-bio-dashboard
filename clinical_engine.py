@@ -196,10 +196,11 @@ NARRATIVE_KEYS = (
     "workload_and_biological_age",
 )
 
-# Marks the sentence that restates the paragraph above it in everyday words. The
-# rules write it, never the model, so the reader's verdict is the same whichever
-# engine wrote the clinical half.
-PLAIN_ENGLISH_PREFIX = "In plain English:"
+# Separates a clinical paragraph from the everyday-words explanation that
+# follows it. The rules write the explanation, never the model, so the reader's
+# takeaway is the same whichever engine wrote the clinical half. The page renders
+# the two halves as separate paragraphs and labels neither of them.
+PLAIN_PARAGRAPH_SEPARATOR = "\n\n"
 
 
 def narrative_overlay(ai_result, verdict):
@@ -339,7 +340,7 @@ def deterministic_engine(today, baselines, fitness, context=None):
     "+4.3 years younger" advantage, a fixed 22:15 wind-down) even when the
     measurements said otherwise.
 
-    Each paragraph is paired with a plain-English restatement under
+    Each paragraph is paired with an everyday-words restatement under
     `plain_english`, which `synthesize` appends after the prose so the reader's
     takeaway survives a Gemini overlay.
     """
@@ -373,7 +374,8 @@ def deterministic_engine(today, baselines, fitness, context=None):
     sleep_verdict = (
         f"Sleep architecture shows Deep Sleep at {deep_pct:.1f}% "
         f"({deep_sec // 3600}h {(deep_sec % 3600) // 60}m) -- {deep_verdict} your 6-month baseline "
-        f"of {deep_base}% for muscular and tissue repair. REM Sleep logged at {rem_pct:.1f}% "
+        f"of {deep_base}% for muscular and tissue repair. REM Sleep (the dreaming stage that "
+        f"consolidates memory) logged at {rem_pct:.1f}% "
         f"({rem_sec // 3600}h {(rem_sec % 3600) // 60}m), {rem_verdict} the 16% reference, with "
         f"{sleep_debt_minutes} min of debt against the {policy.TARGET_SLEEP_HOURS:g}h target. "
         f"Nightly stress at {sleep_stress}/100."
@@ -387,7 +389,7 @@ def deterministic_engine(today, baselines, fitness, context=None):
     else:
         sleep_plain_debt = "You reached your sleep-length target, so nothing here needs fixing tonight."
     sleep_plain = (
-        f"{PLAIN_ENGLISH_PREFIX} you slept {sleep_hours:.1f} hours. Deep tissue-repair sleep was "
+        f"You slept {sleep_hours:.1f} hours. Deep tissue-repair sleep was "
         f"{deep_pct:.1f}% of the night, {deep_verdict} your {_trim(deep_base)}% baseline, and "
         f"memory-forming REM sleep was {rem_pct:.1f}%, {rem_verdict} the 16% reference. "
         f"{sleep_plain_debt}"
@@ -401,13 +403,14 @@ def deterministic_engine(today, baselines, fitness, context=None):
     # below baseline, which is both alarming and a second name for a -5% dip.
     autonomic_verdict = (
         f"Autonomic tone is {hrv_label}: "
-        f"overnight HRV averaged {hrv} ms ({delta_hrv_pct:+.1f}% versus your 30-day baseline of "
-        f"{hrv_base} ms and 6-month baseline of {baselines.get('hrv_180d')} ms), against a normal "
-        f"physiological band of {hrv_corridor[0]}-{hrv_corridor[1]} ms. Resting heart rate moved "
+        f"overnight heart rate variability (HRV) averaged {hrv} ms ({delta_hrv_pct:+.1f}% versus "
+        f"your 30-day baseline of {hrv_base} ms and 6-month baseline of "
+        f"{baselines.get('hrv_180d')} ms), against a normal physiological band of "
+        f"{hrv_corridor[0]}-{hrv_corridor[1]} ms. Resting heart rate (RHR) moved "
         f"{delta_rhr:+.1f} bpm versus its 30-day baseline."
     )
     autonomic_plain = (
-        f"{PLAIN_ENGLISH_PREFIX} your overnight recovery signal reads {_trim(hrv)} ms against your "
+        f"Your overnight recovery signal reads {_trim(hrv)} ms against your "
         f"own 30-day average of {_trim(hrv_base)} ms, so {policy.HRV_BANDS[hrv_band]['plain']}."
     )
 
@@ -430,7 +433,7 @@ def deterministic_engine(today, baselines, fitness, context=None):
     else:
         age_phrase = "the same as"
     workload_plain = (
-        f"{PLAIN_ENGLISH_PREFIX} your recent training load sits in the "
+        f"Your recent training load sits in the "
         f"{policy.ACWR_BANDS[acwr_key]['label']} band: {policy.ACWR_BANDS[acwr_key]['plain']}. "
         f"Your measured fitness age is {age_phrase} your real age of {chrono_age}."
     )
@@ -498,17 +501,18 @@ def _trim(value):
     return f"{number:g}" if number is not None else "--"
 
 
-def close_with_plain_english(verdict, plain):
-    """End each analysis paragraph with the rule-owned plain-English sentence.
+def close_with_plain_paragraph(verdict, plain):
+    """Follow each analysis paragraph with the rule-owned explanation.
 
-    The clinical prose (model-written or rule-written) sits above that sentence
-    and never replaces it, so a reader who does not know the vocabulary always
-    gets the same verdict in words they use themselves.
+    The clinical prose (model-written or rule-written) stays as the first
+    paragraph and the explanation is appended after it as a second one, never
+    replacing it, so a reader who does not know the vocabulary always gets the
+    same verdict in words they use themselves.
     """
     for key, sentence in plain.items():
         paragraph = verdict.get(key)
         if isinstance(paragraph, str) and paragraph.strip():
-            verdict[key] = f"{paragraph.strip()} {sentence}"
+            verdict[key] = f"{paragraph.strip()}{PLAIN_PARAGRAPH_SEPARATOR}{sentence}"
     return verdict
 
 
@@ -518,20 +522,20 @@ def synthesize(today, baselines, fitness, context=None):
     The deterministic verdict is computed first and always, so the published
     score, band, tone, zone and illness risk are identical with and without a
     model key; Gemini is asked second and merged over it as narrative only. Each
-    analysis paragraph is then closed with the rule-owned plain-English sentence,
-    so the reader gets everyday words whichever engine wrote the clinical half.
+    analysis paragraph is then followed by the rule-owned explanation, so the
+    reader gets everyday words whichever engine wrote the clinical half.
     """
     verdict = deterministic_engine(today, baselines, fitness, context)
     plain = verdict.pop("plain_english")
 
     ai_result = query_gemini_api(today, baselines, fitness, context)
     if not ai_result:
-        return close_with_plain_english(verdict, plain)
+        return close_with_plain_paragraph(verdict, plain)
 
     overlay = narrative_overlay(ai_result, verdict)
     if overlay is None:
         print("   ⚠️ Gemini returned no usable narrative; keeping the deterministic verdict.")
-        return close_with_plain_english(verdict, plain)
+        return close_with_plain_paragraph(verdict, plain)
 
     model_score = overlay.get("model_score")
     if model_score is not None and model_score != verdict["recovery_score"]:
@@ -539,4 +543,4 @@ def synthesize(today, baselines, fitness, context=None):
             f"   ℹ️ Model scored recovery {model_score} vs rule-based "
             f"{verdict['recovery_score']}; publishing the rule-based score."
         )
-    return close_with_plain_english({**verdict, **overlay}, plain)
+    return close_with_plain_paragraph({**verdict, **overlay}, plain)

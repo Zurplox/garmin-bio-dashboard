@@ -39,12 +39,12 @@ as `null` and renders as `--`, and the narrative is forbidden from assuming it.
 | Arithmetic (baselines, windows, strain, sleep need, readiness, injury risk) | `bio_analytics.py` | Pure functions: values in, values out. No I/O, no environment, no provenance. Also decides positional windows ("last 30 days") and which record is latest. |
 | Garmin access (auth, endpoints, parsing into records) | `garmin_source.py` | The only module that performs Garmin I/O. Records live/fallback provenance as it fetches. |
 | Live/fallback bookkeeping and the publish decision | `provenance.py` | `DataQuality.publishable()` is the gate; the orchestrator consults it, nothing else decides. |
-| Clinical synthesis | `clinical_engine.py` | The rule engine is the **only** author of the recovery score and of everything derived from it (band, tone, zone, readiness inputs, illness risk level, training target); Gemini is merged on top as narrative and its own score is kept as `model_score`, never published. Every analysis paragraph closes with a rule-written plain-English restatement (`PLAIN_ENGLISH_PREFIX`), appended by `synthesize()` after whichever engine wrote the prose. Band meanings in plain words live on the band itself in `bio_policy.py`. Returns meaning, never layout or colour classes. |
+| Clinical synthesis | `clinical_engine.py` | The rule engine is the **only** author of the recovery score and of everything derived from it (band, tone, zone, readiness inputs, illness risk level, training target); Gemini is merged on top as narrative and its own score is kept as `model_score`, never published. Every analysis is published as **two paragraphs** -- the clinical one, then a rule-written explanation in everyday words -- joined by `PLAIN_PARAGRAPH_SEPARATOR` and appended by `synthesize()` after whichever engine wrote the clinical half. The page splits them and renders the explanation underneath with no label, so the reader always meets it and a model can never drop it. Band meanings in plain words live on the band itself in `bio_policy.py`. Returns meaning, never layout or colour classes. |
 | Relationships between the athlete's daily channels | `bio_correlate.py` | Pure Pearson and comparison logic over series that were already measured. Curated pairs only, with a floor on paired days and coefficient magnitude, so nothing is published that its own thresholds call noise. Also decides home/away from device-logged locations. |
 | Prescriptions — what to do about the numbers | `bio_coach.py` | Pure rules over already-measured sessions, steps, nights and readings. One card per training domain, each with the reading, the action, the progression, the guard-off and the studies behind it; a domain with no measured history publishes no prescription. Personal patterns need a floor on paired days, and they compare the hard side with the quiet side rather than reporting one of them. |
 | The run itself (fetch → analyse → publish → report) | `sync.py` | Wires the modules, assembles the payload envelope (`updated_at`, `athlete`, `history`, `policy`), writes `data/biometrics.json`, prints the summary. |
 | Payload encryption and status file | `encrypt_data.py` | Standalone; reads the pipeline's JSON, never imports the pipeline. |
-| Rendering and interaction | `index.html` | Consumes resolved bands/tones from the payload. The only decisions it makes are layout, and the only colours are `TONE_STROKE` / `badgeClass()` fed by the engine's tones. |
+| Rendering and interaction | `index.html` | Consumes resolved bands/tones from the payload. The only decisions it makes are layout, and the only colours are `TONE_STROKE` / `badgeClass()` fed by the engine's tones. Also owns presentation-only motion: `playVisuals()` replays a gauge, ring, bar or chart the first time it reaches the fold, and it never computes a value -- it re-applies whatever the render pass already wrote. |
 
 ## Manual refresh
 
@@ -73,6 +73,16 @@ If a new derived metric is needed, add it in `bio_analytics` (with its band in
 `bio_policy`) and ship it resolved. Do not add a threshold ladder to the
 frontend: that is how the page once displayed a recovery score of 68 labelled
 "YELLOW" while its own prose called the same zone green.
+
+## Inside the page
+
+`index.html` is one file with three separable layers, in this order:
+
+* **Markup** — the sections and cards, each with an ⓘ button that opens through the shared `toggleInfo()` helper. Copy is written for a reader who is not a clinician: the scientific name stays (HRV, RHR, ACWR) and the everyday meaning sits beside it, with the long form in brackets at first mention ("Overnight HRV (Heart Rate Variability)") and the why-it-matters sentence under the term rather than behind a click.
+* **Render** — `renderDashboard(data)` walks the payload once and writes every value; each `render*` or `update*` helper owns one card. Values, bands and tones arrive resolved, so nothing here compares a metric with a threshold of its own.
+* **Motion** — `playVisuals()`, called at the end of `renderDashboard`, replays gauges, rings, bars and charts the first time they reach the fold. It reads each element's already-rendered target and re-applies it, so no value is computed twice and a re-render never animates a number the engine did not publish. `vizPlayed` keeps a replay to once per element; `motion-live` (added only when motion is allowed) is what arms the hidden start state, so a reduced-motion reader or a JavaScript-less load sees final values and no invisible cards.
+
+Analysis prose is split on `PLAIN_PARAGRAPH_SEPARATOR` into the clinical paragraph and the explanation beneath it; `asSentence()` stands policy's lowercase clauses alone on the lines that no longer carry an "In plain English:" label.
 
 ## Tests
 
