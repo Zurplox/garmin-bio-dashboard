@@ -565,44 +565,76 @@ class RhrTierTests(unittest.TestCase):
 class StatusToneTests(unittest.TestCase):
     """A status badge's colour is policy's reading of Garmin's word, not markup's.
 
-    The HRV and ACWR badges wrote their text from the render pass but kept their
-    colour in the markup, so an UNBALANCED or LOW reading arrived emerald -- a
-    word and a colour that disagreed.
+    The ACWR badge wrote its text from the render pass but kept its colour in the
+    markup, so a LOW reading arrived cyan-by-accident and any other word would not
+    have re-toned at all.
     """
 
-    def test_known_words_get_their_policy_tone(self):
-        for table in (policy.HRV_STATUS_TONES, policy.ACWR_STATUS_TONES):
-            for word, tone in table.items():
-                with self.subTest(word=word):
-                    self.assertEqual(policy.status_tone(word, table), tone)
-                    self.assertIn(tone, policy.TONE_NAMES)
+    def test_known_acwr_words_get_their_policy_tone(self):
+        for word, tone in policy.ACWR_STATUS_TONES.items():
+            with self.subTest(word=word):
+                self.assertEqual(policy.status_tone(word, policy.ACWR_STATUS_TONES), tone)
+                self.assertIn(tone, policy.TONE_NAMES)
 
-    def test_unknown_or_missing_words_are_not_reassuring(self):
-        for table in (policy.HRV_STATUS_TONES, policy.ACWR_STATUS_TONES):
-            for word in (None, "", "   ", "SOMETHING_NEW"):
-                with self.subTest(word=word):
-                    self.assertEqual(policy.status_tone(word, table), policy.UNKNOWN_STATUS_TONE)
+    def test_unknown_or_missing_acwr_words_are_not_reassuring(self):
+        for word in (None, "", "   ", "SOMETHING_NEW"):
+            with self.subTest(word=word):
+                self.assertEqual(
+                    policy.status_tone(word, policy.ACWR_STATUS_TONES),
+                    policy.UNKNOWN_STATUS_TONE,
+                )
         self.assertNotEqual(policy.UNKNOWN_STATUS_TONE, "green")
 
     def test_case_and_padding_do_not_change_the_meaning(self):
-        self.assertEqual(policy.status_tone(" balanced ", policy.HRV_STATUS_TONES), "green")
         self.assertEqual(policy.status_tone("very_high", policy.ACWR_STATUS_TONES), "rose")
 
-    def test_snapshot_publishes_the_tone_for_the_status_word_it_ships(self):
-        for word, expected in (("BALANCED", "green"), ("UNBALANCED", "amber"),
-                               ("LOW", "rose"), ("HIGH", "cyan"), ("NEW_WORD", "amber")):
-            with self.subTest(status=word):
-                hrv_record = {**make_hrv("2026-09-20", 1)[0], "status": word}
-                snapshot = source.fetch_today_snapshot(
-                    FakeClient(summary={"totalSteps": 8000, "averageStressLevel": 20}),
-                    "2026-09-20", make_sleep("2026-09-20"), hrv_record,
-                    make_rhr("2026-09-20", 1),
-                )
-                self.assertEqual(snapshot["hrv_status"], word)
-                self.assertEqual(
-                    snapshot["hrv_status_tone"],
-                    policy.status_tone(word, policy.HRV_STATUS_TONES),
-                )
+    def test_the_snapshot_keeps_garmins_word_as_context_only(self):
+        """HRV used to carry a second, word-keyed meaning alongside the band."""
+        hrv_record = {**make_hrv("2026-09-20", 1)[0], "status": "UNBALANCED"}
+        snapshot = source.fetch_today_snapshot(
+            FakeClient(summary={"totalSteps": 8000, "averageStressLevel": 20}),
+            "2026-09-20", make_sleep("2026-09-20"), hrv_record,
+            make_rhr("2026-09-20", 1),
+        )
+        self.assertEqual(snapshot["hrv_status"], "UNBALANCED")
+        self.assertNotIn("hrv_status_tone", snapshot)
+
+
+class HrvSingleMeaningTests(unittest.TestCase):
+    """The badge, the Autonomic row, the pillar dot and the quadrant all read the band.
+
+    Before this, one 52 ms reading was shown as "BALANCED" in green by the badge and
+    as below-baseline amber by every other surface, because the badge keyed on
+    Garmin's own status word instead of the athlete's 30-day baseline.
+    """
+
+    def _hrv_pillar(self, hrv, baseline):
+        fitbit = analytics.calculate_fitbit_metrics(
+            make_today(hrv_last_night=hrv), make_baselines(hrv_30d=baseline), make_fitness()
+        )
+        return [p for p in fitbit["health_metrics_5_pillars"] if p["key"] == "hrv"][0]
+
+    def test_every_band_carries_a_label_from_the_tone_vocabulary(self):
+        for band, entry in policy.HRV_BANDS.items():
+            with self.subTest(band=band):
+                self.assertIn(entry["tone"], policy.TONE_NAMES)
+                self.assertTrue(entry["label"])
+
+    def test_the_pillar_publishes_the_band_the_reading_implies(self):
+        for hrv, band in ((60.0, "above"), (52.0, "near"), (40.0, "below")):
+            with self.subTest(hrv=hrv):
+                pillar = self._hrv_pillar(hrv, 56.0)
+                self.assertEqual(pillar["status"], policy.HRV_BANDS[band]["label"])
+                self.assertEqual(pillar["status_color"], policy.HRV_BANDS[band]["tone"])
+
+    def test_a_reading_below_baseline_can_never_read_resilient(self):
+        pillar = self._hrv_pillar(52.0, 56.0)
+        self.assertNotEqual(pillar["status"], policy.HRV_BANDS["above"]["label"])
+        self.assertEqual(pillar["status_color"], "amber")
+
+    def test_one_band_cannot_carry_two_different_labels(self):
+        labels = [entry["label"] for entry in policy.HRV_BANDS.values()]
+        self.assertEqual(len(labels), len(set(labels)))
 
 
 # ---------------------------------------------------------------------------
@@ -817,10 +849,14 @@ class PayloadAssemblyTests(unittest.TestCase):
             payload["today"]["rhr_tier_label"],
             policy.RHR_TIERS[payload["today"]["rhr_tier"]]["badge"],
         )
-        self.assertEqual(
-            payload["today"]["hrv_status_tone"],
-            policy.status_tone(payload["today"]["hrv_status"], policy.HRV_STATUS_TONES),
-        )
+        # HRV ships Garmin's word as context and exactly one band-derived meaning,
+        # which the pillar (and therefore the badge and the Autonomic row) reads.
+        self.assertIn("hrv_status", payload["today"])
+        self.assertNotIn("hrv_status_tone", payload["today"])
+        hrv_pillar = [p for p in payload["fitbit"]["health_metrics_5_pillars"] if p["key"] == "hrv"][0]
+        expected_band = policy.hrv_band(payload["today"]["hrv_last_night"], payload["baselines"]["hrv_30d"])
+        self.assertEqual(hrv_pillar["status"], policy.HRV_BANDS[expected_band]["label"])
+        self.assertEqual(hrv_pillar["status_color"], policy.HRV_BANDS[expected_band]["tone"])
         self.assertEqual(
             payload["fitness"]["acwr_status_tone"],
             policy.status_tone(payload["fitness"]["acwr_status"], policy.ACWR_STATUS_TONES),

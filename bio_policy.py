@@ -186,17 +186,10 @@ RHR_TIERS = {
     "elevated": {"badge": "ELEVATED", "tone": "rose"},
 }
 
-# Garmin reports a status *word* for these two badges; what that word means --
-# and therefore its colour -- is policy's, so the label and the tone beside it
-# are always the same decision. An unrecognised word is never reassuring.
+# Garmin reports a status *word* for the ACWR badge; what that word means -- and
+# therefore its colour -- is policy's, so the label and the tone beside it are
+# always the same decision. An unrecognised word is never reassuring.
 UNKNOWN_STATUS_TONE = "amber"
-
-HRV_STATUS_TONES = {
-    "BALANCED": "green",
-    "UNBALANCED": "amber",
-    "LOW": "rose",
-    "HIGH": "cyan",
-}
 
 # Garmin's training-load status ladder: LOW is the "fresh, safe to build" end.
 ACWR_STATUS_TONES = {
@@ -207,11 +200,15 @@ ACWR_STATUS_TONES = {
     "VERY_HIGH": "rose",
 }
 
-# Overnight HRV relative to the athlete's own 30-day baseline.
+# Overnight HRV relative to the athlete's own 30-day baseline. This band is the
+# only meaning HRV has: the KPI badge, the Autonomic State row, the pillar dot and
+# the quadrant matrix all read it, so no surface can call the same reading
+# healthy and strained at once. Garmin's own status word is context for the HRV
+# panel, never a second verdict that could outrank the band.
 HRV_BANDS = {
-    "above": {"tone": "green"},
-    "near": {"tone": "amber"},
-    "below": {"tone": "rose"},
+    "above": {"tone": "green", "label": "Resilient (Balanced)"},
+    "near": {"tone": "amber", "label": "Below Baseline"},
+    "below": {"tone": "rose", "label": "Suppressed"},
 }
 
 # Illness radar risk levels map onto the same tone vocabulary.
