@@ -991,7 +991,7 @@
           <div class="flex items-baseline gap-2">
             <span id="kpiAcwrVal" class="text-3xl font-extrabold text-white mono" data-quality-key="training_load">0.2</span>
             <span class="text-xs text-slate-400 font-medium">ratio</span>
-            <span id="kpiAcwrStatus" class="ml-auto text-xs px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 font-semibold">FRESH</span>
+            <span id="kpiAcwrStatus" class="ml-auto text-xs px-2 py-0.5 rounded bg-slate-500/10 text-slate-400 font-semibold">--</span>
           </div>
           <div class="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400 flex justify-between">
             <span>Acute: <strong id="kpiAcuteLoad" class="text-slate-200">44</strong></span>
@@ -1018,7 +1018,7 @@
           <div class="flex items-baseline gap-2">
             <span id="kpiHrvValue" class="text-3xl font-extrabold text-white mono">60</span>
             <span class="text-xs text-slate-400 font-medium">ms</span>
-            <span id="kpiHrvStatus" class="ml-auto text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-semibold">BALANCED</span>
+            <span id="kpiHrvStatus" class="ml-auto text-xs px-2 py-0.5 rounded bg-slate-500/10 text-slate-400 font-semibold">--</span>
           </div>
           <div class="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400 flex justify-between">
             <span>30d Baseline: <strong id="kpiHrvBaseline" class="text-slate-200">55.3 ms</strong></span>
@@ -2339,13 +2339,23 @@
         ? `${fitness.achievable_fitness_age} yrs`
         : "--";
       document.getElementById("kpiAcwrVal").textContent = fitness.acwr || "0.2";
-      document.getElementById("kpiAcwrStatus").textContent = fitness.acwr_status || "FRESH";
+      // Both status badges take their colour from the tone the engine resolved for
+      // Garmin's own status word, so the label and the colour are one decision.
+      const acwrStatusEl = document.getElementById("kpiAcwrStatus");
+      acwrStatusEl.textContent = fitness.acwr_status || "FRESH";
+      const acwrTone = fitness.acwr_status_tone || "slate";
+      acwrStatusEl.className =
+        `ml-auto text-xs px-2 py-0.5 rounded bg-${acwrTone}-500/10 text-${acwrTone}-400 font-semibold`;
       document.getElementById("infoAcwrValue").textContent = fitness.acwr ?? "--";
       document.getElementById("kpiAcuteLoad").textContent = fitness.acute_load || "44";
       document.getElementById("kpiChronicLoad").textContent = fitness.chronic_load || "219";
 
       document.getElementById("kpiHrvValue").textContent = today.hrv_last_night || 60;
-      document.getElementById("kpiHrvStatus").textContent = today.hrv_status || "BALANCED";
+      const hrvStatusEl = document.getElementById("kpiHrvStatus");
+      hrvStatusEl.textContent = today.hrv_status || "BALANCED";
+      const hrvStatusTone = today.hrv_status_tone || "slate";
+      hrvStatusEl.className =
+        `ml-auto text-xs px-2 py-0.5 rounded bg-${hrvStatusTone}-500/10 text-${hrvStatusTone}-400 font-semibold`;
       document.getElementById("kpiHrvBaseline").textContent = `${baselines.hrv_30d || 55.3} ms`;
       document.getElementById("kpiHrvRange").textContent = `${today.hrv_baseline_low || 54} - ${today.hrv_baseline_high || 73} ms`;
 

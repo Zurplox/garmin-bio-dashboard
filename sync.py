@@ -128,7 +128,14 @@ def build_payload(client, fetched, dq):
             "primary_device": fitness_data["device_name"],
         },
         "today": today_snapshot,
-        "fitness": fitness_data,
+        "fitness": {
+            **fitness_data,
+            # Garmin reports the ACWR status word; policy decides what it means, so
+            # the badge beside the ratio cannot keep a colour from the markup.
+            "acwr_status_tone": policy.status_tone(
+                fitness_data.get("acwr_status"), policy.ACWR_STATUS_TONES
+            ),
+        },
         "whoop": whoop_data,
         "fitbit": fitbit_data,
         "garmin_signature": garmin_sig,

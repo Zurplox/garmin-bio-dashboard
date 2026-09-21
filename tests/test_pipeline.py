@@ -562,6 +562,49 @@ class RhrTierTests(unittest.TestCase):
                 self.assertEqual(snapshot["rhr_tier_tone"], policy.RHR_TIERS[expected]["tone"])
 
 
+class StatusToneTests(unittest.TestCase):
+    """A status badge's colour is policy's reading of Garmin's word, not markup's.
+
+    The HRV and ACWR badges wrote their text from the render pass but kept their
+    colour in the markup, so an UNBALANCED or LOW reading arrived emerald -- a
+    word and a colour that disagreed.
+    """
+
+    def test_known_words_get_their_policy_tone(self):
+        for table in (policy.HRV_STATUS_TONES, policy.ACWR_STATUS_TONES):
+            for word, tone in table.items():
+                with self.subTest(word=word):
+                    self.assertEqual(policy.status_tone(word, table), tone)
+                    self.assertIn(tone, policy.TONE_NAMES)
+
+    def test_unknown_or_missing_words_are_not_reassuring(self):
+        for table in (policy.HRV_STATUS_TONES, policy.ACWR_STATUS_TONES):
+            for word in (None, "", "   ", "SOMETHING_NEW"):
+                with self.subTest(word=word):
+                    self.assertEqual(policy.status_tone(word, table), policy.UNKNOWN_STATUS_TONE)
+        self.assertNotEqual(policy.UNKNOWN_STATUS_TONE, "green")
+
+    def test_case_and_padding_do_not_change_the_meaning(self):
+        self.assertEqual(policy.status_tone(" balanced ", policy.HRV_STATUS_TONES), "green")
+        self.assertEqual(policy.status_tone("very_high", policy.ACWR_STATUS_TONES), "rose")
+
+    def test_snapshot_publishes_the_tone_for_the_status_word_it_ships(self):
+        for word, expected in (("BALANCED", "green"), ("UNBALANCED", "amber"),
+                               ("LOW", "rose"), ("HIGH", "cyan"), ("NEW_WORD", "amber")):
+            with self.subTest(status=word):
+                hrv_record = {**make_hrv("2026-09-20", 1)[0], "status": word}
+                snapshot = source.fetch_today_snapshot(
+                    FakeClient(summary={"totalSteps": 8000, "averageStressLevel": 20}),
+                    "2026-09-20", make_sleep("2026-09-20"), hrv_record,
+                    make_rhr("2026-09-20", 1),
+                )
+                self.assertEqual(snapshot["hrv_status"], word)
+                self.assertEqual(
+                    snapshot["hrv_status_tone"],
+                    policy.status_tone(word, policy.HRV_STATUS_TONES),
+                )
+
+
 # ---------------------------------------------------------------------------
 # Score ownership: the rules score, the model narrates
 # ---------------------------------------------------------------------------
@@ -773,6 +816,14 @@ class PayloadAssemblyTests(unittest.TestCase):
         self.assertEqual(
             payload["today"]["rhr_tier_label"],
             policy.RHR_TIERS[payload["today"]["rhr_tier"]]["badge"],
+        )
+        self.assertEqual(
+            payload["today"]["hrv_status_tone"],
+            policy.status_tone(payload["today"]["hrv_status"], policy.HRV_STATUS_TONES),
+        )
+        self.assertEqual(
+            payload["fitness"]["acwr_status_tone"],
+            policy.status_tone(payload["fitness"]["acwr_status"], policy.ACWR_STATUS_TONES),
         )
         self.assertEqual(payload["data_quality"]["metrics"]["circadian"]["source"], "live")
         self.assertEqual(datetime.fromisoformat(payload["updated_at"]).utcoffset(), timedelta(0))

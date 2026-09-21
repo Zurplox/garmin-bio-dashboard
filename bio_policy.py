@@ -186,6 +186,27 @@ RHR_TIERS = {
     "elevated": {"badge": "ELEVATED", "tone": "rose"},
 }
 
+# Garmin reports a status *word* for these two badges; what that word means --
+# and therefore its colour -- is policy's, so the label and the tone beside it
+# are always the same decision. An unrecognised word is never reassuring.
+UNKNOWN_STATUS_TONE = "amber"
+
+HRV_STATUS_TONES = {
+    "BALANCED": "green",
+    "UNBALANCED": "amber",
+    "LOW": "rose",
+    "HIGH": "cyan",
+}
+
+# Garmin's training-load status ladder: LOW is the "fresh, safe to build" end.
+ACWR_STATUS_TONES = {
+    "LOW": "cyan",
+    "OPTIMAL": "green",
+    "MODERATE": "green",
+    "HIGH": "amber",
+    "VERY_HIGH": "rose",
+}
+
 # Overnight HRV relative to the athlete's own 30-day baseline.
 HRV_BANDS = {
     "above": {"tone": "green"},
@@ -250,6 +271,16 @@ def body_battery_band(charged):
     if charged >= BODY_BATTERY_PARTIAL_MIN:
         return "partial"
     return "low"
+
+
+def status_tone(status, table):
+    """Colour for a status word that arrived from Garmin.
+
+    The word is Garmin's; the tone is this module's reading of it, so a badge can
+    never pair a reassuring word with an unrelated colour. Words the table does
+    not know are amber rather than green -- an unknown state is not a good state.
+    """
+    return table.get(str(status or "").strip().upper(), UNKNOWN_STATUS_TONE)
 
 
 def rhr_tier(value):
