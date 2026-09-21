@@ -9,7 +9,7 @@ A comprehensive, plain-English reference manual for Harvin's personal bio-intell
 * **Live URL:** [https://zurplox.github.io/garmin-bio-dashboard/](https://zurplox.github.io/garmin-bio-dashboard/)
 * **Standard Viewer Passphrase:** `Capybara` *(Auto-remembered in browser via Web Storage)*
 * **Emergency Master Lock Passphrase:** `Barabara` *(Administrative lockout)*
-* **Data Security:** Zero plaintext health data on GitHub. All biometrics are client-side encrypted using **AES-256-GCM** (PBKDF2 100,000 iterations). Decryption occurs exclusively in browser memory.
+* **Data Security:** Zero plaintext health data on GitHub. All biometrics are client-side encrypted using **AES-256-GCM** (PBKDF2-HMAC-SHA256, 600,000 iterations per OWASP's current guidance; the envelope records the cost it was written with and the browser honours that field). Decryption occurs exclusively in browser memory.
 * **Sync Frequency:** Synchronizes every morning at **08:00 AM SGT (00:00 UTC)** via GitHub Actions, with an automated 08:30 AM SGT retry buffer.
 
 ---
@@ -149,6 +149,7 @@ A comprehensive, plain-English reference manual for Harvin's personal bio-intell
 | `O` | Toggle RHR dual-axis overlay on the HRV chart |
 | `M` | Toggle tactile audio sound feedback |
 | `P` | Open one-click Clinical Report Print dialog (clean PDF styling) |
+| `R` | Refresh: re-read the published vault (and trigger a Garmin sync when a GitHub token is stored) |
 | `L` | Instantly lock vault and purge decrypted data from browser memory |
 | `ESC` | Dismiss any open modal |
 

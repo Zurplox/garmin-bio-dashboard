@@ -17,3 +17,6 @@ garmin_tokens.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Agent/tooling scratch state
+.freebuff/

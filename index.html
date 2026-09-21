@@ -75,6 +75,13 @@
     .animate-pulse-dot {
       animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     }
+    /* Refresh button spinner */
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .animate-spin-slow {
+      animation: spin 1s linear infinite;
+    }
     /* Clinical Report Print Styles */
     @media print {
       body {
@@ -82,7 +89,7 @@
         color: #0f172a !important;
         padding: 0 !important;
       }
-      .no-print, header button, #lockScreen, #masterLockModal, #floatingChartCallout, .filter-btn, #hrvOverlayBtn, .interactive-canvas-container + p, footer div {
+      .no-print, header button, #lockScreen, #masterLockModal, #refreshSettingsModal, #refreshToast, #floatingChartCallout, .filter-btn, #hrvOverlayBtn, .interactive-canvas-container + p, footer div {
         display: none !important;
       }
       #mainDashboard {
@@ -115,6 +122,18 @@
     }
     .print-clinical-header {
       display: none;
+    }
+    /* Marks any value derived from a fallback/estimate rather than telemetry */
+    .quality-estimated::after {
+      content: 'est.';
+      margin-left: 4px;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #f59e0b;
+      vertical-align: super;
+      font-family: 'JetBrains Mono', monospace;
     }
   </style>
 </head>
@@ -186,8 +205,8 @@
         <p class="mt-2 text-red-400 font-mono text-[11px]">Enter Master Passphrase (Barabara) to deactivate lockdown.</p>
       </div>
 
-      <div class="mt-6 pt-4 border-t border-slate-800 text-[11px] text-slate-500 mono">
-        AES-256-GCM // PBKDF2 100K Rounds // Zero-Knowledge Client Decrypt
+      <div id="vaultCryptoNote" class="mt-6 pt-4 border-t border-slate-800 text-[11px] text-slate-500 mono">
+        AES-256-GCM // PBKDF2-HMAC-SHA256 // Zero-Knowledge Client Decrypt
       </div>
     </div>
   </div>
@@ -249,6 +268,82 @@
 
 
   <!-- ======================================================== -->
+  <!-- 2b. REFRESH SETTINGS MODAL                               -->
+  <!-- ======================================================== -->
+  <div id="refreshSettingsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    <div class="relative w-full max-w-md p-6 rounded-2xl glass-card border border-cyan-500/40 shadow-2xl">
+      <div class="flex items-center gap-3 text-cyan-400 mb-3">
+        <div class="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+        </div>
+        <div>
+          <h2 class="text-lg font-bold text-white">Manual Refresh</h2>
+          <p class="text-xs text-cyan-300/80">Re-read the vault, or trigger the Garmin sync</p>
+        </div>
+      </div>
+
+      <div class="space-y-3 text-xs text-slate-300 leading-relaxed mb-4">
+        <p>
+          <strong class="text-white">Refresh</strong> always re-reads the published vault, so if a sync has already
+          finished you will see the new data immediately. No configuration needed.
+        </p>
+        <p>
+          To start a Garmin sync from this page, paste a GitHub token with
+          <span class="mono text-cyan-400">Actions: read and write</span> on
+          <span class="mono text-slate-200">Zurplox/garmin-bio-dashboard</span>. It is kept in this browser's local storage,
+          never committed, and never sent anywhere except <span class="mono">api.github.com</span>.
+        </p>
+        <p class="text-slate-500">
+          GitHub &rsaquo; Settings &rsaquo; Developer settings &rsaquo; Personal access tokens &rsaquo; Fine-grained tokens
+          &rarr; Repository access: only this repository, Permissions: Actions (read and write).
+        </p>
+      </div>
+
+      <form onsubmit="saveRefreshSettings(event)" class="space-y-3">
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">GitHub token:</label>
+          <input
+            type="password"
+            id="ghTokenInput"
+            autocomplete="off"
+            placeholder="github_pat_..."
+            class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-cyan-500/40 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 outline-none text-white text-sm mono"
+          />
+        </div>
+
+        <div id="refreshSettingsNote" class="text-xs text-slate-400"></div>
+
+        <div class="flex items-center gap-3 pt-2">
+          <button
+            type="button"
+            onclick="closeRefreshSettings()"
+            class="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs transition cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onclick="clearGitHubToken()"
+            class="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-rose-900/60 text-slate-300 font-medium text-xs transition cursor-pointer"
+            title="Forget the stored token on this device"
+          >
+            Forget
+          </button>
+          <button
+            type="submit"
+            class="flex-1 py-2.5 px-4 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs transition shadow-lg shadow-cyan-600/30 cursor-pointer"
+          >
+            Save Token
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- ======================================================== -->
   <!-- 3. MAIN DASHBOARD (BIO-INTELLIGENCE TERMINAL)      -->
   <!-- ======================================================== -->
   <div id="mainDashboard" class="hidden flex-1 flex flex-col">
@@ -273,11 +368,53 @@
               <span id="headerDevice" class="mono text-cyan-400 text-[10px]">fenix 6S Sapphire</span>
               <span>•</span>
               <span id="headerSyncTime" class="mono text-slate-400 text-[10px]">Sync: --</span>
+              <span id="headerStaleFlag" class="hidden px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/40 text-amber-400 font-bold text-[10px]">STALE DATA</span>
             </div>
           </div>
         </div>
 
         <div class="flex items-center gap-2 flex-wrap">
+          <!-- Data provenance indicator (populated at render time) -->
+          <button
+            type="button"
+            id="dataQualityChip"
+            onclick="toggleDataQuality()"
+            class="hidden px-2.5 py-1.5 rounded-lg border text-xs font-medium items-center gap-1.5 transition cursor-pointer"
+            aria-expanded="false"
+            aria-controls="dataQualityPanel"
+            title="Which metrics came from Garmin, and which are estimates"
+          >
+            <span id="dataQualityIcon">⚠️</span>
+            <span id="dataQualityText" class="hidden sm:inline">Data Provenance</span>
+          </button>
+
+          <!-- Manual Refresh Button -->
+          <button
+            type="button"
+            id="refreshBtn"
+            onclick="refreshVault()"
+            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-cyan-400 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+            title="Re-read the published vault; with a token, trigger the Garmin sync (Shortcut: R)"
+          >
+            <svg id="refreshIcon" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            <span id="refreshLabel">Refresh</span>
+          </button>
+
+          <!-- Refresh Settings (GitHub token) -->
+          <button
+            type="button"
+            onclick="openRefreshSettings()"
+            class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 hover:text-cyan-400 transition cursor-pointer"
+            title="Refresh settings: GitHub token for triggering syncs"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+          </button>
+
           <!-- Audio Toggle Button -->
           <button 
             type="button" 
@@ -331,8 +468,41 @@
       </div>
     </header>
 
+    <!-- Manual refresh status (hidden until there is something to report) -->
+    <div
+      id="refreshToast"
+      role="status"
+      aria-live="polite"
+      class="hidden fixed left-1/2 -translate-x-1/2 bottom-6 z-40 px-4 py-2.5 rounded-xl glass-card border text-xs font-medium flex items-center gap-2 shadow-2xl max-w-[90vw] text-center"
+    >
+      <span id="refreshToastText"></span>
+    </div>
+
+    <!-- Printable report header (screen-hidden, shown by print CSS) -->
+    <div class="print-clinical-header px-4 pt-4 pb-3 border-b-2 border-slate-300">
+      <h1 class="text-xl font-bold text-slate-900">Garmin Bio-Intelligence // Clinical Report</h1>
+      <p id="printMeta" class="text-xs text-slate-600 mono mt-1">Athlete: -- // Generated: --</p>
+    </div>
+
     <!-- Main Content Container -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 space-y-6">
+
+      <!-- DATA PROVENANCE PANEL (hidden until a degraded metric is detected) -->
+      <div id="dataQualityPanel" class="hidden glass-card rounded-2xl p-5 lg:p-6 border border-amber-500/30 space-y-3">
+        <div class="flex items-start gap-3">
+          <div class="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-base leading-none">⚠️</div>
+          <div>
+            <span class="text-[10px] font-bold tracking-wider text-amber-400 uppercase">Data Provenance</span>
+            <h2 id="dataQualityHeadline" class="text-sm font-bold text-white tracking-tight">Some metrics are estimates</h2>
+            <p id="dataQualitySummary" class="text-xs text-slate-300 leading-relaxed mt-1"></p>
+          </div>
+        </div>
+        <div id="dataQualityList" class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]"></div>
+        <p class="text-[11px] text-slate-500 leading-relaxed pt-2 border-t border-slate-800/60">
+          The sync pipeline records, for every metric group, whether the value came from Garmin or from a fallback.
+          Anything marked <span class="text-amber-400 font-semibold">est.</span> below is a placeholder or a model output, not a measurement.
+        </p>
+      </div>
 
       <!-- SECTION 0: AI DAILY BRIEFING (PERSONALIZED SUMMARY) -->
       <section class="glass-card rounded-2xl p-5 lg:p-6 border border-violet-500/20" style="background: linear-gradient(135deg, rgba(139,92,246,0.08) 0%, rgba(14,24,46,0.9) 60%);">
@@ -344,7 +514,7 @@
               </svg>
             </div>
             <div>
-              <span class="text-[10px] font-bold tracking-wider text-violet-400 uppercase">Gemini AI Daily Briefing</span>
+              <span id="briefingSourceLabel" class="text-[10px] font-bold tracking-wider text-violet-400 uppercase">Daily Briefing</span>
               <h2 class="text-base font-bold text-white tracking-tight">Good morning, Harvin 👋</h2>
             </div>
           </div>
@@ -410,7 +580,7 @@
               <span class="text-slate-400">Resting Heart Rate:</span>
               <strong id="cardRhrVal" class="text-white mono">51 bpm</strong>
             </div>
-            <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+            <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
               <span>ⓘ What does this score mean?</span>
             </button>
             <div class="hidden mt-2 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1.5">
@@ -460,7 +630,7 @@
             <p id="strainAdviceText" class="text-[11px] text-slate-400 leading-tight">
               High recovery capacity today. Prime for high-intensity intervals or strength volume.
             </p>
-            <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+            <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
               <span>ⓘ What is Day Strain?</span>
             </button>
             <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1.5">
@@ -517,7 +687,7 @@
               <span id="targetWake" class="mono text-base font-bold text-slate-200">07:00 AM</span>
             </div>
           </div>
-          <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+          <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
             <span>ⓘ How is sleep need calculated?</span>
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1.5">
@@ -583,7 +753,7 @@
 
         <div class="pt-3 mt-3 border-t border-slate-800/80 text-[11px] text-slate-500 mono flex flex-wrap gap-x-4 gap-y-1">
           <span>Clinical Marker: Sickness Flagged if ΔRHR &gt; +3 bpm AND ΔHRV &lt; -15%</span>
-          <span>Immune Status: Highly Resilient</span>
+          <span id="illnessImmuneStatus">Immune Status: --</span>
         </div>
       </section>
 
@@ -615,7 +785,7 @@
               <span class="text-[10px] font-bold tracking-wider text-cyan-400 uppercase">Garmin Signature</span>
               <h2 class="text-sm font-bold text-white tracking-tight">Body Battery™ Dynamics</h2>
             </div>
-            <span id="bbStatusBadge" class="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 font-bold text-[10px]">
+            <span id="bbStatusBadge" data-quality-key="body_battery" class="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 font-bold text-[10px]">
               RECHARGED
             </span>
           </div>
@@ -632,7 +802,7 @@
             <div class="flex-1 space-y-2">
               <div>
                 <div class="text-2xl font-extrabold text-white mono flex items-baseline gap-1">
-                  <span id="bbChargedVal" class="text-emerald-400">+38</span>
+                  <span id="bbChargedVal" class="text-emerald-400" data-quality-key="body_battery">+38</span>
                   <span class="text-xs text-slate-400 font-medium">pts charged</span>
                 </div>
                 <div class="text-xs text-slate-400 mono">
@@ -640,17 +810,17 @@
                 </div>
               </div>
 
-              <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-[11px] text-slate-300 leading-tight">
-                Restorative sleep cycle delivered full recovery headroom without daytime autonomic depletion.
+              <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-[11px] text-slate-300 leading-tight" id="bbNarrative">
+                Awaiting Body Battery telemetry.
               </div>
             </div>
           </div>
 
           <div class="pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400 mono">
-            <span>Recovery Factor: <strong class="text-emerald-400">Optimal</strong></span>
-            <span>Drain Rate: <strong class="text-cyan-400">Minimal</strong></span>
+            <span>Recovery Factor: <strong class="text-emerald-400" id="bbRecoveryFactor">--</strong></span>
+            <span>Drain Rate: <strong class="text-cyan-400" id="bbDrainRate">--</strong></span>
           </div>
-          <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+          <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
             <span>ⓘ What is Body Battery?</span>
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
@@ -670,14 +840,14 @@
               <span class="text-[10px] font-bold tracking-wider text-amber-400 uppercase">Firstbeat Autonomics</span>
               <h2 class="text-sm font-bold text-white tracking-tight">24-Hour Stress Architecture</h2>
             </div>
-            <span id="stressStatusBadge" class="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold mono text-[10px]">
+            <span id="stressStatusBadge" data-quality-key="stress_distribution" class="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold mono text-[10px]">
               REST (15/100)
             </span>
           </div>
 
           <div class="my-3 space-y-3">
             <div class="flex items-baseline justify-between">
-              <span class="text-2xl font-extrabold text-white mono" id="stressAvgVal">15 <span class="text-xs text-slate-400 font-normal">avg index</span></span>
+              <span class="text-2xl font-extrabold text-white mono" id="stressAvgVal" data-quality-key="stress_distribution">15 <span class="text-xs text-slate-400 font-normal">avg index</span></span>
               <span class="text-xs text-emerald-400 font-semibold">Parasympathetic Dominant</span>
             </div>
 
@@ -710,10 +880,10 @@
             </div>
           </div>
 
-          <div class="pt-2.5 border-t border-slate-800/80 text-[11px] text-slate-400 leading-tight">
-            75% of your 24h cycle logged in zero-stress cellular rejuvenation mode.
+          <div class="pt-2.5 border-t border-slate-800/80 text-[11px] text-slate-400 leading-tight" id="stressNarrative">
+            Awaiting stress telemetry.
           </div>
-          <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+          <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
             <span>ⓘ What is Stress Architecture?</span>
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
@@ -733,7 +903,7 @@
               <span class="text-[10px] font-bold tracking-wider text-violet-400 uppercase">Chronobiology</span>
               <h2 class="text-sm font-bold text-white tracking-tight">Circadian Ultradian Gate</h2>
             </div>
-            <span class="px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/30 text-violet-300 font-bold text-[10px]">
+            <span id="circStatusBadge" class="px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/30 text-violet-300 font-bold text-[10px]">
               SYNCHRONIZED
             </span>
           </div>
@@ -746,19 +916,19 @@
 
             <div class="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 border border-slate-800">
               <span class="text-slate-400">Melatonin Sleep Gate:</span>
-              <span id="circMelatoninVal" class="text-xs font-bold text-emerald-400">22:15 — 22:45 SGT</span>
+              <span id="circMelatoninVal" class="text-xs font-bold text-emerald-400">--</span>
             </div>
 
             <div class="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 border border-slate-800">
               <span class="text-slate-400">Circadian Alignment:</span>
-              <span id="circAlignVal" class="text-xs font-bold text-cyan-400">88% Consistent</span>
+              <span id="circAlignVal" class="text-xs font-bold text-cyan-400" data-quality-key="circadian">--</span>
             </div>
           </div>
 
-          <div class="pt-2.5 border-t border-slate-800/80 text-[11px] text-slate-400 leading-tight">
-            Completed 4+ complete 90-minute REM/NREM cycles within the optimal biological chronotype gate.
+          <div class="pt-2.5 border-t border-slate-800/80 text-[11px] text-slate-400 leading-tight" id="circNarrative">
+            Awaiting sleep-onset telemetry.
           </div>
-          <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+          <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
             <span>ⓘ What are Circadian & Ultradian rhythms?</span>
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
@@ -781,7 +951,7 @@
             <span class="text-cyan-400 text-xs font-mono">🧬</span>
           </div>
           <div class="flex items-baseline gap-2">
-            <span id="kpiFitnessAge" class="text-3xl font-extrabold text-white mono">24.7</span>
+            <span id="kpiFitnessAge" class="text-3xl font-extrabold text-white mono" data-quality-key="fitness_age">24.7</span>
             <span class="text-xs text-slate-400 font-medium">years</span>
             <span class="ml-auto text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-semibold">-4.3 yrs</span>
           </div>
@@ -789,7 +959,7 @@
             <span>Chronological: <strong id="kpiChronologicalAge" class="text-slate-200">29</strong></span>
             <span>Achievable: <strong class="text-cyan-400">21.1 yrs</strong></span>
           </div>
-          <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+          <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
             <span>ⓘ What is Biological Age?</span>
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
@@ -806,7 +976,7 @@
             <span class="text-emerald-400 text-xs font-mono">⚡</span>
           </div>
           <div class="flex items-baseline gap-2">
-            <span id="kpiAcwrVal" class="text-3xl font-extrabold text-white mono">0.2</span>
+            <span id="kpiAcwrVal" class="text-3xl font-extrabold text-white mono" data-quality-key="training_load">0.2</span>
             <span class="text-xs text-slate-400 font-medium">ratio</span>
             <span id="kpiAcwrStatus" class="ml-auto text-xs px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 font-semibold">FRESH</span>
           </div>
@@ -814,7 +984,7 @@
             <span>Acute: <strong id="kpiAcuteLoad" class="text-slate-200">44</strong></span>
             <span>Chronic: <strong id="kpiChronicLoad" class="text-slate-300">219</strong></span>
           </div>
-          <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+          <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
             <span>ⓘ What is ACWR?</span>
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
@@ -841,7 +1011,7 @@
             <span>30d Baseline: <strong id="kpiHrvBaseline" class="text-slate-200">55.3 ms</strong></span>
             <span>Band: <strong id="kpiHrvRange" class="text-slate-300">54 - 73 ms</strong></span>
           </div>
-          <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+          <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
             <span>ⓘ What is HRV?</span>
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
@@ -865,9 +1035,9 @@
           </div>
           <div class="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400 flex justify-between">
             <span>30d Avg: <strong id="kpiRhr30d" class="text-slate-200">49.8 bpm</strong></span>
-            <span>4y Baseline: <strong id="kpiRhrAllTime" class="text-slate-300">50.0 bpm</strong></span>
+            <span>4y Baseline: <strong id="kpiRhrAllTime" class="text-slate-300">-- bpm</strong></span>
           </div>
-          <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+          <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
             <span>ⓘ What is RHR?</span>
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
@@ -894,8 +1064,8 @@
               <h3 class="text-base font-bold text-white tracking-tight">Clinical Sports Cardiology Diagnostic Synthesis</h3>
             </div>
           </div>
-          <span class="text-xs px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-mono text-[11px]">
-            AI Synthesized
+          <span id="intelSourceBadge" class="text-xs px-2.5 py-1 rounded-full bg-slate-800/60 border border-slate-700 text-slate-300 font-mono text-[11px]">
+            Analysis engine: --
           </span>
         </div>
 
@@ -946,7 +1116,7 @@
               <h3 class="text-sm font-bold text-white tracking-tight">Sleep Architecture & Daily Stages Timeline</h3>
               <span class="text-xs text-slate-400 font-mono">(Hours)</span>
             </div>
-            <p class="text-xs text-slate-400">Deep (Slow Wave), REM, and Light stages across 186+ nights</p>
+            <p class="text-xs text-slate-400" id="sleepChartSubtitle">Deep (Slow Wave), REM, and Light stages across the full history</p>
           </div>
 
           <!-- Timeframe Pills -->
@@ -980,8 +1150,8 @@
         <div class="relative h-64 interactive-canvas-container">
           <canvas id="sleepChart"></canvas>
         </div>
-        <p class="text-[11px] text-slate-500 mt-2 text-right mono">
-          Touch & Drag or Hover to scrub through all 186 nights
+        <p class="text-[11px] text-slate-500 mt-2 text-right mono" id="sleepScrubHint">
+          Touch & Drag or Hover to scrub the sleep history
         </p>
       </section>
 
@@ -1017,7 +1187,7 @@
               <span>●</span> <span>Awake: <strong id="stageAwakePct">0.0%</strong></span>
             </div>
           </div>
-          <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+          <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
             <span>ⓘ What do these sleep stages mean?</span>
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1.5">
@@ -1056,8 +1226,8 @@
             </div>
           </div>
 
-          <p class="text-xs text-slate-300 leading-relaxed">
-            Your high deep sleep percentage (23.5%) meets the elite athletic benchmark for human growth hormone (HGH) secretion and myofibrillar repair. Lengthening total duration by ~45 minutes will systematically elevate REM sleep toward the 20% target.
+          <p class="text-xs text-slate-300 leading-relaxed" id="sleepBenchmarkNarrative">
+            Analysing sleep restoration against clinical benchmarks...
           </p>
         </div>
 
@@ -1125,9 +1295,9 @@
           <div>
             <div class="flex items-center gap-2">
               <h3 class="text-sm font-bold text-white tracking-tight">2D Autonomic Nervous System Quadrant Matrix</h3>
-              <span class="text-xs px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-mono">
-                186 Matched Nights
-              </span>
+            <span class="text-xs px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-mono" id="scatterNightCount">
+              Matched Nights
+            </span>
             </div>
             <p class="text-xs text-slate-400">Overnight HRV (ms) vs. Resting Heart Rate (bpm) mapped across 4 autonomic recovery states</p>
           </div>
@@ -1159,7 +1329,7 @@
           <canvas id="autonomicScatterChart"></canvas>
         </div>
         <div class="flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 mt-2 gap-2 mono">
-          <span>Horizontal Axis: Resting HR (bpm) — Baseline ~49.8 // Vertical Axis: Overnight HRV (ms) — Baseline ~55.3</span>
+          <span id="scatterAxisNote">Horizontal axis: resting HR (bpm) // Vertical axis: overnight HRV (ms)</span>
           <span>Hover or touch any node to inspect night's autonomic coordinate</span>
         </div>
 
@@ -1223,15 +1393,15 @@
                 Good recovery. You can handle moderate-to-hard training today. Prioritise quality over volume.
               </div>
               <div class="space-y-1 text-[10px] mono">
-                <div class="flex justify-between"><span class="text-slate-500">Recovery contribution:</span><span id="readinessRecovery" class="text-emerald-400">+38 pts</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Body Battery recovery:</span><span id="readinessRecovery" class="text-emerald-400" data-quality-key="body_battery">+38 pts</span></div>
                 <div class="flex justify-between"><span class="text-slate-500">HRV contribution:</span><span id="readinessHrv" class="text-cyan-400">+8.5%</span></div>
-                <div class="flex justify-between"><span class="text-slate-500">Strain load:</span><span id="readinessStrain" class="text-amber-400">Light</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Workload band (ACWR):</span><span id="readinessStrain" class="text-amber-400" data-quality-key="training_load">Light</span></div>
               </div>
             </div>
           </div>
 
           <div class="mt-3 pt-3 border-t border-slate-800/80">
-            <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+            <button onclick="toggleInfo(this)" aria-expanded="false" class="text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
               <span>ⓘ How is Training Readiness calculated?</span>
             </button>
             <div class="hidden mt-2 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
@@ -1269,39 +1439,21 @@
               </div>
             </div>
 
-            <!-- Risk factor breakdown -->
-            <div class="grid grid-cols-2 gap-2 text-[10px]">
-              <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
-                <div class="text-slate-400 mb-0.5">Workload Spike</div>
-                <div class="font-bold text-emerald-400">None — ACWR 0.2</div>
-                <div class="text-slate-600 leading-tight mt-0.5">No sudden training spike detected. Safe to build.</div>
-              </div>
-              <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
-                <div class="text-slate-400 mb-0.5">HRV Trend</div>
-                <div class="font-bold text-emerald-400">Positive (+8.5%)</div>
-                <div class="text-slate-600 leading-tight mt-0.5">Rising HRV = well-adapted, not overreaching.</div>
-              </div>
-              <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
-                <div class="text-slate-400 mb-0.5">Sleep Debt</div>
-                <div class="font-bold text-amber-400">Moderate (4.7h)</div>
-                <div class="text-slate-600 leading-tight mt-0.5">Some fatigue accumulation. Prioritise sleep tonight.</div>
-              </div>
-              <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
-                <div class="text-slate-400 mb-0.5">Recovery Score</div>
-                <div class="font-bold text-emerald-400">Green Zone (76%)</div>
-                <div class="text-slate-600 leading-tight mt-0.5">Body well-recovered. Low systemic strain.</div>
-              </div>
+            <!-- Risk factor breakdown: rendered from the engine's factors, so it
+                 cannot keep showing the numbers it shipped with. -->
+            <div id="injuryFactors" class="grid grid-cols-2 gap-2 text-[10px]">
+              <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-slate-500">Awaiting data…</div>
             </div>
           </div>
 
           <div class="mt-3 pt-3 border-t border-slate-800/80">
-            <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+            <button onclick="toggleInfo(this)" aria-expanded="false" class="text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
               <span>ⓘ How is Injury Risk measured?</span>
             </button>
             <div class="hidden mt-2 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
               <p><strong class="text-amber-400">Injury Risk</strong> is derived from sports science research showing that most sports injuries occur when training load increases faster than the body can adapt.</p>
               <p>The model combines: <strong class="text-white">ACWR</strong> (workload spike risk), <strong class="text-white">HRV trend</strong> (nervous system fatigue), <strong class="text-white">sleep debt</strong> (tissue repair deficit), and <strong class="text-white">consecutive hard days</strong>.</p>
-              <p class="text-slate-500">The most dangerous pattern is a sudden 40%+ jump in weekly training load after a rest period — exactly what your ACWR of 0.2 warns you to avoid too aggressively on the way back up.</p>
+              <p class="text-slate-500">The most dangerous pattern is a sudden 40%+ jump in weekly training load after a rest period — which is exactly what rebuilding volume too fast out of the under-0.8 band risks.</p>
             </div>
           </div>
         </div>
@@ -1316,16 +1468,10 @@
               <h3 class="text-sm font-bold text-white tracking-tight">4-Year Longitudinal Cardiovascular Adaptation</h3>
               <span class="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 text-[10px] font-bold mono">2022 — 2026</span>
             </div>
-            <p class="text-xs text-slate-400">Monthly Average Resting Heart Rate (bpm) across 1,505+ days</p>
+            <p class="text-xs text-slate-400" id="rhrChartSubtitle">Monthly Average Resting Heart Rate (bpm)</p>
           </div>
 
-          <div class="flex items-center gap-2 text-xs mono flex-wrap">
-            <span class="px-2 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300">2022: <strong>53.1</strong></span>
-            <span class="px-2 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300">2023: <strong>50.4</strong></span>
-            <span class="px-2 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300">2024: <strong>49.7</strong></span>
-            <span class="px-2 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300">2025: <strong>49.0</strong></span>
-            <span class="px-2 py-1 rounded bg-slate-900 border border-slate-800 text-emerald-400 font-bold">2026: 49.7</span>
-          </div>
+          <div class="flex items-center gap-2 text-xs mono flex-wrap" id="rhrYearChips"></div>
         </div>
 
         <!-- LIVE TOUCH & MOUSE CALLOUT INSPECTOR HUD -->
@@ -1336,7 +1482,7 @@
           </div>
           <div class="flex items-center gap-4 flex-wrap text-slate-300 mono text-[11px]">
             <span>Monthly RHR: <strong id="rhrHudVal" class="text-amber-400 font-bold text-sm">51.0 bpm</strong></span>
-            <span>4-Year Lifetime Baseline: <strong class="text-slate-300">50.0 bpm</strong></span>
+            <span>4-Year Lifetime Baseline: <strong class="text-slate-300" id="rhrHudBaseline">-- bpm</strong></span>
             <span>Deviation: <strong id="rhrHudDelta" class="text-emerald-400 font-bold">+1.0 bpm</strong></span>
           </div>
         </div>
@@ -1382,6 +1528,7 @@
               </tr>
             </thead>
             <tbody id="activityTableBody" class="divide-y divide-slate-800/60 text-slate-300">
+          <!-- Populated dynamically -->
               <!-- Populated dynamically -->
             </tbody>
           </table>
@@ -1415,6 +1562,36 @@
     const MASTER_LOCK_HASH = "ae5338f6bab31814a680161782cb13040c2647b0065ada8b9b105baa8c95e62b";
     let globalBioData = null;
 
+    // Manual refresh configuration. The repo slug matches the published site;
+    // the token is the viewer's own, stored in this browser only.
+    const VAULT_REPO = "Zurplox/garmin-bio-dashboard";
+    const SYNC_WORKFLOW_FILE = "daily_sync.yml";
+    const GITHUB_TOKEN_KEY = "garmin_github_token";
+    const REFRESH_POLL_MS = 20000;
+    // A full sync takes several minutes and Pages then has to redeploy, so give
+    // it a generous window before telling the user to check back later.
+    const REFRESH_TIMEOUT_MS = 15 * 60 * 1000;
+    // One press = one action. The button stays disabled for the attempt and then
+    // for this cooldown, so nobody can hammer the vault (or GitHub) by clicking.
+    const REFRESH_COOLDOWN_MS = 60 * 1000;
+    // A second workflow dispatch inside this window sends a duplicate queued run,
+    // so a refresh in that window only re-reads the vault. Persisted, because a
+    // page reload must not bypass it.
+    const DISPATCH_DEDUPE_MS = 5 * 60 * 1000;
+    const LAST_DISPATCH_KEY = "garmin_last_dispatch";
+
+    // The passphrase lives in memory for this session only, so a manual refresh
+    // can re-decrypt without asking again. purgeDecryptedData() clears it.
+    let sessionPassphrase = null;
+    // Last status.json timestamp we loaded, used to detect a newer vault.
+    let lastStatusAt = null;
+    let refreshBusy = false;
+    let refreshCooldownUntil = 0;
+    let refreshCooldownTimer = null;
+    // Set by the lock path so an in-flight poll stops instead of hitting the
+    // network behind the lock screen.
+    let refreshPollAbort = false;
+
     // Timeframe filter state
     let currentSleepTf = 30;
     let currentHrvTf = 30;
@@ -1427,6 +1604,51 @@
     let doughnutChartInstance = null;
     let scatterChartInstance = null;
     let isRhrOverlayActive = false;
+
+    // Baselines captured at render time so chart callouts compare against the
+    // athlete's own values instead of hard-coded constants.
+    let globalBaselines = {};
+
+    const SGT_TIME_ZONE = 'Asia/Singapore';
+
+    function formatInSgt(date, options) {
+      try {
+        return new Intl.DateTimeFormat('en-SG', Object.assign({ timeZone: SGT_TIME_ZONE }, options)).format(date);
+      } catch (err) {
+        return date.toLocaleString();
+      }
+    }
+
+    function hoursSince(isoTimestamp) {
+      const parsed = Date.parse(isoTimestamp);
+      if (Number.isNaN(parsed)) return null;
+      return (Date.now() - parsed) / 3600000;
+    }
+
+    // Activity names and AI output are interpolated into HTML; escape them so a
+    // stray angle bracket cannot break the layout.
+    function esc(value) {
+      return String(value === null || value === undefined ? '' : value).replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[ch]);
+    }
+
+    // Tone vocabulary shared with the engine: the payload resolves every band to
+    // a tone, so these are the only places the UI decides on a colour.
+    const TONE_STROKE = { green: '#10b981', amber: '#f59e0b', rose: '#f43f5e', cyan: '#22d3ee' };
+
+    function badgeClass(tone, shade = 400) {
+      return `px-2 py-0.5 rounded-full bg-${tone}-500/10 border border-${tone}-500/30 text-${tone}-${shade} font-bold text-[10px]`;
+    }
+
+    function toggleInfo(btn) {
+      const panel = btn.nextElementSibling;
+      if (!panel) return;
+      const willOpen = panel.classList.contains('hidden');
+      panel.classList.toggle('hidden', !willOpen);
+      btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      playMicroChirp(willOpen ? 880 : 520, 0.025);
+    }
 
     // ==========================================
     // TACTILE WEB AUDIO MICRO-FEEDBACK SYNTHESIZER
@@ -1503,6 +1725,84 @@
     function printClinicalReport() {
       playMicroChirp(1200, 0.06);
       window.print();
+    }
+
+    // ==========================================
+    // DATA PROVENANCE & FRESHNESS DISCLOSURE
+    // ==========================================
+    function toggleDataQuality() {
+      const panel = document.getElementById("dataQualityPanel");
+      const chip = document.getElementById("dataQualityChip");
+      if (!panel) return;
+      const willShow = panel.classList.contains("hidden");
+      panel.classList.toggle("hidden", !willShow);
+      chip.setAttribute("aria-expanded", willShow ? "true" : "false");
+      playMicroChirp(willShow ? 900 : 560, 0.03);
+    }
+
+    function renderDataProvenance(quality, isStale, staleHours) {
+      // Marker pass always runs so the "est." badges stay correct even when the
+      // disclosure panel itself is hidden.
+      const metrics = (quality && quality.metrics) || {};
+      document.querySelectorAll('[data-quality-key]').forEach(el => {
+        const metric = metrics[el.dataset.qualityKey];
+        const isEstimate = Boolean(metric) && metric.source !== 'live';
+        el.classList.toggle('quality-estimated', isEstimate);
+        if (isEstimate) {
+          el.title = `Estimated value - ${metric.note || 'fallback used'}`;
+        } else {
+          el.removeAttribute('title');
+        }
+      });
+
+      const chip = document.getElementById("dataQualityChip");
+      const panel = document.getElementById("dataQualityPanel");
+      if (!chip || !panel) return;
+
+      const degraded = quality && Array.isArray(quality.degraded) ? quality.degraded : [];
+      const total = quality ? quality.total_count : 0;
+      const live = quality ? quality.live_count : 0;
+      const allLive = degraded.length === 0;
+
+      if (!quality || (allLive && !isStale)) {
+        chip.classList.add("hidden");
+        panel.classList.add("hidden");
+        return;
+      }
+
+      chip.classList.remove("hidden");
+      chip.classList.add("flex");
+      chip.className = allLive
+        ? 'px-2.5 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition cursor-pointer bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
+        : 'px-2.5 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition cursor-pointer bg-amber-500/10 border-amber-500/40 text-amber-400';
+      document.getElementById("dataQualityIcon").textContent = allLive ? '✅' : '⚠️';
+      document.getElementById("dataQualityText").textContent = allLive ? `${live}/${total} LIVE` : `${degraded.length} ESTIMATED`;
+
+      document.getElementById("dataQualityHeadline").textContent = allLive
+        ? 'Every metric came from Garmin'
+        : `${degraded.length} of ${total} metric groups are estimates`;
+
+      const summaryParts = [];
+      if (isStale && staleHours !== null) {
+        summaryParts.push(`The last successful sync was ${staleHours.toFixed(1)} hours ago, so the daily pipeline has not delivered since then.`);
+      }
+      if (!allLive) {
+        summaryParts.push(`Garmin supplied ${live} of ${total} metric groups. The remaining groups fell back to placeholders because their endpoints failed during the most recent sync.`);
+      }
+      document.getElementById("dataQualitySummary").textContent = summaryParts.join(' ');
+
+      document.getElementById("dataQualityList").innerHTML = Object.values(metrics).map(metric => {
+        const metricLive = metric.source === 'live';
+        return `
+          <div class="flex items-start gap-2 p-2 rounded-lg bg-slate-900/70 border ${metricLive ? 'border-slate-800' : 'border-amber-500/30'}">
+            <span class="${metricLive ? 'text-emerald-400' : 'text-amber-400'} font-bold">●</span>
+            <span class="flex-1">
+              <span class="text-slate-200 font-semibold">${esc(metric.label)}</span>
+              <span class="text-slate-500"> — ${metricLive ? 'live from Garmin' : 'estimate'}</span>
+              ${metric.note ? `<span class="block text-slate-500 text-[10px]">${esc(metric.note)}</span>` : ''}
+            </span>
+          </div>`;
+      }).join('');
     }
 
     // ==========================================
@@ -1599,12 +1899,14 @@
     window.addEventListener('DOMContentLoaded', () => {
       checkMasterLockState();
       updateAudioUi();
+      updateRefreshButton();
       const isMasterLocked = localStorage.getItem("garmin_master_locked") === "true";
       const savedPass = localStorage.getItem("garmin_vault_pass");
       if (savedPass && !isMasterLocked) {
         document.getElementById("passInput").value = savedPass;
         executeUnlock(savedPass);
       }
+      updateRefreshButton();
     });
 
     async function sha256(text) {
@@ -1666,7 +1968,9 @@
         {
           name: 'PBKDF2',
           salt: salt,
-          iterations: 100000,
+          // Honour the cost recorded in the envelope: the KDF work factor can be
+          // raised without breaking already-encrypted vaults.
+          iterations: Number(encPayload.iterations) || 100000,
           hash: 'SHA-256'
         },
         pwKey,
@@ -1722,12 +2026,25 @@
         const resp = await fetch('data/biometrics.enc.json?v=' + Date.now());
         if (!resp.ok) throw new Error("Vault not accessible.");
         const encData = await resp.json();
-        
+
+        // Report the cost the vault was actually written with instead of a
+        // hard-coded "100K rounds" label.
+        const rounds = Number(encData.iterations) || 100000;
+        document.getElementById("vaultCryptoNote").textContent =
+          `AES-256-GCM // PBKDF2-HMAC-SHA256 (${rounds.toLocaleString()} rounds) // Zero-Knowledge Client Decrypt`;
+
         globalBioData = await decryptPayload(encData, password);
-        
+        sessionPassphrase = password;
+
         if (document.getElementById("rememberMe")?.checked) {
           localStorage.setItem("garmin_vault_pass", password);
         }
+
+        // Record which publish this session loaded, so Refresh can distinguish
+        // "unchanged" from "new data is available".
+        fetchStatusFile()
+          .then(status => { lastStatusAt = (status && status.updated_at) || null; })
+          .catch(() => { lastStatusAt = null; });
 
         // Unhide dashboard BEFORE calling render so canvas clientWidth > 0
         const mainDash = document.getElementById("mainDashboard");
@@ -1753,6 +2070,7 @@
 
       } catch (err) {
         console.error(err);
+        sessionPassphrase = null;
         localStorage.removeItem("garmin_vault_pass");
         errorDiv.className = "mt-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs text-center font-medium";
         errorDiv.textContent = "❌ Invalid passphrase or corrupted vault. Decryption failed.";
@@ -1791,8 +2109,32 @@
       }
     }
 
-    function logout() {
+    function purgeDecryptedData() {
+      // Nulling the global alone is not a real purge: Chart.js instances keep
+      // their own copies of the decrypted arrays, and the tables keep theirs.
+      [sleepChartInstance, hrvChartInstance, rhrChartInstance, doughnutChartInstance, scatterChartInstance]
+        .forEach(chart => {
+          try { if (chart) chart.destroy(); } catch (err) { /* already gone */ }
+        });
+      sleepChartInstance = null;
+      hrvChartInstance = null;
+      rhrChartInstance = null;
+      doughnutChartInstance = null;
+      scatterChartInstance = null;
+
+      ['activityTableBody', 'fitbitPillarsContainer', 'intelDirectivesList', 'dataQualityList'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '';
+      });
+
+      hideFloatingCallout();
+      stopRefreshActivity();
+      sessionPassphrase = null;
       globalBioData = null;
+    }
+
+    function logout() {
+      purgeDecryptedData();
       localStorage.removeItem("garmin_vault_pass");
       document.getElementById("passInput").value = "";
       document.getElementById("mainDashboard").classList.add("hidden");
@@ -1818,11 +2160,29 @@
       const fitbit = data.fitbit || {};
       const history = data.history || {};
 
+      globalBaselines = baselines;
+
       // 1. Header Information
       document.getElementById("headerAthlete").textContent = athlete.name || "Harvin";
       document.getElementById("headerDevice").textContent = athlete.primary_device || "fenix 6S Sapphire";
+      // updated_at is emitted timezone-aware; format it explicitly in SGT so the
+      // displayed time does not depend on the viewer's device timezone.
       const syncDate = new Date(data.updated_at);
-      document.getElementById("headerSyncTime").textContent = `Sync: ${syncDate.toLocaleDateString()} ${syncDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} • Next Sync: Daily 8:00 AM SGT`;
+      const syncLabel = Number.isNaN(syncDate.getTime())
+        ? 'unknown'
+        : `${formatInSgt(syncDate, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })} SGT`;
+      // Staleness threshold and gauge scales come from the engine's policy
+      // snapshot instead of being restated here.
+      const policy = data.policy || {};
+      const staleAfterHours = (policy.freshness || {}).stale_after_hours || 30;
+      const staleHours = hoursSince(data.updated_at);
+      const isStale = staleHours !== null && staleHours > staleAfterHours;
+      document.getElementById("headerSyncTime").textContent = `Sync: ${syncLabel} • Next: 08:00 SGT`;
+      document.getElementById("headerStaleFlag").classList.toggle("hidden", !isStale);
+      document.getElementById("printMeta").textContent =
+        `Athlete: ${athlete.name || 'Harvin'} // Biological age: ${fitness.fitness_age || '--'} yrs // Synced: ${syncLabel}`;
+
+      renderDataProvenance(data.data_quality, isStale, staleHours);
 
       // 2. Recovery Score & Radial Dial
       const recScore = intel.recovery_score || 76;
@@ -1832,22 +2192,17 @@
       const offsetRec = 264 - (264 * recScore / 100);
       const recCircle = document.getElementById("recoveryGaugeCircle");
       recCircle.style.strokeDashoffset = offsetRec;
-      if (recScore >= 67) {
-        recCircle.setAttribute("stroke", "#10b981");
-      } else if (recScore >= 34) {
-        recCircle.setAttribute("stroke", "#f59e0b");
-      } else {
-        recCircle.setAttribute("stroke", "#f43f5e");
-      }
+      recCircle.setAttribute("stroke", TONE_STROKE[intel.recovery_tone] || TONE_STROKE.green);
       document.getElementById("cardRhrVal").textContent = `${Math.round(today.rhr || 51)} bpm`;
 
       // 3. Day Strain & Target Strain
-      const dayStrain = whoop.day_strain || 3.8;
+      const dayStrain = whoop.day_strain ?? 0;
+      const strainScaleMax = (policy.day_strain || {}).scale_max || 21.0;
       document.getElementById("strainScoreVal").textContent = dayStrain.toFixed(1);
       document.getElementById("strainZoneBadge").textContent = whoop.strain_zone || "Active Recovery";
-      
-      // Strain dial offset (0-21 scale)
-      const offsetStrain = 264 - (264 * Math.min(dayStrain / 21.0, 1.0));
+
+      // Strain dial offset, on the engine's scale
+      const offsetStrain = 264 - (264 * Math.min(dayStrain / strainScaleMax, 1.0));
       document.getElementById("strainGaugeCircle").style.strokeDashoffset = offsetStrain;
       
       const tMin = whoop.target_strain_min || 13.0;
@@ -1893,6 +2248,14 @@
       if (illness.details && illness.details.length > 0) {
         document.getElementById("illnessDetailText").textContent = illness.details.join(' ');
       }
+      const immuneStatus = document.getElementById("illnessImmuneStatus");
+      if (immuneStatus) {
+        immuneStatus.textContent = 'Immune Status: ' + (illness.risk_level === 'LOW'
+          ? 'No inflammatory markers detected'
+          : illness.risk_level === 'MODERATE'
+            ? 'Mild systemic strain - monitor recovery'
+            : 'Immune activation - reduce training load');
+      }
 
       // 6. Fitbit Premium 5-Pillar Health Metrics Matrix
       renderFitbitPillars(fitbit);
@@ -1914,7 +2277,18 @@
       document.getElementById("kpiRhr30d").textContent = `${baselines.rhr_30d || 49.8} bpm`;
       document.getElementById("kpiRhrAllTime").textContent = `${baselines.rhr_all_time || 50.0} bpm`;
 
-      // 8. Gemini AI Diagnostic Dossier
+      // 8. AI Diagnostic Dossier
+      // The rule engine and Gemini both produce this analysis, so the UI now
+      // names whichever one actually ran instead of crediting the model always.
+      const usesGemini = intel.source === "gemini";
+      document.getElementById("intelSourceBadge").textContent =
+        usesGemini ? "Gemini AI synthesized" : "Deterministic rule engine";
+      document.getElementById("intelSourceBadge").className = usesGemini
+        ? "text-xs px-2.5 py-1 rounded-full bg-violet-500/10 border border-violet-500/30 text-violet-300 font-mono text-[11px]"
+        : "text-xs px-2.5 py-1 rounded-full bg-slate-800/60 border border-slate-700 text-slate-300 font-mono text-[11px]";
+      document.getElementById("briefingSourceLabel").textContent =
+        usesGemini ? "Gemini AI Daily Briefing" : "Daily Briefing // Rule Engine";
+
       document.getElementById("intelAutonomicText").textContent = intel.autonomic_nervous_analysis || "Autonomic tone balanced.";
       document.getElementById("intelSleepText").textContent = intel.sleep_architecture_analysis || "Sleep architecture restorative.";
       document.getElementById("intelWorkloadText").textContent = intel.workload_and_biological_age || "Cardiovascular age optimal.";
@@ -1923,7 +2297,7 @@
       dirList.innerHTML = (intel.actionable_directives || []).map(d => `
         <li class="flex items-start gap-2">
           <span class="text-cyan-400 font-bold">›</span>
-          <span>${d}</span>
+          <span>${esc(d)}</span>
         </li>
       `).join('');
 
@@ -1933,22 +2307,74 @@
       const drained = gSig.body_battery_drained ?? 0;
       document.getElementById("bbChargedVal").textContent = `+${charged}`;
       document.getElementById("bbDrainedVal").textContent = `${drained} pts`;
+
+      // The battery graphic used to be frozen at a hard-coded 78% regardless of
+      // the actual overnight charge.
+      const bbLevelBar = document.getElementById("bbLevelBar");
+      if (bbLevelBar) {
+        const level = Math.max(0, Math.min(100, Math.round(charged)));
+        bbLevelBar.style.height = `${level}%`;
+        const levelLabel = bbLevelBar.querySelector("span");
+        if (levelLabel) levelLabel.textContent = `${level}%`;
+      }
+      // Band, badge and tone all arrive resolved from the engine.
+      const bbBadge = document.getElementById("bbStatusBadge");
+      bbBadge.textContent = gSig.body_battery_badge || "AWAITING DATA";
+      bbBadge.className = badgeClass(gSig.body_battery_tone || "rose", 300);
+      const drainShare = charged + drained > 0 ? drained / (charged + drained) : 0;
+      document.getElementById("bbNarrative").textContent = drained === 0
+        ? `Overnight recovery added ${charged} points of Body Battery; no daytime drain recorded yet.`
+        : `Overnight recovery added ${charged} points; the day has since drawn down ${drained} points (${Math.round(drainShare * 100)}% of the daily budget).`;
+      document.getElementById("bbRecoveryFactor").textContent =
+        ({ full: "Optimal", partial: "Moderate", low: "Low" })[gSig.body_battery_band] || "Unknown";
+      document.getElementById("bbDrainRate").textContent = drainShare < 0.35 ? "Minimal" : drainShare < 0.6 ? "Steady" : "High";
       
-      const sDist = gSig.stress_distribution || { rest_pct: 75, low_pct: 18, med_pct: 5, high_pct: 2 };
-      document.getElementById("stressAvgVal").innerHTML = `${gSig.stress_avg || 15} <span class="text-xs text-slate-400 font-normal">avg index</span>`;
-      document.getElementById("pctRest").textContent = `${sDist.rest_pct}%`;
-      document.getElementById("pctLow").textContent = `${sDist.low_pct}%`;
-      document.getElementById("pctMed").textContent = `${sDist.med_pct}%`;
-      document.getElementById("pctHigh").textContent = `${sDist.high_pct}%`;
-      document.getElementById("barRest").style.width = `${sDist.rest_pct}%`;
-      document.getElementById("barLow").style.width = `${sDist.low_pct}%`;
-      document.getElementById("barMed").style.width = `${sDist.med_pct}%`;
-      document.getElementById("barHigh").style.width = `${sDist.high_pct}%`;
+      // No fabricated 75/18/5/2 default here: an absent distribution reports
+      // "--" instead of inventing telemetry.
+      const sDist = gSig.stress_distribution || {};
+      const pctText = value => (value == null ? '--' : `${value}%`);
+      document.getElementById("stressAvgVal").innerHTML = `${gSig.stress_avg ?? '--'} <span class="text-xs text-slate-400 font-normal">avg index</span>`;
+      document.getElementById("pctRest").textContent = pctText(sDist.rest_pct);
+      document.getElementById("pctLow").textContent = pctText(sDist.low_pct);
+      document.getElementById("pctMed").textContent = pctText(sDist.med_pct);
+      document.getElementById("pctHigh").textContent = pctText(sDist.high_pct);
+      document.getElementById("barRest").style.width = `${sDist.rest_pct || 0}%`;
+      document.getElementById("barLow").style.width = `${sDist.low_pct || 0}%`;
+      document.getElementById("barMed").style.width = `${sDist.med_pct || 0}%`;
+      document.getElementById("barHigh").style.width = `${sDist.high_pct || 0}%`;
+
+      const avgStress = gSig.stress_avg ?? null;
+      const stressTone = gSig.stress_tone || 'rose';
+      const stressBadge = document.getElementById("stressStatusBadge");
+      stressBadge.textContent = `${gSig.stress_label || 'NO DATA'} (${avgStress ?? '--'}/100)`;
+      stressBadge.className = `px-2 py-0.5 rounded-full bg-${stressTone}-500/10 border border-${stressTone}-500/30 text-${stressTone}-400 font-bold mono text-[10px]`;
+      // The narrative used to assert a fixed "75% of your 24h cycle" regardless
+      // of the data, and could not distinguish measured telemetry from an
+      // estimate inferred from the daily average.
+      const stressSamples = (gSig.stress_distribution || {}).samples;
+      document.getElementById("stressNarrative").textContent =
+        gSig.stress_distribution_source === "measured"
+          ? `${sDist.rest_pct}% of today's ${stressSamples ? `${stressSamples} ` : ''}Garmin stress samples sat in the restorative 0-25 band.`
+          : `${sDist.rest_pct}% is an estimate inferred from the daily stress average only. Full 24-hour stress telemetry was unavailable for today.`;
 
       const circ = gSig.circadian || {};
-      document.getElementById("circCyclesVal").textContent = `${circ.sleep_cycles_completed || 4.4} Cycles`;
-      document.getElementById("circMelatoninVal").textContent = circ.optimal_melatonin_window || "22:15 — 22:45 SGT";
-      document.getElementById("circAlignVal").textContent = `${circ.circadian_alignment_pct || 88}% Consistent`;
+      const circBadge = document.getElementById("circStatusBadge");
+      if (circ.available) {
+        circBadge.textContent = "MEASURED";
+        circBadge.className = "px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-bold text-[10px]";
+      } else {
+        circBadge.textContent = "AWAITING DATA";
+        circBadge.className = "px-2 py-0.5 rounded-full bg-slate-700/40 border border-slate-600/50 text-slate-300 font-bold text-[10px]";
+      }
+      document.getElementById("circCyclesVal").textContent =
+        circ.sleep_cycles_completed != null ? `${circ.sleep_cycles_completed} Cycles` : '--';
+      document.getElementById("circMelatoninVal").textContent =
+        circ.optimal_melatonin_window || 'Awaiting onset telemetry';
+      document.getElementById("circAlignVal").textContent =
+        circ.circadian_alignment_pct != null ? `${circ.circadian_alignment_pct}% Consistent` : '--';
+      document.getElementById("circNarrative").textContent = circ.available
+        ? `Median sleep onset ${circ.onset_median_clock} across ${circ.onsets_analysed} nights, with a night-to-night spread of ${circ.onset_std_dev_minutes} minutes. Alignment scores bedtime regularity, not sleep duration.`
+        : 'Sleep-onset telemetry has not been collected yet. The next scheduled sync will populate this card from real bedtime data instead of a fixed placeholder.';
 
       // 9. Render All Interactive Charts
       updateSleepChart();
@@ -1961,103 +2387,71 @@
       // 10. Training Readiness Gauge (composite score)
       const hrv = today.hrv_last_night || 60;
       const hrv30 = baselines.hrv_30d || 55.3;
-      const hrvPctDiff = ((hrv - hrv30) / hrv30) * 100;
-      const acwr = parseFloat(fitness.acwr || 0.2);
-      const bodyBatt = charged;
-      const sleepDebt = whoop.accumulated_7d_debt_hours || 4.7;
-      
-      // Compute readiness 0-100
-      let readiness = recScore; // base from recovery
-      if (hrvPctDiff > 10) readiness += 8;
-      else if (hrvPctDiff > 0) readiness += 4;
-      else if (hrvPctDiff < -15) readiness -= 10;
-      else if (hrvPctDiff < 0) readiness -= 5;
-      if (acwr >= 0.8 && acwr <= 1.3) readiness += 5;
-      else if (acwr > 1.5) readiness -= 10;
-      if (sleepDebt < 2) readiness += 5;
-      else if (sleepDebt > 6) readiness -= 8;
-      readiness = Math.max(0, Math.min(100, Math.round(readiness)));
-      
+      const sleepDebt = whoop.accumulated_7d_debt_hours ?? 0;
+
+      // 10/11. Readiness and injury risk are computed by the engine; the browser
+      // renders the bands, tones and factors it is handed and compares nothing.
+      const readiness = data.readiness || {};
+      const injury = data.injury_risk || {};
+
       const readinessGaugeEl = document.getElementById('readinessGauge');
-      const readinessValEl = document.getElementById('readinessVal');
-      const readinessBadgeEl = document.getElementById('readinessBadge');
-      const readinessTextEl = document.getElementById('readinessText');
       if (readinessGaugeEl) {
-        readinessGaugeEl.style.strokeDashoffset = 264 - (264 * readiness / 100);
-        if (readiness >= 75) {
-          readinessGaugeEl.setAttribute('stroke', '#10b981');
-          readinessBadgeEl.textContent = 'PRIME';
-          readinessBadgeEl.className = 'px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-[10px]';
-          readinessTextEl.textContent = 'Your body is primed. This is a great day for high-intensity training, PR attempts, or competitions.';
-        } else if (readiness >= 50) {
-          readinessGaugeEl.setAttribute('stroke', '#f59e0b');
-          readinessBadgeEl.textContent = 'READY';
-          readinessBadgeEl.className = 'px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-[10px]';
-          readinessTextEl.textContent = 'Good recovery. You can handle moderate-to-hard training today. Prioritise quality over volume.';
-        } else if (readiness >= 25) {
-          readinessGaugeEl.setAttribute('stroke', '#f59e0b');
-          readinessBadgeEl.textContent = 'EASY DAY';
-          readinessBadgeEl.className = 'px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-[10px]';
-          readinessTextEl.textContent = 'Partial recovery. Keep intensity low today. Walking, yoga, or easy movement only.';
-        } else {
-          readinessGaugeEl.setAttribute('stroke', '#f43f5e');
-          readinessBadgeEl.textContent = 'REST';
-          readinessBadgeEl.className = 'px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold text-[10px]';
-          readinessTextEl.textContent = 'Your body needs rest. Training today will delay recovery and increase injury risk.';
-        }
-        readinessValEl.textContent = readiness;
-        document.getElementById('readinessRecovery').textContent = `+${bodyBatt} pts`;
-        document.getElementById('readinessHrv').textContent = `${hrvPctDiff >= 0 ? '+' : ''}${hrvPctDiff.toFixed(1)}%`;
-        document.getElementById('readinessStrain').textContent = acwr < 0.5 ? 'Very Light' : acwr < 0.8 ? 'Light' : acwr < 1.3 ? 'Moderate' : acwr < 1.5 ? 'Heavy' : 'Too Heavy';
+        const readinessScore = readiness.score ?? 0;
+        readinessGaugeEl.style.strokeDashoffset = 264 - (264 * readinessScore / 100);
+        readinessGaugeEl.setAttribute('stroke', TONE_STROKE[readiness.tone] || TONE_STROKE.amber);
+        const readinessBadgeEl = document.getElementById('readinessBadge');
+        readinessBadgeEl.textContent = readiness.badge || '--';
+        readinessBadgeEl.className = badgeClass(readiness.tone || 'amber');
+        // An absent score reads as "--", never as a measured zero.
+        document.getElementById('readinessVal').textContent = readiness.score ?? '--';
+        document.getElementById('readinessText').textContent = readiness.text || "Awaiting today's recovery data.";
+        document.getElementById('readinessRecovery').textContent = `+${readiness.body_battery_charged ?? 0} pts`;
+        const hrvDelta = readiness.hrv_delta_pct ?? 0;
+        document.getElementById('readinessHrv').textContent = `${hrvDelta >= 0 ? '+' : ''}${hrvDelta.toFixed(1)}%`;
+        document.getElementById('readinessStrain').textContent = readiness.workload_band || '--';
       }
 
-      // 11. Injury Risk Index
-      let injuryRisk = 0;
-      if (acwr > 1.5) injuryRisk += 40;
-      else if (acwr > 1.3) injuryRisk += 20;
-      else if (acwr < 0.5) injuryRisk += 5; // detraining
-      if (hrvPctDiff < -15) injuryRisk += 25;
-      else if (hrvPctDiff < -8) injuryRisk += 12;
-      if (sleepDebt > 8) injuryRisk += 15;
-      else if (sleepDebt > 5) injuryRisk += 8;
-      if (recScore < 33) injuryRisk += 15;
-      else if (recScore < 50) injuryRisk += 8;
-      injuryRisk = Math.max(0, Math.min(100, Math.round(injuryRisk)));
-      
       const injuryBarEl = document.getElementById('injuryRiskBar');
-      const injuryPctEl = document.getElementById('injuryRiskPct');
-      const injuryBadgeEl = document.getElementById('injuryRiskBadge');
       if (injuryBarEl) {
-        injuryBarEl.style.width = `${injuryRisk}%`;
-        injuryPctEl.textContent = `${injuryRisk}%`;
-        if (injuryRisk < 25) {
-          injuryBarEl.className = 'h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-700';
-          injuryBadgeEl.textContent = 'LOW';
-          injuryBadgeEl.className = 'px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-[10px]';
-          injuryPctEl.className = 'mono font-bold text-emerald-400';
-        } else if (injuryRisk < 55) {
-          injuryBarEl.className = 'h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-full transition-all duration-700';
-          injuryBadgeEl.textContent = 'MODERATE';
-          injuryBadgeEl.className = 'px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-[10px]';
-          injuryPctEl.className = 'mono font-bold text-amber-400';
-        } else {
-          injuryBarEl.className = 'h-full bg-gradient-to-r from-rose-600 to-rose-500 rounded-full transition-all duration-700';
-          injuryBadgeEl.textContent = 'HIGH';
-          injuryBadgeEl.className = 'px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold text-[10px]';
-          injuryPctEl.className = 'mono font-bold text-rose-400';
-        }
-        const acwrVal = typeof acwr === 'number' ? acwr.toFixed(1) : acwr;
-        document.querySelector('#injuryRiskBar').parentElement.closest('div.space-y-3')?.querySelectorAll('.font-bold.text-emerald-400, .font-bold.text-amber-400')[0]?.closest('div')?.querySelector('.font-bold')?.setAttribute('data-rendered', 'true');
+        const injuryPct = injury.pct ?? 0;
+        const injuryTone = injury.tone || 'green';
+        injuryBarEl.style.width = `${injuryPct}%`;
+        injuryBarEl.className = `h-full bg-gradient-to-r from-${injuryTone}-500 to-${injuryTone}-400 rounded-full transition-all duration-700`;
+        const injuryPctEl = document.getElementById('injuryRiskPct');
+        injuryPctEl.textContent = injury.pct == null ? '--' : `${injuryPct}%`;
+        injuryPctEl.className = `mono font-bold text-${injuryTone}-400`;
+        const injuryBadgeEl = document.getElementById('injuryRiskBadge');
+        injuryBadgeEl.textContent = injury.badge || '--';
+        injuryBadgeEl.className = badgeClass(injuryTone);
+        renderInjuryFactors(injury.factors || []);
       }
 
       // 12. AI Daily Briefing Banner (top of page)
-      renderAiDailyBriefing(recScore, hrv, hrv30, readiness, injuryRisk, sleepDebt, data);
+      renderAiDailyBriefing(recScore, hrv, hrv30, readiness, injury, sleepDebt, data);
+    }
+
+    // The four risk contributors used to be static markup, so they kept reading
+    // "ACWR 0.2" whatever the engine actually measured.
+    function renderInjuryFactors(factors) {
+      const grid = document.getElementById('injuryFactors');
+      if (!grid) return;
+      if (!factors.length) {
+        grid.innerHTML = '<div class="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-slate-500">Awaiting data…</div>';
+        return;
+      }
+      grid.innerHTML = factors.map(f => `
+        <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
+          <div class="text-slate-400 mb-0.5">${esc(f.label)}</div>
+          <div class="font-bold text-${f.tone}-400">${esc(f.value)}</div>
+          <div class="text-slate-600 leading-tight mt-0.5">${esc(f.note)}</div>
+        </div>
+      `).join('');
     }
 
     // ========================================================
     // AI DAILY BRIEFING GENERATOR
     // ========================================================
-    function renderAiDailyBriefing(recScore, hrv, hrv30, readiness, injuryRisk, sleepDebt, data) {
+    function renderAiDailyBriefing(recScore, hrv, hrv30, readiness, injury, sleepDebt, data) {
       const now = new Date();
       const hour = now.getHours();
       const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -2069,8 +2463,9 @@
       const hrv30d = hrv30 || 55.3;
       const hrvDiff = hrv - hrv30d;
       const hrvStr = hrvDiff >= 0 ? `+${hrvDiff.toFixed(0)} ms above` : `${Math.abs(hrvDiff).toFixed(0)} ms below`;
-      const recZone = recScore >= 67 ? 'Green (optimal)' : recScore >= 34 ? 'Yellow (moderate)' : 'Red (poor)';
-      const readinessLabel = readiness >= 75 ? 'prime for peak training' : readiness >= 50 ? 'ready for moderate training' : readiness >= 25 ? 'suitable for easy movement only' : 'in need of full rest';
+      const intel = data.clinical_intelligence || {};
+      const recZone = intel.recovery_briefing || 'Green (optimal)';
+      const readinessLabel = readiness.briefing || 'ready for moderate training';
       const debtStr = sleepDebt > 2 ? ` You carry ${sleepDebt.toFixed(1)} hours of accumulated sleep debt — prioritise an extra 30–45 minutes tonight.` : ' Your sleep debt is minimal — excellent sleep discipline.';
       
       const summaryLines = [
@@ -2078,34 +2473,32 @@
         `Overnight HRV is <strong>${hrv} ms</strong> (${hrvStr} your 30-day baseline of ${hrv30d} ms), indicating your nervous system is ${hrv > hrv30d ? 'well-recovered and primed' : 'slightly under baseline — monitor for fatigue'}. `,
         `Based on all biomarkers combined, you are <strong>${readinessLabel}</strong> today.${debtStr}`,
       ];
-      if (injuryRisk < 25) summaryLines.push(' Injury risk is <strong class="text-emerald-400">low</strong> — safe to train and progressively increase load.');
-      else if (injuryRisk < 55) summaryLines.push(` Injury risk is <strong class="text-amber-400">moderate (${injuryRisk}%)</strong> — manage training volume carefully this week.`);
-      else summaryLines.push(` <strong class="text-rose-400">⚠️ Injury risk is elevated (${injuryRisk}%)</strong> — reduce training load significantly.`);
+      const injuryPct = injury.pct ?? 0;
+      const injuryCopy = {
+        low: ' Injury risk is <strong class="text-emerald-400">low</strong> — safe to train and progressively increase load.',
+        moderate: ` Injury risk is <strong class="text-amber-400">moderate (${injuryPct}%)</strong> — manage training volume carefully this week.`,
+        high: ` <strong class="text-rose-400">⚠️ Injury risk is elevated (${injuryPct}%)</strong> — reduce training load significantly.`,
+      }[injury.band];
+      if (injuryCopy) summaryLines.push(injuryCopy);
       
       document.getElementById('aiDailySummary').innerHTML = summaryLines.join('');
 
       // Status dots
-      const setDot = (dotId, labelId, value, label, levels) => {
+      // Dots are coloured by the tone the engine resolved, so no threshold is
+      // repeated here (and injury risk no longer needs an inverted ladder).
+      const setDot = (dotId, labelId, tone, label) => {
         const el = document.getElementById(dotId);
         const lbl = document.getElementById(labelId);
         if (!el || !lbl) return;
-        if (value >= levels[0]) { el.classList.add('bg-emerald-400'); }
-        else if (value >= levels[1]) { el.classList.add('bg-amber-400'); }
-        else { el.classList.add('bg-rose-400'); }
+        // Clear first: the dot kept every colour class it had ever received.
+        el.classList.remove('bg-emerald-400', 'bg-amber-400', 'bg-rose-400', 'bg-cyan-400');
+        el.classList.add(`bg-${tone || 'slate'}-400`);
         lbl.textContent = label;
       };
-      setDot('summaryRecDot', 'summaryRecLabel', recScore, `${recScore}%`, [67, 34]);
-      setDot('summaryHrvDot', 'summaryHrvLabel', hrv, `${hrv} ms`, [hrv30d, hrv30d * 0.85]);
-      setDot('summaryReadinessDot', 'summaryReadinessLabel', readiness, `${readiness}/100`, [75, 50]);
-      // Injury risk: lower is better, so invert
-      const injuryLbl = document.getElementById('summaryInjuryLabel');
-      const injuryDot = document.getElementById('summaryInjuryDot');
-      if (injuryLbl && injuryDot) {
-        injuryLbl.textContent = `${injuryRisk}%`;
-        if (injuryRisk < 25) injuryDot.classList.add('bg-emerald-400');
-        else if (injuryRisk < 55) injuryDot.classList.add('bg-amber-400');
-        else injuryDot.classList.add('bg-rose-400');
-      }
+      setDot('summaryRecDot', 'summaryRecLabel', intel.recovery_tone, `${recScore}%`);
+      setDot('summaryHrvDot', 'summaryHrvLabel', readiness.hrv_tone, `${hrv} ms`);
+      setDot('summaryReadinessDot', 'summaryReadinessLabel', readiness.tone, `${readiness.score ?? 0}/100`);
+      setDot('summaryInjuryDot', 'summaryInjuryLabel', injury.tone, `${injuryPct}%`);
     }
 
 
@@ -2174,6 +2567,12 @@
 
       const ctx = document.getElementById("sleepChart").getContext("2d");
       if (sleepChartInstance) sleepChartInstance.destroy();
+
+      // Replace the previously hard-coded "186 nights" copy with real counts.
+      document.getElementById("sleepChartSubtitle").textContent =
+        `Deep (Slow Wave), REM, and Light stages across ${allSleep.length} nights`;
+      document.getElementById("sleepScrubHint").textContent =
+        `Touch & Drag or Hover to scrub ${currentSleepTf === 'ALL' ? `all ${allSleep.length}` : `the most recent ${subset.length}`} nights`;
 
       const labels = subset.map(d => d.date ? d.date.slice(5) : '--');
       const deepHours = subset.map(d => +(d.deep_seconds / 3600).toFixed(2));
@@ -2681,6 +3080,11 @@
         }
       });
 
+      const matchedNights = q1.length + q2.length + q3.length + q4.length;
+      document.getElementById("scatterNightCount").textContent = `${matchedNights} Matched Nights`;
+      document.getElementById("scatterAxisNote").textContent =
+        `Horizontal axis: resting HR (bpm), baseline ${baseRhr} // Vertical axis: overnight HRV (ms), baseline ${baseHrv} // ${q1.length} nights in Q1 (peak recovery)`;
+
       if (!todayPoint && data.today) {
         todayPoint = {
           x: data.today.rhr || 51,
@@ -2882,6 +3286,19 @@
       const ctx = document.getElementById("multiYearRhrChart").getContext("2d");
       if (rhrChartInstance) rhrChartInstance.destroy();
 
+      // Year chips and the subtitle used to be frozen literals (2022-2026 values
+      // and "1,505+ days") that silently went stale as data accumulated.
+      const yearly = globalBaselines.rhr_yearly || {};
+      const years = Object.keys(yearly).sort();
+      document.getElementById("rhrYearChips").innerHTML = years.map((year, index) => {
+        const isLatest = index === years.length - 1;
+        return `<span class="px-2 py-1 rounded border bg-slate-900 border-slate-800 ${isLatest ? 'text-emerald-400 font-bold' : 'text-slate-300'}">${esc(year)}: <strong>${Number(yearly[year]).toFixed(1)}</strong></span>`;
+      }).join('');
+      const totalDays = Number(globalBaselines.rhr_total_days);
+      document.getElementById("rhrChartSubtitle").textContent = Number.isFinite(totalDays) && totalDays > 0
+        ? `Monthly average resting heart rate (bpm) across ${totalDays.toLocaleString()} tracked days`
+        : 'Monthly average resting heart rate (bpm)';
+
       const labels = multiYear.map(m => m.month);
       const vals = multiYear.map(m => m.rhr);
 
@@ -2961,17 +3378,31 @@
       }
     }
 
+    // The 4-year baseline used to be hard-coded at 50.0 bpm in the UI, which
+    // silently disagreed with the computed baseline in the payload.
+    function rhrLifetimeBaseline() {
+      const value = Number(globalBaselines && globalBaselines.rhr_all_time);
+      return Number.isFinite(value) && value > 0 ? value : null;
+    }
+
     function scrubRhrCallout(item) {
       if (!item) return;
+      const baseline = rhrLifetimeBaseline();
       document.getElementById("rhrHudDate").textContent = `${item.month} (${item.year})`;
       document.getElementById("rhrHudVal").textContent = `${item.rhr.toFixed(1)} bpm`;
-      const delta = (item.rhr - 50.0).toFixed(1);
+      document.getElementById("rhrHudBaseline").textContent = baseline ? `${baseline.toFixed(1)} bpm` : '-- bpm';
+      if (!baseline) {
+        document.getElementById("rhrHudDelta").textContent = 'lifetime baseline unavailable';
+        return;
+      }
+      const delta = item.rhr - baseline;
       const sign = delta >= 0 ? '+' : '';
-      document.getElementById("rhrHudDelta").textContent = `${sign}${delta} bpm vs 50.0 baseline`;
+      document.getElementById("rhrHudDelta").textContent = `${sign}${delta.toFixed(1)} bpm vs personal baseline`;
     }
 
     function getRhrCalloutHtml(item) {
-      const delta = (item.rhr - 50.0).toFixed(1);
+      const baseline = rhrLifetimeBaseline() || 50.0;
+      const delta = (item.rhr - baseline).toFixed(1);
       const sign = delta >= 0 ? '+' : '';
 
       return `
@@ -2990,7 +3421,7 @@
             </div>
             <div class="flex justify-between text-slate-300">
               <span class="text-slate-400">4-Year Baseline:</span>
-              <span>50.0 bpm</span>
+              <span>${rhrLifetimeBaseline() ? rhrLifetimeBaseline().toFixed(1) : '--'} bpm</span>
             </div>
             <div class="flex justify-between text-emerald-400 text-[10px] pt-1.5 mt-1 border-t border-slate-800/80">
               <span class="text-slate-400">Lifetime Delta:</span>
@@ -3055,6 +3486,30 @@
       if (!canvas || totalPoints <= 0) return;
 
       let lastChirpTime = 0;
+
+      // Map the pointer through the chart's own x scale. The previous version
+      // assumed the plot area spans the entire canvas, so the axis gutter
+      // shifted every scrubbed value by several data points.
+      const nearestIndex = (chart, relativeX) => {
+        try {
+          const value = chart.scales.x.getValueForPixel(relativeX);
+          if (typeof value === 'number' && Number.isFinite(value)) return Math.round(value);
+        } catch (err) { /* fall through to the proportional estimate */ }
+        return Math.floor((relativeX / canvas.getBoundingClientRect().width) * totalPoints);
+      };
+
+      const anchorYPixel = (chart, index) => {
+        try {
+          const datasets = chart.data.datasets || [];
+          const stacked = Boolean(chart.options && chart.options.scales && chart.options.scales.y && chart.options.scales.y.stacked);
+          const value = stacked
+            ? datasets.reduce((sum, ds) => sum + (Number(ds.data[index]) || 0), 0)
+            : datasets[0] && datasets[0].data ? datasets[0].data[index] : null;
+          if (typeof value === 'number' && Number.isFinite(value)) return chart.scales.y.getPixelForValue(value);
+        } catch (err) { /* fall back to the pointer position */ }
+        return null;
+      };
+
       const handleScrub = (clientX, clientY) => {
         const rect = canvas.getBoundingClientRect();
         const relativeX = clientX - rect.left;
@@ -3064,13 +3519,18 @@
           return;
         }
         
-        const idx = Math.min(Math.max(Math.floor((relativeX / width) * totalPoints), 0), totalPoints - 1);
+        const chart = typeof Chart.getChart === 'function' ? Chart.getChart(canvas) : null;
+        const rawIdx = chart ? nearestIndex(chart, relativeX) : Math.floor((relativeX / width) * totalPoints);
+        const idx = Math.min(Math.max(rawIdx, 0), totalPoints - 1);
         const now = Date.now();
         if (now - lastChirpTime > 75) {
           playMicroChirp(720 + (idx % 12) * 28, 0.018);
           lastChirpTime = now;
         }
-        callback(idx, clientX, clientY);
+        // Anchor the callout to the data point rather than the raw pointer, so
+        // the popup does not drift away from the value it describes.
+        const anchorY = chart ? anchorYPixel(chart, idx) : null;
+        callback(idx, clientX, anchorY === null ? clientY : rect.top + anchorY);
       };
 
       // Pointer / Mouse Move
@@ -3129,9 +3589,9 @@
       tbody.innerHTML = filtered.slice(0, 20).map(a => `
         <tr class="hover:bg-slate-800/40 transition">
           <td class="py-2.5 px-3 mono text-slate-400">${a.startTimeLocal ? a.startTimeLocal.slice(0, 10) : '--'}</td>
-          <td class="py-2.5 px-3 font-medium text-white">${a.activityName || 'Workout'}</td>
+          <td class="py-2.5 px-3 font-medium text-white">${esc(a.activityName || 'Workout')}</td>
           <td class="py-2.5 px-3">
-            <span class="px-2 py-0.5 rounded bg-slate-800 text-cyan-400 font-mono text-[10px] uppercase font-bold">${a.category || 'Other'}</span>
+            <span class="px-2 py-0.5 rounded bg-slate-800 text-cyan-400 font-mono text-[10px] uppercase font-bold">${esc(a.category || 'Other')}</span>
           </td>
           <td class="py-2.5 px-3 mono text-slate-300">${a.distance_km ? a.distance_km + ' km' : '--'}</td>
           <td class="py-2.5 px-3 mono text-slate-300">${a.duration_min ? a.duration_min + ' min' : '--'}</td>
@@ -3145,6 +3605,293 @@
         </tr>
       `).join('');
     }
+
+    // ========================================================
+    // MANUAL REFRESH (re-read the vault; optionally trigger the sync)
+    // ========================================================
+    // The dashboard is a static page, so it cannot run the Python pipeline
+    // itself. Two honest capabilities: re-read whatever the pipeline published
+    // (always available), and ask GitHub Actions to start a new run when the
+    // viewer has supplied their own token.
+
+    function githubToken() {
+      return (localStorage.getItem(GITHUB_TOKEN_KEY) || "").trim();
+    }
+
+    let refreshToastTimer = null;
+    let refreshToastSeq = 0;
+
+    function showRefreshToast(message, tone, sticky) {
+      const toast = document.getElementById("refreshToast");
+      const text = document.getElementById("refreshToastText");
+      if (!toast || !text) return;
+      text.textContent = message;
+      toast.className = `fixed left-1/2 -translate-x-1/2 bottom-6 z-40 px-4 py-2.5 rounded-xl glass-card border border-${tone}-500/40 text-${tone}-300 text-xs font-medium flex items-center gap-2 shadow-2xl max-w-[90vw] text-center`;
+      if (refreshToastTimer) clearTimeout(refreshToastTimer);
+      // Sequence guard: a timer from an earlier toast must not hide a newer one.
+      const seq = ++refreshToastSeq;
+      if (!sticky) {
+        refreshToastTimer = setTimeout(() => {
+          if (seq === refreshToastSeq) toast.classList.add("hidden");
+        }, 6000);
+      }
+    }
+
+    function hideRefreshToast() {
+      if (refreshToastTimer) clearTimeout(refreshToastTimer);
+      document.getElementById("refreshToast")?.classList.add("hidden");
+    }
+
+    function githubLastDispatchAt() {
+      return Number(localStorage.getItem(LAST_DISPATCH_KEY)) || 0;
+    }
+
+    function refreshCooldownRemaining() {
+      return Math.max(0, refreshCooldownUntil - Date.now());
+    }
+
+    // Single source of truth for the button's enabled state, label and tooltip.
+    // The cooldown counts down in the label so a greyed-out button always says
+    // why it is greyed out.
+    function updateRefreshButton() {
+      const btn = document.getElementById("refreshBtn");
+      if (!btn) return;
+      const remaining = refreshCooldownRemaining();
+      const waiting = !refreshBusy && remaining > 0;
+      btn.disabled = refreshBusy || waiting;
+      document.getElementById("refreshIcon")?.classList.toggle("animate-spin-slow", refreshBusy);
+      const label = document.getElementById("refreshLabel");
+      if (label) {
+        label.textContent = refreshBusy
+          ? "Refreshing…"
+          : waiting
+            ? `Wait ${Math.ceil(remaining / 1000)}s`
+            : "Refresh";
+      }
+      btn.title = refreshBusy
+        ? "A refresh is already running"
+        : waiting
+          ? "Cooling down, so the vault and GitHub are not hammered by repeat clicks"
+          : "Re-read the published vault; with a token, trigger the Garmin sync (Shortcut: R)";
+    }
+
+    function startRefreshCooldown() {
+      refreshCooldownUntil = Date.now() + REFRESH_COOLDOWN_MS;
+      updateRefreshButton();
+      if (refreshCooldownTimer) clearInterval(refreshCooldownTimer);
+      refreshCooldownTimer = setInterval(() => {
+        if (refreshCooldownRemaining() <= 0) {
+          clearInterval(refreshCooldownTimer);
+          refreshCooldownTimer = null;
+        }
+        updateRefreshButton();
+      }, 1000);
+    }
+
+    // Locking ends any refresh in flight: the poll stops, the cooldown is cleared
+    // and the button returns to its idle state, so unlocking does not leave a
+    // dead "Refreshing…" button behind.
+    function stopRefreshActivity() {
+      refreshPollAbort = true;
+      refreshBusy = false;
+      refreshCooldownUntil = 0;
+      if (refreshCooldownTimer) {
+        clearInterval(refreshCooldownTimer);
+        refreshCooldownTimer = null;
+      }
+      hideRefreshToast();
+      updateRefreshButton();
+    }
+
+    async function fetchStatusFile() {
+      const resp = await fetch("data/status.json?v=" + Date.now(), { cache: "no-store" });
+      if (!resp.ok) throw new Error(`status ${resp.status}`);
+      return resp.json();
+    }
+
+    async function reloadVault() {
+      if (!sessionPassphrase) throw new Error("passphrase not in memory");
+      const resp = await fetch("data/biometrics.enc.json?v=" + Date.now(), { cache: "no-store" });
+      if (!resp.ok) throw new Error(`vault ${resp.status}`);
+      const encData = await resp.json();
+      const data = await decryptPayload(encData, sessionPassphrase);
+      globalBioData = data;
+      renderDashboard(data);
+      requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+      return data;
+    }
+
+    async function dispatchSyncWorkflow() {
+      const resp = await fetch(
+        `https://api.github.com/repos/${VAULT_REPO}/actions/workflows/${SYNC_WORKFLOW_FILE}/dispatches`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${githubToken()}`,
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
+          body: JSON.stringify({ ref: "main" }),
+        }
+      );
+      if (resp.ok) return;
+      if (resp.status === 401) throw new Error("GitHub token rejected (401) — check refresh settings");
+      if (resp.status === 403) throw new Error("Token lacks Actions: write, or the workflow is disabled (403)");
+      if (resp.status === 404) throw new Error("Workflow not found (404) — token may not have repo access");
+      throw new Error(`GitHub refused the dispatch (${resp.status})`);
+    }
+
+    // Poll the published status file until it reports a timestamp we have not
+    // seen yet, i.e. the workflow published a new vault.
+    async function waitForNewerVault(baseline) {
+      const started = Date.now();
+      const deadline = started + REFRESH_TIMEOUT_MS;
+      while (Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, REFRESH_POLL_MS));
+        if (refreshPollAbort) return { aborted: true, updatedAt: null };
+        const minutes = Math.floor((Date.now() - started) / 60000);
+        showRefreshToast(`Garmin sync running… ${minutes}m elapsed`, "cyan", true);
+        try {
+          const status = await fetchStatusFile();
+          if (status && status.updated_at && status.updated_at !== baseline) {
+            return { aborted: false, updatedAt: status.updated_at };
+          }
+        } catch (err) {
+          /* transient: keep polling */
+        }
+      }
+      return { aborted: false, updatedAt: null };
+    }
+
+    async function refreshVault() {
+      // Every entry point (button and the R shortcut) passes through the same
+      // guards: one refresh at a time, and one per cooldown window.
+      if (refreshBusy) {
+        showRefreshToast("A refresh is already running — it will report when it finishes.", "amber");
+        return;
+      }
+      const remaining = refreshCooldownRemaining();
+      if (remaining > 0) {
+        showRefreshToast(`Cooling down — try again in ${Math.ceil(remaining / 1000)}s.`, "amber");
+        return;
+      }
+      if (!globalBioData) {
+        showRefreshToast("Unlock the vault first.", "amber");
+        return;
+      }
+
+      refreshBusy = true;
+      refreshPollAbort = false;
+      updateRefreshButton();
+      const previousAt = globalBioData.updated_at;
+      try {
+        let remoteAt = null;
+        try {
+          remoteAt = (await fetchStatusFile()).updated_at || null;
+        } catch (err) {
+          /* status file is optional; the vault itself is authoritative */
+        }
+
+        // A second dispatch inside the dedupe window would queue a duplicate
+        // run, so in that window a refresh only re-reads. The reason travels
+        // with the outcome, otherwise the progress toast buries it.
+        const token = githubToken();
+        const dispatchAllowed = token && Date.now() - githubLastDispatchAt() >= DISPATCH_DEDUPE_MS;
+        const deferralNote = token && !dispatchAllowed
+          ? ` A sync was already requested ${Math.max(1, Math.round((Date.now() - githubLastDispatchAt()) / 60000))} min ago, so this re-read the published data instead of starting another.`
+          : "";
+
+        // Skip the work only when we can prove nothing was published since this
+        // session loaded: both timestamps known and equal. Anything less certain
+        // falls through to a real read, so "up to date" is never a guess.
+        if (remoteAt && lastStatusAt && remoteAt === lastStatusAt) {
+          showRefreshToast(`Already up to date — nothing has been published since your last load.${deferralNote}`, "slate");
+          return;
+        }
+
+        if (dispatchAllowed) {
+          showRefreshToast("Triggering a Garmin sync…", "cyan", true);
+          await dispatchSyncWorkflow();
+          localStorage.setItem(LAST_DISPATCH_KEY, String(Date.now()));
+          const poll = await waitForNewerVault(remoteAt);
+          if (poll.aborted) return;
+          if (!poll.updatedAt) {
+            showRefreshToast(
+              "The sync is still running. It will appear here once it finishes — press Refresh again after the cooldown.",
+              "amber"
+            );
+            return;
+          }
+          remoteAt = poll.updatedAt;
+          playMicroChirp(880, 0.04);
+        }
+
+        showRefreshToast("Reading the published vault…", "cyan", true);
+        const data = await reloadVault();
+        lastStatusAt = remoteAt;
+        const changed = data.updated_at !== previousAt;
+        showRefreshToast(
+          changed
+            ? `Vault updated — synced ${formatInSgt(new Date(data.updated_at), { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })} SGT.`
+            : `Already up to date — the published vault is the one you are viewing.${deferralNote}`,
+          changed ? "green" : "slate"
+        );
+        if (changed) playSuccessMelody();
+      } catch (err) {
+        console.error(err);
+        if (refreshPollAbort) return; // locked out mid-flight: nothing to report
+        const passphraseMissing = /passphrase not in memory/.test(String(err.message));
+        showRefreshToast(
+          passphraseMissing
+            ? "New data is available — unlock again to load it."
+            : `Refresh failed: ${err.message}`,
+          "rose"
+        );
+      } finally {
+        refreshBusy = false;
+        // A lock mid-flight already reset the button; do not start a cooldown
+        // behind the lock screen.
+        if (!refreshPollAbort) startRefreshCooldown();
+        updateRefreshButton();
+      }
+    }
+
+    function openRefreshSettings() {
+      document.getElementById("ghTokenInput").value = githubToken();
+      document.getElementById("refreshSettingsNote").textContent = githubToken()
+        ? `Sync triggering: enabled // workflow ${SYNC_WORKFLOW_FILE} in ${VAULT_REPO}`
+        : "No token stored — Refresh will re-read the vault only.";
+      document.getElementById("refreshSettingsModal").classList.remove("hidden");
+    }
+
+    function closeRefreshSettings() {
+      document.getElementById("refreshSettingsModal").classList.add("hidden");
+      document.getElementById("ghTokenInput").value = "";
+    }
+
+    function saveRefreshSettings(event) {
+      event.preventDefault();
+      const token = document.getElementById("ghTokenInput").value.trim();
+      if (token) {
+        localStorage.setItem(GITHUB_TOKEN_KEY, token);
+      } else {
+        localStorage.removeItem(GITHUB_TOKEN_KEY);
+      }
+      closeRefreshSettings();
+      updateRefreshButton();
+      showRefreshToast(
+        token ? "Token saved — Refresh can now trigger a sync." : "Token cleared — Refresh will only re-read the vault.",
+        "slate"
+      );
+    }
+
+    function clearGitHubToken() {
+      localStorage.removeItem(GITHUB_TOKEN_KEY);
+      closeRefreshSettings();
+      updateRefreshButton();
+      showRefreshToast("Stored token forgotten.", "slate");
+    }
+
 
     // ========================================================
     // KEYBOARD NAVIGATION SHORTCUTS
@@ -3164,8 +3911,11 @@
         logout();
       } else if (key === 'O') {
         toggleRhrOverlay();
+      } else if (key === 'R') {
+        refreshVault();
       } else if (key === 'ESCAPE') {
         closeMasterLockModal();
+        closeRefreshSettings();
         hideFloatingCallout();
       } else if (key >= '1' && key <= '9') {
         const sectionIndex = parseInt(key, 10);

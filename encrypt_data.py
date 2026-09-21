@@ -8,7 +8,7 @@ import os
 import sys
 import json
 import base64
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Fix Windows console UTF-8 encoding
@@ -29,15 +29,19 @@ OUTPUT_FILE = DATA_DIR / "biometrics.enc.json"
 STATUS_FILE = DATA_DIR / "status.json"
 
 DEFAULT_PASS = "Capybara"
+# OWASP's current guidance for PBKDF2-HMAC-SHA256 is 600,000 iterations. The
+# envelope records the cost it was written with and the browser reads that
+# field, so this value can be raised without invalidating older ciphertext.
+DEFAULT_ITERATIONS = 600_000
 
 
-def encrypt_payload(data_str: str, password: str) -> dict:
+def encrypt_payload(data_str: str, password: str, iterations: int = DEFAULT_ITERATIONS) -> dict:
     salt = os.urandom(16)
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
         salt=salt,
-        iterations=100_000,
+        iterations=iterations,
     )
     key = kdf.derive(password.encode("utf-8"))
     iv = os.urandom(12)
@@ -46,7 +50,7 @@ def encrypt_payload(data_str: str, password: str) -> dict:
 
     return {
         "format": "aes-256-gcm-pbkdf2",
-        "iterations": 100_000,
+        "iterations": iterations,
         "salt": base64.b64encode(salt).decode("utf-8"),
         "iv": base64.b64encode(iv).decode("utf-8"),
         "data": base64.b64encode(ciphertext).decode("utf-8"),
@@ -59,18 +63,20 @@ def main():
         sys.exit(1)
 
     password = os.environ.get("GARMIN_DASHBOARD_PASS", DEFAULT_PASS)
+    iterations = int(os.environ.get("GARMIN_PBKDF2_ITERATIONS", DEFAULT_ITERATIONS))
 
     print(f"🔒 Encrypting {INPUT_FILE} with AES-256-GCM...")
     with open(INPUT_FILE, "r", encoding="utf-8") as f:
         raw_json = f.read()
 
-    encrypted = encrypt_payload(raw_json, password)
+    encrypted = encrypt_payload(raw_json, password, iterations)
 
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(encrypted, f, indent=2)
 
     status_data = {
-        "updated_at": datetime.now().isoformat(),
+        # Timezone-aware so browsers do not reinterpret the sync time as local.
+        "updated_at": datetime.now(timezone.utc).isoformat(),
         "version": "1.0.0",
         "master_lock": False,  # Off by default, armed only when user activates Barabara
     }
@@ -79,7 +85,7 @@ def main():
 
     print(f"✅ Successfully encrypted! Saved to: {OUTPUT_FILE.resolve()}")
     print(f"   • Ciphertext size: {len(encrypted['data'])} bytes")
-    print(f"   • Key derivation: PBKDF2-HMAC-SHA256 (100,000 rounds)")
+    print(f"   • Key derivation: PBKDF2-HMAC-SHA256 ({iterations:,} rounds)")
     print(f"   • Status file: {STATUS_FILE.resolve()} (master_lock=False)")
 
 
