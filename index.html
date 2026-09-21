@@ -1002,10 +1002,11 @@
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
             <p><strong class="text-cyan-400">ACWR</strong> compares this week's training load ("Acute") vs the past 4-week average ("Chronic"). It tells you if you're training too hard too fast — the #1 cause of sports injuries.</p>
-            <p>🟢 <strong class="text-white">0.8 – 1.3</strong> = Sweet spot — building fitness safely</p>
-            <p>🔵 <strong class="text-white">&lt; 0.8</strong> = Fresh / undertraining — safe to increase gradually</p>
-            <p>🔴 <strong class="text-white">&gt; 1.5</strong> = Danger zone — high injury risk, pull back</p>
-            <p class="text-slate-500">Your <span id="infoAcwrValue" class="text-slate-300">--</span> today — under 0.8 means you have room to build volume gradually, 0.8–1.3 is the sweet spot to hold, and above 1.5 is where injury risk climbs.</p>
+            <p>🟢 <strong class="text-white">0.8 – 1.3</strong> = <strong class="text-white">Sweet Spot</strong> — building fitness safely</p>
+            <p>🔵 <strong class="text-white">&lt; 0.8</strong> = <strong class="text-white">Fresh / Under-trained</strong> — safe to increase gradually</p>
+            <p>🟠 <strong class="text-white">1.3 – 1.5</strong> = <strong class="text-white">High</strong> — hold volume where it is</p>
+            <p>🔴 <strong class="text-white">&gt; 1.5</strong> = <strong class="text-white">Danger Zone</strong> — high injury risk, pull back</p>
+            <p class="text-slate-500">Your <span id="infoAcwrValue" class="text-slate-300">--</span> today sits in the band named beside the badge above. Your watch's own status word for it read <span id="infoAcwrWatchStatus" class="text-slate-300">--</span> — kept here as context, because every ACWR surface on this page uses the bands above.</p>
           </div>
         </div>
 
@@ -1410,7 +1411,7 @@
               <div class="space-y-1 text-[10px] mono">
                 <div class="flex justify-between"><span class="text-slate-500">Body Battery recovery:</span><span id="readinessRecovery" class="text-emerald-400" data-quality-key="body_battery">+38 pts</span></div>
                 <div class="flex justify-between"><span class="text-slate-500">HRV contribution:</span><span id="readinessHrv" class="text-cyan-400">+8.5%</span></div>
-                <div class="flex justify-between"><span class="text-slate-500">Workload band (ACWR):</span><span id="readinessStrain" class="text-amber-400" data-quality-key="training_load">Light</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Workload band (ACWR):</span><span id="readinessStrain" class="text-amber-400" data-quality-key="training_load">--</span></div>
               </div>
             </div>
           </div>
@@ -2340,13 +2341,15 @@
         ? `${fitness.achievable_fitness_age} yrs`
         : "--";
       document.getElementById("kpiAcwrVal").textContent = fitness.acwr || "0.2";
-      // Both status badges take their colour from the tone the engine resolved for
-      // Garmin's own status word, so the label and the colour are one decision.
+      // ACWR has one set of band names, owned by policy and published resolved, so
+      // this badge, the readiness card and the ACWR panel name the same band. Garmin's
+      // own status word is context in that panel, not a second vocabulary.
       const acwrStatusEl = document.getElementById("kpiAcwrStatus");
-      acwrStatusEl.textContent = fitness.acwr_status || "--";
-      const acwrTone = fitness.acwr_status_tone || "slate";
+      acwrStatusEl.textContent = fitness.acwr_band_label || "--";
+      const acwrTone = fitness.acwr_band_tone || "slate";
       acwrStatusEl.className =
         `ml-auto text-xs px-2 py-0.5 rounded bg-${acwrTone}-500/10 text-${acwrTone}-400 font-semibold`;
+      document.getElementById("infoAcwrWatchStatus").textContent = fitness.acwr_status || "--";
       document.getElementById("infoAcwrValue").textContent = fitness.acwr ?? "--";
       document.getElementById("kpiAcuteLoad").textContent = fitness.acute_load || "44";
       document.getElementById("kpiChronicLoad").textContent = fitness.chronic_load || "219";
