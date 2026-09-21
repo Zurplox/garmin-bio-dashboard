@@ -426,6 +426,142 @@ PAIR_NOTES = {
 }
 
 
+# --- coaching ---------------------------------------------------------------
+# Everything above answers "what do my numbers say". Coaching answers "so what do
+# I do today", so each domain below is one prescription built from the same
+# parts: the reading, the action, how it progresses, when to back off, and the
+# study the rule came from. The thresholds and the plain-English lines live here
+# with every other policy value, so the coach cannot invent either.
+
+COACH_WINDOW_DAYS = 28  # the window a weekly session rate is judged over
+COACH_RECENT_DAYS = 7
+# Personal patterns are chronic, so they read the same long window as the
+# correlation lab: a 28-day slice rarely holds enough hard days to compare.
+PATTERN_WINDOW_DAYS = 120
+COACH_MIN_SESSIONS = 3  # below this a weekly rate is noise, not a rate
+
+# Session load is duration x average heart rate: crude, but it is measured on
+# every session and needs no assumption about zones the athlete never set.
+LOAD_FALLBACK_HR = 120.0
+
+# Strength: the major muscle groups want training at least twice a week.
+STRENGTH_TARGET_PER_WEEK = 2.0
+STRENGTH_STRETCH_PER_WEEK = 3.0
+
+# Hard cardio: the public-health floor is 150 moderate minutes a week.
+ENDURANCE_TARGET_PER_WEEK = 3.0
+ENDURANCE_MIN_MINUTES = 20.0
+
+# Walking: the mortality curve bends flat around 8,000 steps for this age band.
+WALKING_STEPS_TARGET = 8000
+WALKING_DAYS_MET_TARGET = 5  # of the last 7
+
+# Hiking: gain per kilometre is what turns a walk into a climb.
+HIKING_GAIN_PER_KM_MIN = 25.0
+HIKING_GAIN_PER_KM_STRONG = 50.0
+HIKING_GAIN_PER_HOUR_NOTABLE = 300.0
+
+# Sleep: the debt worth acting on, and the bedtime spread that counts as regular.
+SLEEP_DEBT_ACTION_HOURS = 2.5
+SLEEP_REGULARITY_SPREAD_MINUTES = 45.0
+SLEEP_LATE_NIGHT_MINUTES = 45
+
+# Heat: adaptations decay roughly 2.5% a day without exposure.
+HEAT_DECAY_PER_DAY = 0.025
+HEAT_INDUCTION_DAYS = 5
+
+# A personal pattern is only published once this many paired days support it.
+PATTERN_MIN_PAIRS = 12
+PATTERN_MIN_RUNS = 6
+
+# Which domain wins when two cards are equally urgent. Recovery first because it
+# gates the rest, then sleep because everything else is repaid in it, then the
+# training that needs the most recovery to absorb.
+COACH_PRIORITY = ("recovery", "sleep", "strength", "endurance", "hiking", "walking")
+
+# What each coach card is called, and the technical name of what it tunes.
+COACH_DOMAINS = (
+    ("strength", "Strength & Muscle", "Resistance-training frequency"),
+    ("endurance", "Running & Hard Cardio", "Aerobic load and intensity"),
+    ("walking", "Walking & Daily Movement", "Step volume"),
+    ("hiking", "Hiking & Hills", "Grade-adjusted load"),
+    ("sleep", "Sleep", "Sleep extension and regularity"),
+    ("recovery", "Recovery & Load Management", "Autonomic readiness and ACWR"),
+)
+
+# The studies the coaching rules are drawn from. Each anchor names what it
+# supports, what it found and -- where the literature disagrees -- what it does
+# not settle, because a coach that quotes only the convenient half of a debate is
+# just an opinion with a citation.
+EVIDENCE = {
+    "load_ratio": {
+        "claim": "Keep the week-on-week load ratio inside the 0.8-1.3 band.",
+        "source": "Gabbett TJ. The training-injury prevention paradox. Br J Sports Med 2016;50:273-280.",
+        "finding": "Sustaining an acute:chronic workload ratio near 0.8-1.3 was associated with the lowest injury risk; sharp spikes above it were not.",
+        "caveat": "Contested ground. Zouhal et al. (2021) and Maupin et al. (2020) find the band plausible but the evidence inconsistent, so this app treats it as a guide rail rather than a verdict.",
+    },
+    "hrv_guided": {
+        "claim": "Let the morning reading decide whether today is hard or easy.",
+        "source": "Vesterinen V et al. Med Sci Sports Exerc 2016;48(7):1347-1354; Manresa-Rocamora A et al. Int J Environ Res Public Health 2021;18(19):10206.",
+        "finding": "Prescribing hard days by HRV produced equal or better performance than a fixed plan and fewer negative responses in vagal HRV.",
+        "caveat": "Duking et al. (2021) found the performance advantage small and in some analyses non-significant; the recovery benefit is the better-evidenced half.",
+    },
+    "sleep_extension": {
+        "claim": "Repay sleep debt by extending the night, not by training through it.",
+        "source": "Mah CD et al. The effects of sleep extension on the athletic performance of collegiate basketball players. Sleep 2011;34(7):943-950.",
+        "finding": "Several weeks of extra sleep improved sprint times, shooting accuracy, reaction time and mood.",
+        "caveat": "Small sample (11 players) and self-selected extension, so the size of the effect is less certain than its direction.",
+    },
+    "sleep_regularity": {
+        "claim": "A steady bedtime is worth chasing even when the total is short.",
+        "source": "Windred DP et al. Sleep regularity is a stronger predictor of mortality risk than sleep duration. Sleep 2024;47(1):zsad253.",
+        "finding": "Across ~60,000 UK Biobank participants, sleep regularity predicted all-cause mortality more strongly than sleep duration did.",
+        "caveat": "Observational: regular sleepers differ in other ways that no model fully removes.",
+    },
+    "strength_frequency": {
+        "claim": "Train each major muscle group at least twice a week.",
+        "source": "Schoenfeld BJ, Ogborn D, Krieger JW. Effects of resistance training frequency on measures of muscle hypertrophy. Sports Med 2016;46(11):1689-1697.",
+        "finding": "When weekly volume was matched, training a muscle group twice or more per week produced more growth than once.",
+        "caveat": "Total weekly volume still matters more than how it is split; frequency is the easier lever when only a few sessions happen.",
+    },
+    "steps_mortality": {
+        "claim": "Walk towards 8,000 steps a day rather than 10,000 for its own sake.",
+        "source": "Paluch AE et al. Daily steps and all-cause mortality: a meta-analysis of 15 international cohorts. Lancet Public Health 2022;7(3):e219-e228.",
+        "finding": "Mortality risk fell with more daily steps and levelled off around 6,000-8,000 in older adults and 8,000-10,000 in younger ones.",
+        "caveat": "Observational, and the plateau differs by age -- the step goal here is the 8,000 end of that range, not a hard threshold.",
+    },
+    "heat_acclimation": {
+        "claim": "Heat fitness fades fast: it needs roughly weekly exposure to stay.",
+        "source": "Daanen HAM, Racinais S, Periard JD. Heat acclimation decay and re-induction. Sports Med 2018;48(2):409-430.",
+        "finding": "Five or more heat days produce stable adaptations, and without exposure end-exercise heart rate decays about 2.3% and core temperature about 2.6% per day.",
+        "caveat": "Decay figures come mostly from laboratory protocols, so treat the rate as an order of magnitude.",
+    },
+    "grade_cost": {
+        "claim": "Judge a hike by its climb, not its distance.",
+        "source": "Minetti AE, Moia C, Roi GS, Susta D, Ferretti G. Energy cost of walking and running at extreme uphill and downhill slopes. J Appl Physiol 2002;93(3):1039-1046.",
+        "finding": "Metabolic cost rises steeply with gradient in both gaits, with the most economical mountain-path gradient around 0.20-0.30.",
+        "caveat": "Measured on a treadmill; rough ground costs more than the same gradient on a belt.",
+    },
+    "fluid": {
+        "claim": "Replace most of what a hot session costs you, and start hydrated.",
+        "source": "Sawka MN et al. ACSM position stand: exercise and fluid replacement. Med Sci Sports Exerc 2007;39(2):377-390.",
+        "finding": "Fluid losses above about 2% of body mass degrade performance; replacing the majority of sweat lost is the practical target.",
+        "caveat": "Sweat rate varies several-fold between people and conditions, so the measured loss here is a better guide than the generic figure.",
+    },
+    "intensity_guideline": {
+        "claim": "Aim for 150 moderate-intensity minutes a week as a floor.",
+        "source": "WHO guidelines on physical activity and sedentary behaviour, 2020.",
+        "finding": "150-300 minutes of moderate or 75-150 minutes of vigorous activity per week is the recommended range for adults.",
+        "caveat": "This is a public-health floor for health outcomes, not a performance prescription for someone already training.",
+    },
+}
+
+
+def evidence(*ids):
+    """The citation records for a rule, ready to publish."""
+    return [{"id": key, **EVIDENCE[key]} for key in ids if key in EVIDENCE]
+
+
 # --- resolvers -------------------------------------------------------------
 
 def spo2_band(average):

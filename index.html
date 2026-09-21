@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Meridian Bio-Intelligence Terminal // Harvin</title>
+  <!-- The tab icon is the same mark as the header, inlined so it needs no request. -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b1220'/%3E%3Cg fill='none' stroke='%2322d3ee' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 27.5C16 27.5 4.8 20 4.8 12.4C4.8 8.5 7.9 5.7 11.4 5.7C13.7 5.7 15.3 7 16 8.6C16.7 7 18.3 5.7 20.6 5.7C24.1 5.7 27.2 8.5 27.2 12.4C27.2 20 16 27.5 16 27.5Z'/%3E%3Cpath d='M7 16.5H11.2L13.4 11.6L16 21.4L18.4 14.2L19.8 16.5H25'/%3E%3C/g%3E%3C/svg%3E" />
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Chart.js -->
@@ -145,6 +147,19 @@
       0%, 100% { opacity: 1; transform: scale(1); }
       50% { opacity: 0.5; transform: scale(0.85); }
     }
+    /* The ring turns slowly enough to read as a live instrument rather than as
+       decoration, and stops entirely for anyone who has asked for less motion. */
+    .meridian-ring {
+      transform-origin: 50% 50%;
+      animation: meridian-spin 26s linear infinite;
+    }
+    @keyframes meridian-spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .meridian-ring { animation: none; }
+    }
     .animate-pulse-dot {
       animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     }
@@ -212,6 +227,41 @@
 </head>
 <body class="min-h-screen flex flex-col bg-bio-bg selection:bg-cyan-500 selection:text-black">
 
+  <!--
+    The identity mark, defined once and referenced wherever it appears: a heart
+    with a pulse trace through it, which is the one shape that reads as health at
+    a favicon's 16 px as well as at the lock screen's 36. Drawn as strokes on
+    currentColor so both placements take their colour from their container, which
+    is what lets the lock screen turn it rose when the vault is master-locked.
+  -->
+  <svg width="0" height="0" class="absolute" aria-hidden="true" focusable="false">
+    <symbol id="healthMark" viewBox="0 0 32 32">
+      <g
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M16 27.5C16 27.5 4.8 20 4.8 12.4C4.8 8.5 7.9 5.7 11.4 5.7C13.7 5.7 15.3 7 16 8.6C16.7 7 18.3 5.7 20.6 5.7C24.1 5.7 27.2 8.5 27.2 12.4C27.2 20 16 27.5 16 27.5Z" />
+        <path d="M7 16.5H11.2L13.4 11.6L16 21.4L18.4 14.2L19.8 16.5H25" />
+      </g>
+    </symbol>
+    <!-- The instrument ring, used only where the mark is big enough to carry it:
+         a gauge opened at the top, so the lockup reads as an instrument rather
+         than a logo at thumbnail size. -->
+    <symbol id="meridianRing" viewBox="0 0 32 32">
+      <path
+        d="M12.4 2.5A14 14 0 1 1 19.6 2.5"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.1"
+        stroke-linecap="round"
+        opacity="0.45"
+      />
+    </symbol>
+  </svg>
+
   <!-- ======================================================== -->
   <!-- 1. AUTH / LOCK OVERLAY                                   -->
   <!-- ======================================================== -->
@@ -219,10 +269,9 @@
     <div class="relative w-full max-w-md p-8 rounded-2xl glass-card border border-slate-700/60 shadow-2xl text-center">
       
       <!-- Vault Icon -->
-      <div id="vaultIconContainer" class="mx-auto w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center mb-6 text-cyan-400">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-        </svg>
+      <div id="vaultIconContainer" class="relative mx-auto w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center mb-6 text-cyan-400">
+        <svg class="meridian-ring absolute w-14 h-14" aria-hidden="true"><use href="#meridianRing" /></svg>
+        <svg class="relative w-8 h-8" aria-hidden="true"><use href="#healthMark" /></svg>
       </div>
 
       <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-semibold tracking-wider uppercase mb-3">
@@ -427,8 +476,10 @@
     <header class="border-b border-slate-800/80 bg-bio-surface/80 backdrop-blur-md px-4 lg:px-8 py-3.5">
       <div class="max-w-7xl mx-auto flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-black font-extrabold text-sm shadow-md shadow-cyan-500/20">
-            M
+          <!-- The tile's gradient is kept light enough that the black mark clears
+               3:1 against it at both ends, which is the non-text contrast floor. -->
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-400 to-blue-500 flex items-center justify-center text-black shadow-md shadow-cyan-500/20">
+            <svg class="w-5 h-5" aria-hidden="true"><use href="#healthMark" /></svg>
           </div>
           <div>
             <div class="flex items-center gap-2">
@@ -1277,6 +1328,64 @@
             <p><strong class="text-violet-400">r</strong> is a number between −1 and +1. Near +1 means the two readings rise and fall together; near −1 means one rises as the other falls; near 0 means they are unrelated. The day count is how many nights both were measured — a strong <span class="mono">r</span> from 20 nights is a hint, from 100 nights it is a pattern.</p>
             <p>Only pairings with at least 14 paired days and an <span class="mono">r</span> of 0.35 or stronger are shown, and only pairings with a plausible physiological reason are tested at all. Testing every combination would eventually produce a strong-looking number by chance.</p>
             <p>A correlation is a pattern in your own data, never proof that one thing caused the other. If you change one habit and the pattern holds, that is when it becomes worth trusting.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 4C: COACH — one prescription per training domain, each citing
+           the study its rule came from. Every value arrives resolved from the
+           engine; a domain with no measured history says so rather than offering
+           a generic tip. -->
+      <section class="glass-card rounded-2xl p-6 border border-slate-800 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-3">
+            <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              </svg>
+            </div>
+            <div>
+              <span class="text-[10px] font-bold tracking-wider text-emerald-400 uppercase">Coach</span>
+              <h3 class="text-base font-bold text-white tracking-tight">What to do about it</h3>
+              <p class="text-[11px] text-slate-400 leading-tight mt-0.5">
+                One prescription per training domain, built from your own sessions and nights — not from a generic plan.
+              </p>
+            </div>
+          </div>
+          <span id="coachWindow" class="text-xs px-2.5 py-1 rounded-full bg-slate-800/60 border border-slate-700 text-slate-300 font-mono text-[11px]">--</span>
+        </div>
+
+        <!-- Today's single highest-value action -->
+        <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
+          <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+            <span class="text-[10px] font-bold tracking-wider text-cyan-400 uppercase">Today's focus</span>
+            <span id="coachFocusBadge" class="text-[10px] px-2 py-0.5 rounded font-semibold bg-slate-500/10 text-slate-400">--</span>
+            <span id="coachFocusBasis" class="text-[10px] text-slate-500 mono"></span>
+          </div>
+          <p id="coachFocusAction" class="text-sm text-white font-medium leading-relaxed">--</p>
+          <p id="coachFocusPlain" class="mt-1.5 text-xs text-slate-300 leading-relaxed"></p>
+        </div>
+
+        <!-- One card per domain, rendered from the payload -->
+        <div id="coachCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3"></div>
+
+        <!-- What the athlete's own history says about them -->
+        <div class="mt-2 p-4 rounded-xl bg-slate-900/80 border border-slate-800">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+            <div class="text-xs font-bold text-violet-400 uppercase tracking-wide flex items-center gap-1.5">
+              <span>●</span> Know yourself — patterns in your own history
+            </div>
+            <span id="coachPatternCount" class="text-[11px] text-slate-500 mono">--</span>
+          </div>
+          <ul id="coachPatternList" class="space-y-2.5 text-xs text-slate-300 font-medium"></ul>
+          <p id="coachPatternCaveat" class="mt-2 text-[11px] text-slate-500 leading-relaxed"></p>
+          <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+            <span>ⓘ Where the coaching comes from</span>
+          </button>
+          <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+            <p>Every rule here is drawn from a published study, and each card names its own source, what the study found, and where the literature disagrees with itself. Nothing is prescribed from a stock plan: the thresholds come from your measured sessions, nights and step totals, and a domain with no history says so instead of guessing.</p>
+            <p>Thresholds live in the engine, not in this page, so a card cannot label the same reading two ways. Where a number was never measured it renders as <span class="mono">--</span>, like everywhere else on this dashboard.</p>
+            <p>The patterns below are associations over your own days, not causes. They are worth acting on when they repeat and hold after you change one thing.</p>
           </div>
         </div>
       </section>
@@ -2606,6 +2715,7 @@
       // 6B. The measured signal groups: blood oxygen, terrain and climate,
       // capacity and forecast, then the correlations between the channels.
       renderMeasuredSignals(data);
+      renderCoaching(data);
 
       // 7. Biological Fitness Age & Workload
       document.getElementById("kpiFitnessAge").textContent = fitness.fitness_age || "24.7";
@@ -2920,6 +3030,101 @@
     // "--" rather than as a plausible number: Pulse Ox in particular is an
     // on-demand sensor, so how many days actually carried a reading is part of
     // the reading.
+    // The coach: one prescription per training domain, plus the patterns the
+    // athlete's own history shows. Every string arrives written by the engine, so
+    // this function lays out and never decides -- a card that was not measured is
+    // rendered as unmeasured rather than dressed up with a generic tip.
+    function renderCoaching(data) {
+      const coach = data.coaching || {};
+      const esc = (text) => String(text === null || text === undefined ? '' : text)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      const tone = (value) => ['green', 'amber', 'rose', 'cyan', 'slate'].includes(value) ? value : 'slate';
+      const week = coach.week || {};
+
+      document.getElementById('coachWindow').textContent = coach.available
+        ? `${coach.window_days}-day window · ${week.sessions || 0} sessions · ${((week.minutes || 0) / 60).toFixed(1)} h`
+        : 'not measured';
+
+      const focus = coach.focus || null;
+      const focusBadge = document.getElementById('coachFocusBadge');
+      if (focus) {
+        focusBadge.textContent = focus.title || '--';
+        focusBadge.className = `text-[10px] px-2 py-0.5 rounded font-semibold bg-${tone(focus.tone)}-500/10 text-${tone(focus.tone)}-400`;
+        document.getElementById('coachFocusBasis').textContent = focus.basis || '';
+        document.getElementById('coachFocusAction').textContent = focus.action || '--';
+        document.getElementById('coachFocusPlain').textContent = focus.plain ? `In plain English: ${focus.plain}.` : '';
+      } else {
+        focusBadge.textContent = '--';
+        document.getElementById('coachFocusAction').textContent =
+          'No prescription yet: there is not enough measured history to build one.';
+        document.getElementById('coachFocusPlain').textContent = '';
+      }
+
+      const cardsHost = document.getElementById('coachCards');
+      const cards = coach.cards || [];
+      if (!cards.length) {
+        cardsHost.innerHTML = '<p class="text-xs text-slate-400">No coaching data in this payload.</p>';
+      } else {
+        cardsHost.innerHTML = cards.map((card, index) => {
+          const cardTone = card.measured ? tone(card.tone) : 'slate';
+          const badge = card.measured ? (card.basis || 'measured') : 'NOT MEASURED';
+          const metrics = (card.metrics || []).map(metric => `
+            <div class="flex items-baseline justify-between gap-2 py-0.5">
+              <span class="text-[10px] text-slate-500">${esc(metric.label)}</span>
+              <span class="text-[11px] font-bold text-${tone(metric.tone === 'slate' ? cardTone : metric.tone)}-400 mono">${esc(metric.value)}</span>
+            </div>`).join('');
+          const evidence = (card.evidence || []).map(item => `
+            <button onclick="toggleInfo(this)" aria-expanded="false" class="block text-left text-[10px] text-cyan-400/70 hover:text-cyan-400 transition cursor-pointer">
+              ⓘ ${esc(item.claim)}
+            </button>
+            <div class="hidden mt-1 p-2 rounded-lg bg-slate-950/80 border border-slate-800 text-[10px] text-slate-400 leading-relaxed space-y-1">
+              <p class="text-slate-300"><strong>Source:</strong> ${esc(item.source)}</p>
+              <p><strong>What it found:</strong> ${esc(item.finding)}</p>
+              ${item.caveat ? `<p class="text-amber-400/80"><strong>What it does not settle:</strong> ${esc(item.caveat)}</p>` : ''}
+            </div>`).join('');
+          return `
+            <div class="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 flex flex-col gap-2">
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <div class="text-xs font-bold text-white">${esc(card.title)}</div>
+                  <div class="text-[10px] text-slate-500">${esc(card.science)}</div>
+                </div>
+                <span class="text-[10px] px-2 py-0.5 rounded font-semibold bg-${cardTone}-500/10 text-${cardTone}-400 whitespace-nowrap">${esc(badge)}</span>
+              </div>
+              <p class="text-[11px] text-slate-300 leading-relaxed">${esc(card.verdict)}</p>
+              ${!card.measured ? '' : `<p class="text-[11px] text-slate-400 leading-relaxed">In plain English: ${esc(card.plain)}.</p>`}
+              <div class="p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                <div class="text-[10px] font-bold tracking-wider text-emerald-400 uppercase mb-1">Do this</div>
+                <p class="text-[11px] text-white leading-relaxed">${esc(card.action)}</p>
+              </div>
+              ${card.measured ? `
+              <div class="text-[10px] text-slate-400 leading-relaxed">
+                <div><span class="text-slate-500 font-bold">Progress:</span> ${esc(card.progression)}</div>
+                <div class="mt-1"><span class="text-slate-500 font-bold">Back off when:</span> ${esc(card.guardrail)}</div>
+              </div>` : ''}
+              ${metrics ? `<div class="pt-1 border-t border-slate-800/60">${metrics}</div>` : ''}
+              ${evidence ? `<div class="space-y-1 pt-1">${evidence}</div>` : ''}
+            </div>`;
+        }).join('');
+      }
+
+      const patterns = coach.patterns || [];
+      document.getElementById('coachPatternCount').textContent = patterns.length
+        ? `${patterns.length} pattern${patterns.length === 1 ? '' : 's'} with enough days`
+        : 'none yet';
+      document.getElementById('coachPatternList').innerHTML = patterns.length
+        ? patterns.map(pattern => `
+            <li class="leading-relaxed">
+              <span class="text-${tone(pattern.tone)}-400 font-bold">${esc(pattern.label)}</span>
+              <span class="text-slate-500 mono text-[10px]"> · ${pattern.pairs} day${pattern.pairs === 1 ? '' : 's'}</span>
+              <div class="mt-0.5">${esc(pattern.finding)}</div>
+              <div class="text-[11px] text-slate-400 mt-0.5">${esc(pattern.plain)}</div>
+            </li>`).join('')
+        : '<li class="text-slate-500">Not enough paired days yet for a pattern to be published. Nothing is shown rather than something plausible.</li>';
+      document.getElementById('coachPatternCaveat').textContent = coach.pattern_caveat || '';
+    }
+
     function renderMeasuredSignals(data) {
       const oxy = data.oxygen || {};
       const env = data.environment || {};

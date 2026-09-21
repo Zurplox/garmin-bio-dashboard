@@ -21,6 +21,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 import bio_analytics as analytics
+import bio_coach
 import bio_correlate
 import bio_policy as policy
 import clinical_engine
@@ -170,6 +171,23 @@ def build_payload(client, fetched, dq):
         today_snapshot, baselines, fitness_data, whoop_data, intelligence
     )
 
+    # The ratio's band is resolved once here and read by both the dashboard and the
+    # coach, so no prescription re-derives a band of its own.
+    fitness_data = {**fitness_data, **acwr_band_fields(fitness_data)}
+    coaching = bio_coach.build_coaching(
+        today_str,
+        activities,
+        fetched["steps"],
+        sleep_history,
+        whoop_data,
+        baselines,
+        fitness_data,
+        readiness,
+        environment,
+        today_snapshot,
+        all_hrv,
+    )
+
     quality = dq.as_dict()
     if not dq.publishable():
         print("\n" + "!" * 65)
@@ -193,11 +211,9 @@ def build_payload(client, fetched, dq):
             "primary_device": fitness_data["device_name"],
         },
         "today": today_snapshot,
-        # A ratio has one set of band names, and policy owns them, so the badge and
-        # the readiness card cannot label the same 0.1 differently. Garmin's own
-        # status word stays as context for the ACWR panel. An absent ratio publishes
-        # no band at all, so the badge reads "--" instead of inventing one.
-        "fitness": {**fitness_data, **acwr_band_fields(fitness_data)},
+        # A ratio has one set of band names, and policy owns them, so the badge, the
+        # readiness card and the coach cannot label the same 0.1 differently.
+        "fitness": fitness_data,
         "whoop": whoop_data,
         "fitbit": fitbit_data,
         "garmin_signature": garmin_sig,
@@ -228,6 +244,7 @@ def build_payload(client, fetched, dq):
         "environment": environment,
         "capacity": capacity,
         "correlations": correlations,
+        "coaching": coaching,
         "data_quality": quality,
     }
 

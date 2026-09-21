@@ -16,10 +16,13 @@ grouped by the module that owns the behaviour they guard:
 
 import base64
 import json
+import re
 import unittest
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import bio_analytics as analytics
+import bio_coach
 import bio_correlate
 import bio_policy as policy
 import clinical_engine
@@ -1488,6 +1491,373 @@ class ProfileHonestyTests(unittest.TestCase):
         self.assertTrue(any("Hydration & Heat" in d for d in verdict["actionable_directives"]))
         self.assertFalse(any("3.0L" in d for d in verdict["actionable_directives"]))
         self.assertTrue(all("Singapore" not in d or "logged" in d for d in verdict["actionable_directives"]))
+
+
+class SecretGuardTests(unittest.TestCase):
+    """A credential must never reach this repository.
+
+    The dashboard is published as a static site, so anything committed here is
+    public the moment it is pushed -- and secret scanning would revoke a leaked
+    token only after it had already been readable. The refresh flow therefore
+    keeps the viewer's token in their own browser storage, and this guard exists
+    so nobody can quietly put one in a file instead, including by pasting one
+    into a doc that then gets committed.
+    """
+
+    CREDENTIAL_PATTERNS = (
+        re.compile(r"ghp_[A-Za-z0-9]{16,}"),          # classic personal access token
+        re.compile(r"github_pat_[A-Za-z0-9_]{16,}"),  # fine-grained token
+        re.compile(r"gho_[A-Za-z0-9]{16,}"),          # OAuth token
+        re.compile(r"ghs_[A-Za-z0-9]{16,}"),          # app installation token
+        re.compile(r"AIza[0-9A-Za-z_\-]{20,}"),       # Google API key
+        re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
+    )
+
+    # Everything a committed file could plausibly be: sources, docs, the page,
+    # the workflows and the tests. The encrypted vault under data/ is produced by
+    # the pipeline and is checked by its own decryption test instead.
+    SCANNED_SUFFIXES = (".py", ".md", ".html", ".json", ".yml", ".yaml", ".mjs", ".js", ".txt")
+
+    def _tracked_files(self):
+        root = Path(__file__).resolve().parent.parent
+        for path in root.rglob("*"):
+            if not path.is_file() or path.suffix.lower() not in self.SCANNED_SUFFIXES:
+                continue
+            if {".git", "__pycache__", "cache", "spo2", "sleep", "node_modules"} & set(path.parts):
+                continue
+            if path.name == "status.json":
+                continue
+            yield path
+
+    def test_no_credential_pattern_appears_in_any_source_file(self):
+        offenders = []
+        for path in self._tracked_files():
+            try:
+                text = path.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            for pattern in self.CREDENTIAL_PATTERNS:
+                if pattern.search(text):
+                    offenders.append(f"{path.name}: {pattern.pattern}")
+
+        self.assertEqual(offenders, [], f"credential-like string committed: {offenders}")
+
+    def test_the_token_flow_stays_in_browser_storage(self):
+        page = (Path(__file__).resolve().parent.parent / "index.html").read_text(encoding="utf-8", errors="ignore")
+        # The only place the token may live is localStorage, and the page must say
+        # so where the viewer supplies it.
+        self.assertIn("localStorage.setItem(GITHUB_TOKEN_KEY, token)", page)
+        self.assertIn("never committed", page)
+        self.assertNotIn("GITHUB_TOKEN =\u0009", page)
+
+
+class CoachCardTests(unittest.TestCase):
+    """Coaching is built from measured sessions, and says so when it cannot be."""
+
+    TODAY = "2026-09-21"
+
+    @staticmethod
+    def _session(day, kind="strength_training", minutes=40.0, heart=120, gain=0.0, km=0.0):
+        return {
+            "startTimeLocal": f"{day} 08:00:00",
+            "activityType": kind,
+            "category": "Gym" if "strength" in kind else "Running",
+            "duration_min": minutes,
+            "averageHR": heart,
+            "elevationGain": gain,
+            "distance_km": km,
+        }
+
+    def _coach(self, activities=(), steps=(), sleep=(), fitness=None, readiness=None, environment=None, hrv=()):
+        return bio_coach.build_coaching(
+            self.TODAY,
+            list(activities),
+            list(steps),
+            list(sleep),
+            {"accumulated_7d_debt_hours": 2.0, "recommended_bedtime_minutes": 1380},
+            {"deep_sleep_pct": 23.0},
+            fitness or {"acwr": 1.0, "acwr_band": "sweet", "acwr_band_label": "Sweet Spot"},
+            readiness or {"score": 80, "band": "PRIME", "tone": "green", "hrv_baseline": 55.0},
+            environment or {"heat_acclimation_pct": 5, "heat_label": "Not Acclimated"},
+            {"hrv_last_night": 54},
+            list(hrv),
+        )
+
+    def _card(self, result, key):
+        return next(card for card in result["cards"] if card["key"] == key)
+
+    def test_every_domain_publishes_a_card_with_all_five_parts(self):
+        result = self._coach(
+            activities=[self._session("2026-09-15"), self._session("2026-09-18")],
+            steps=[{"calendarDate": f"2026-09-{d:02d}", "totalSteps": 9000} for d in range(15, 22)],
+            sleep=[make_sleep(f"2026-09-{d:02d}", bedtime=1380) for d in range(10, 22)],
+        )
+
+        published = {card["key"] for card in result["cards"]}
+        self.assertEqual(published, {key for key, _, _ in policy.COACH_DOMAINS})
+        for card in result["cards"]:
+            self.assertTrue(card["verdict"], card["key"])
+            self.assertTrue(card["action"], card["key"])
+            self.assertTrue(card["progression"], card["key"])
+            self.assertTrue(card["guardrail"], card["key"])
+            self.assertTrue(card["evidence"], card["key"])
+
+    def test_a_domain_with_no_measured_sessions_prescribes_nothing_generic(self):
+        result = self._coach()
+        card = self._card(result, "endurance")
+
+        self.assertFalse(card["measured"])
+        self.assertEqual(card["tone"], "slate")
+        self.assertEqual(card["metrics"], [])
+        self.assertIn("Log one run", card["action"])
+        self.assertIn("no running", card["basis"])
+
+    def test_a_missing_step_series_reads_as_absent_rather_than_zero(self):
+        result = self._coach()
+        card = self._card(result, "walking")
+
+        self.assertFalse(card["measured"])
+        self.assertEqual(card["action"], "--")
+        self.assertIn("no step totals", card["basis"])
+
+    def test_strength_gap_is_quoted_against_the_measured_rate(self):
+        # Two sessions inside a 28-day window is half a session a week, and one
+        # extra session takes it to 0.8 -- the arithmetic the athlete can check.
+        result = self._coach(activities=[self._session("2026-09-15"), self._session("2026-09-18")])
+        card = self._card(result, "strength")
+
+        self.assertEqual(card["tone"], "amber")
+        self.assertIn("0.5 strength sessions a week", card["verdict"])
+        self.assertIn("0.8 a week", card["action"])
+
+    def test_a_met_strength_target_is_told_to_hold(self):
+        # Eight sessions inside a 28-day window is the two a week the policy asks
+        # for, so the card stops asking and starts protecting.
+        result = self._coach(
+            activities=[
+                self._session(f"2026-09-{day:02d}") for day in (1, 3, 6, 8, 11, 13, 16, 18)
+            ]
+        )
+        card = self._card(result, "strength")
+
+        self.assertEqual(card["tone"], "green")
+        self.assertTrue(card["action"].startswith("Hold"))
+
+    def test_a_dangerous_ratio_hands_the_day_to_recovery(self):
+        result = self._coach(
+            fitness={"acwr": 1.7, "acwr_band": "danger", "acwr_band_label": "Danger Zone"},
+            readiness={"score": 40, "band": "RED", "tone": "rose", "hrv_baseline": 55.0},
+        )
+
+        self.assertEqual(result["focus"]["key"], "recovery")
+        self.assertEqual(self._card(result, "recovery")["tone"], "rose")
+        self.assertIn("easy or off", self._card(result, "recovery")["action"])
+
+    def test_an_under_loaded_week_is_given_room_and_a_high_one_is_capped(self):
+        under = self._coach(fitness={"acwr": 0.5, "acwr_band": "under", "acwr_band_label": "Fresh / Under-trained"},
+                            activities=[self._session("2026-09-15", kind="running", km=5.0)])
+        high = self._coach(fitness={"acwr": 1.4, "acwr_band": "high", "acwr_band_label": "High"},
+                           activities=[self._session("2026-09-15", kind="running", km=5.0)])
+
+        self.assertIn("Add one easy 30-minute session", self._card(under, "endurance")["action"])
+        self.assertIn("Cap the volume", self._card(high, "endurance")["action"])
+
+    def test_walking_below_target_names_the_weakest_day(self):
+        low = {"2026-09-20": 2000, "2026-09-19": 3000, "2026-09-18": 4000}
+        steps = [
+            {"calendarDate": f"2026-09-{d:02d}", "totalSteps": low.get(f"2026-09-{d:02d}", 9000)}
+            for d in range(15, 22)
+        ]
+        result = self._coach(steps=steps)
+        card = self._card(result, "walking")
+
+        self.assertEqual(card["tone"], "amber")
+        self.assertIn("2026-09-20", card["action"])
+        self.assertIn("2,000", card["action"])
+
+    def test_walking_on_target_is_told_the_extra_return_is_small(self):
+        steps = [{"calendarDate": f"2026-09-{d:02d}", "totalSteps": 9500} for d in range(15, 22)]
+        card = self._card(self._coach(steps=steps), "walking")
+
+        self.assertEqual(card["tone"], "green")
+        self.assertIn("Hold it", card["action"])
+
+    def test_hiking_is_graded_by_climb_per_kilometre(self):
+        steep = self._coach(activities=[self._session("2026-09-14", kind="hiking", minutes=90, gain=500, km=6.0)])
+        flat = self._coach(activities=[self._session("2026-09-14", kind="hiking", minutes=90, gain=40, km=6.0)])
+
+        self.assertIn("steep ground", self._card(steep, "hiking")["action"])
+        self.assertIn("mostly flat walking", self._card(flat, "hiking")["action"])
+        self.assertEqual(self._card(steep, "hiking")["tone"], "green")
+        self.assertEqual(self._card(flat, "hiking")["tone"], "amber")
+
+    def test_sleep_prescribes_extension_only_above_the_debt_threshold(self):
+        nights = [make_sleep(f"2026-09-{d:02d}", bedtime=1380) for d in range(10, 21)]
+        carried = bio_coach.build_coaching(
+            self.TODAY, [], [], nights,
+            {"accumulated_7d_debt_hours": policy.SLEEP_DEBT_ACTION_HOURS + 0.9, "recommended_bedtime_minutes": 1350},
+            {}, {"acwr": 1.0, "acwr_band": "sweet", "acwr_band_label": "Sweet Spot"},
+            {"score": 80, "band": "PRIME", "tone": "green", "hrv_baseline": 55.0},
+            {}, {"hrv_last_night": 54}, [],
+        )
+
+        self.assertIn("Repay 3.4 h of debt", self._card(carried, "sleep")["action"])
+        self.assertIn("lights out by 22:30", self._card(carried, "sleep")["action"])
+
+    def test_sleep_prescribes_an_anchor_when_the_bedtime_moves(self):
+        # Bedtimes spread by hours, which is the regularity signal rather than the
+        # duration one, so the card must ask for a window instead of more sleep.
+        nights = [make_sleep(f"2026-09-{d:02d}", bedtime=1380 + (d % 2) * 180) for d in range(4, 21)]
+        card = self._card(self._coach(sleep=nights), "sleep")
+
+        self.assertIn("Anchor your bedtime inside", card["action"])
+        self.assertIn("Bedtime spread", [metric["label"] for metric in card["metrics"]])
+
+
+class CoachEvidenceTests(unittest.TestCase):
+    """Every rule cites a study, and the citation admits what it does not settle."""
+
+    def test_every_anchor_carries_a_source_a_finding_and_a_caveat(self):
+        for key, anchor in policy.EVIDENCE.items():
+            self.assertTrue(anchor["claim"], key)
+            self.assertTrue(anchor["source"], key)
+            self.assertTrue(anchor["finding"], key)
+            self.assertTrue(anchor["caveat"], key)
+
+    def test_an_unknown_anchor_id_resolves_to_nothing(self):
+        self.assertEqual(policy.evidence("not_a_study", "load_ratio"), [dict(id="load_ratio", **policy.EVIDENCE["load_ratio"])])
+
+    def test_every_published_card_cites_at_least_one_known_anchor(self):
+        result = bio_coach.build_coaching(
+            "2026-09-21", [], [], [], {}, {},
+            {"acwr": 1.0, "acwr_band": "sweet", "acwr_band_label": "Sweet Spot"},
+            {"score": 80, "band": "PRIME", "tone": "green", "hrv_baseline": 55.0},
+            {}, {"hrv_last_night": 54}, [],
+        )
+        for card in result["cards"]:
+            self.assertTrue(card["evidence"], card["key"])
+            for item in card["evidence"]:
+                self.assertIn(item["id"], policy.EVIDENCE)
+                self.assertEqual(item["source"], policy.EVIDENCE[item["id"]]["source"])
+
+    def test_every_domain_has_a_stated_tie_break_priority(self):
+        self.assertEqual(
+            set(policy.COACH_PRIORITY),
+            {key for key, _, _ in policy.COACH_DOMAINS},
+        )
+
+
+class CoachPatternTests(unittest.TestCase):
+    """A personal pattern needs enough paired days, and both sides compared."""
+
+    TODAY = "2026-09-21"
+
+    @staticmethod
+    def _days(count, start=0):
+        base = datetime(2026, 9, 21) - timedelta(days=start)
+        return [(base - timedelta(days=offset)).date().isoformat() for offset in range(count)]
+
+    def _pattern_inputs(self, hard_every=4, days=48, hrv_after_hard=46, hrv_after_rest=56):
+        """Alternate hard and rest days, with HRV answering each kind.
+
+        The hard-day set is built first and the HRV value is then decided by
+        whether the *previous* day is in that set, so the two groups line up with
+        what the pattern code will actually compute.
+        """
+        dates = list(reversed(self._days(days)))
+        hard = {index for index in range(days) if index % hard_every == 0}
+        activities = [
+            {
+                "startTimeLocal": f"{dates[index]} 07:00:00",
+                "activityType": "running",
+                "duration_min": 60.0,
+                "averageHR": 150,
+                "distance_km": 10.0,
+            }
+            for index in sorted(hard)
+        ]
+        hrv = [
+            {
+                "calendarDate": day,
+                "lastNightAvg": hrv_after_hard if (index - 1) in hard else hrv_after_rest,
+            }
+            for index, day in enumerate(dates)
+        ]
+        return activities, hrv
+
+    def _patterns(self, activities, hrv, days=48):
+        return bio_coach.personal_patterns(
+            activities, [], hrv, [], bio_coach._date_of(self.TODAY)
+        )
+
+    def test_a_pattern_is_published_once_both_sides_have_enough_days(self):
+        activities, hrv = self._pattern_inputs()
+        patterns = {pattern["key"]: pattern for pattern in self._patterns(activities, hrv)}
+
+        self.assertIn("hrv_after_load", patterns)
+        pattern = patterns["hrv_after_load"]
+        self.assertIn("46.0 ms", pattern["finding"])
+        self.assertIn("56.0 ms", pattern["finding"])
+        self.assertEqual(pattern["kind"], "association")
+        self.assertGreaterEqual(pattern["pairs"], policy.PATTERN_MIN_PAIRS)
+
+    def test_a_thin_history_publishes_no_pattern_at_all(self):
+        activities, hrv = self._pattern_inputs(days=9)
+        patterns = {pattern["key"] for pattern in self._patterns(activities, hrv)}
+
+        self.assertNotIn("hrv_after_load", patterns)
+
+    def test_rest_days_are_counted_rather_than_skipped(self):
+        # The comparison is only meaningful if the quiet side is in it: a version
+        # that dropped "after a rest day" would report the hard days alone, and the
+        # reported mean would be the hard-day mean rather than a contrast.
+        activities, hrv = self._pattern_inputs(hard_every=6, days=60)
+        pattern = next(
+            item for item in self._patterns(activities, hrv) if item["key"] == "hrv_after_load"
+        )
+
+        after_hard = sum(1 for index in range(60) if (index - 1) % 6 == 0)
+        self.assertEqual(pattern["pairs"], 60)
+        self.assertGreater(after_hard, 6)
+        self.assertLess(after_hard, pattern["pairs"])
+        self.assertIn("56.0 ms", pattern["finding"])
+
+    def test_aerobic_efficiency_compares_early_runs_with_recent_ones(self):
+        dates = list(reversed(self._days(40)))
+        activities = []
+        for index, day in enumerate(dates[:18]):
+            activities.append({
+                "startTimeLocal": f"{day} 07:00:00",
+                "activityType": "running",
+                "duration_min": 40.0,
+                "averageHR": 150,
+                # Later runs cover more ground at the same heart rate.
+                "distance_km": 5.0 + index * 0.12,
+            })
+        pattern = next(
+            item for item in self._patterns(activities, [], days=40) if item["key"] == "aerobic_efficiency"
+        )
+
+        self.assertIn("metres per heartbeat", pattern["finding"])
+        self.assertIn("+", pattern["finding"])
+        self.assertEqual(pattern["tone"], "green")
+
+    def test_the_caveat_says_an_association_is_not_a_cause(self):
+        result = bio_coach.build_coaching(
+            self.TODAY, [], [], [], {}, {},
+            {"acwr": 1.0, "acwr_band": "sweet", "acwr_band_label": "Sweet Spot"},
+            {"score": 80, "band": "PRIME", "tone": "green", "hrv_baseline": 55.0},
+            {}, {"hrv_last_night": 54}, [],
+        )
+
+        self.assertIn("not why", result["pattern_caveat"])
+
+    def test_classification_routes_climbing_to_strength_and_running_to_endurance(self):
+        self.assertEqual(bio_coach._classify({"activityType": "bouldering"}), "strength")
+        self.assertEqual(bio_coach._classify({"activityType": "hiking"}), "hiking")
+        self.assertEqual(bio_coach._classify({"activityType": "walking"}), "walking")
+        self.assertEqual(bio_coach._classify({"activityType": "treadmill_running"}), "endurance")
+        self.assertEqual(bio_coach._classify({"activityType": "multi_sport"}), "other")
 
 
 class SignalPayloadTests(unittest.TestCase):
