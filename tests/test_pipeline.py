@@ -20,6 +20,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 
 import bio_analytics as analytics
+import bio_correlate
 import bio_policy as policy
 import clinical_engine
 import encrypt_data
@@ -86,6 +87,20 @@ def make_fitness(**overrides):
     }
     fitness.update(overrides)
     return fitness
+
+
+def make_profile(**overrides):
+    """The account's own profile: the only source of personal facts on the page."""
+    profile = {
+        "gender": "MALE", "birth_date": "1996-12-07", "age_years": 29,
+        "height_cm": 167.0, "weight_kg": 63.5, "vo2max": 51.2,
+        "lactate_threshold_hr": 166, "activity_level": 6,
+        "devices": [{"name": "vívomove Style", "primary": False},
+                    {"name": "fenix 6S ASIA Sapphire", "primary": True}],
+        "heat_acclimation_pct": 5, "altitude_acclimation_pct": 0,
+    }
+    profile.update(overrides)
+    return profile
 
 
 def make_baselines(**overrides):
@@ -582,12 +597,13 @@ class AcwrBandTests(unittest.TestCase):
             with self.subTest(acwr=acwr):
                 self.assertEqual(policy.acwr_band(acwr), band)
 
-    def test_every_band_carries_a_label_and_a_policy_tone(self):
+    def test_every_band_carries_a_label_a_policy_tone_and_a_plain_meaning(self):
         labels = []
         for band, entry in policy.ACWR_BANDS.items():
             with self.subTest(band=band):
                 self.assertIn(entry["tone"], policy.TONE_NAMES)
                 self.assertTrue(entry["label"])
+                self.assertTrue(entry["plain"])
                 labels.append(entry["label"])
         self.assertEqual(len(labels), len(set(labels)))
 
@@ -626,6 +642,7 @@ class HrvSingleMeaningTests(unittest.TestCase):
             with self.subTest(band=band):
                 self.assertIn(entry["tone"], policy.TONE_NAMES)
                 self.assertTrue(entry["label"])
+                self.assertTrue(entry["plain"])
 
     def test_the_pillar_publishes_the_band_the_reading_implies(self):
         for hrv, band in ((60.0, "above"), (52.0, "near"), (40.0, "below")):
@@ -687,14 +704,23 @@ class ScoreOwnershipTests(unittest.TestCase):
             {"fitness_age": 24.7},
         )
 
-    def _synthesize(self, model_reply):
+    def _synthesize(self, model_reply, **today_overrides):
         """Run the real engine with the model stubbed to `model_reply` (None == no key)."""
+        today, baselines, fitness = self._engine_inputs()
+        today.update(today_overrides)
         original = clinical_engine.query_gemini_api
         clinical_engine.query_gemini_api = lambda *a, **k: model_reply
         try:
-            return clinical_engine.synthesize(*self._engine_inputs())
+            return clinical_engine.synthesize(today, baselines, fitness)
         finally:
             clinical_engine.query_gemini_api = original
+
+    def _plain_tails(self, result):
+        """The plain-English sentence closing each paragraph, without the prose above it."""
+        return {
+            key: result[key].split(clinical_engine.PLAIN_ENGLISH_PREFIX)[-1].strip()
+            for key in clinical_engine.NARRATIVE_KEYS
+        }
 
     def test_published_verdict_is_identical_with_and_without_a_model(self):
         without = self._synthesize(None)
@@ -752,7 +778,7 @@ class ScoreOwnershipTests(unittest.TestCase):
         without = self._synthesize(None)
         result = self._synthesize({"autonomic_nervous_analysis": "model autonomic prose"})
 
-        self.assertEqual(result["autonomic_nervous_analysis"], "model autonomic prose")
+        self.assertTrue(result["autonomic_nervous_analysis"].startswith("model autonomic prose"))
         self.assertEqual(result["sleep_architecture_analysis"], without["sleep_architecture_analysis"])
         self.assertEqual(result["workload_and_biological_age"], without["workload_and_biological_age"])
         self.assertEqual(result["actionable_directives"], without["actionable_directives"])
@@ -793,6 +819,41 @@ class ScoreOwnershipTests(unittest.TestCase):
         self.assertNotIn("model_score", result)
         self.assertEqual(result["narrative_source"], "gemini")
 
+    def test_every_analysis_paragraph_ends_in_plain_english(self):
+        for reply in (None, self.MODEL_REPLY):
+            with self.subTest(with_model=bool(reply)):
+                result = self._synthesize(reply)
+                for key in clinical_engine.NARRATIVE_KEYS:
+                    with self.subTest(key=key):
+                        paragraph = result[key]
+                        self.assertIn(clinical_engine.PLAIN_ENGLISH_PREFIX, paragraph)
+                        self.assertTrue(paragraph.rstrip().endswith("."))
+                        self.assertGreater(len(paragraph.split(clinical_engine.PLAIN_ENGLISH_PREFIX)[-1].strip()), 20)
+
+    def test_the_model_cannot_replace_the_plain_english_closing_line(self):
+        without = self._synthesize(None)
+        with_model = self._synthesize(self.MODEL_REPLY)
+
+        self.assertTrue(with_model["autonomic_nervous_analysis"].startswith("model autonomic prose"))
+        self.assertEqual(self._plain_tails(with_model), self._plain_tails(without))
+        self.assertNotIn("model", self._plain_tails(with_model)["autonomic_nervous_analysis"])
+
+    def test_the_plain_english_line_restates_this_runs_measurements(self):
+        recovered = self._synthesize(None, hrv_last_night=60.0)
+        suppressed = self._synthesize(None, hrv_last_night=40.0)
+
+        # The numbers and the band's own wording, not a fixed sentence that could
+        # keep describing a reading the run did not take.
+        self.assertIn("60 ms", recovered["autonomic_nervous_analysis"])
+        self.assertIn("40 ms", suppressed["autonomic_nervous_analysis"])
+        self.assertIn(policy.HRV_BANDS["above"]["plain"], recovered["autonomic_nervous_analysis"])
+        self.assertIn(policy.HRV_BANDS["below"]["plain"], suppressed["autonomic_nervous_analysis"])
+        self.assertIn(
+            policy.ACWR_BANDS["under"]["plain"],
+            recovered["workload_and_biological_age"],
+        )
+        self.assertNotIn("plain_english", recovered)
+
     def test_rule_engine_verdicts_do_not_assert_unmeasured_numbers(self):
         result = self._synthesize(None)
 
@@ -816,12 +877,45 @@ class PayloadAssemblyTests(unittest.TestCase):
         )
         self.fetched = {
             "today_str": "2026-09-20",
+            "profile": make_profile(),
             "rhr": make_rhr("2026-06-01", 120),
             "hrv": make_hrv("2026-06-01", 120),
             "sleep": [make_sleep(f"2026-0{month}-{day:02d}", bedtime=1380)
                       for month in (8, 9) for day in range(1, 11)],
             "fitness": make_fitness(),
             "activities": [],
+            # The measured signal groups: sparse blood oxygen, one located session
+            # with its own weather, today's movement totals and the device's
+            # forecasts.
+            "location": {
+                "location_days": [
+                    {"date": "2026-09-18", "location": "Singapore", "latitude": 1.38, "longitude": 103.74},
+                    {"date": "2026-09-19", "location": "Singapore", "latitude": 1.38, "longitude": 103.74},
+                    {"date": "2026-09-20", "location": "Quan 1", "latitude": 10.77, "longitude": 106.7},
+                ],
+                "weather": {
+                    "temp_c": 27.2,
+                    "feels_like_c": 30.6,
+                    "humidity_pct": 89,
+                    "dew_point_c": 25.0,
+                    "station": "Seletar Airport",
+                },
+                "weather_live": True,
+            },
+            "spo2": [
+                {"date": "2026-09-01", "latest": 96, "sleep_average": 95.0, "lowest": 92,
+                 "latest_time_local": "2026-09-01T20:31:00.0"},
+                {"date": "2026-09-08", "latest": 94, "sleep_average": None, "lowest": None,
+                 "latest_time_local": "2026-09-08T21:02:00.0"},
+            ],
+            "steps": [{"calendarDate": f"2026-09-{day:02d}", "totalSteps": 9000, "stepGoal": 10000}
+                      for day in range(1, 21)],
+            "hydration": {"goal_ml": 2915.0, "intake_ml": 0.0, "sweat_loss_ml": 786.0},
+            "daily_activity": {"steps": 9100, "step_goal": 10000, "floors": 11.0,
+                               "active_kcal": 339.0, "total_kcal": 1933.0},
+            "intensity": {"weekly_total": 20, "moderate": 20, "vigorous": 0, "goal": 150},
+            "races": {"date": "2026-09-20", "time5k": 1553, "time10k": 3295,
+                      "time_half": 7390, "time_marathon": 16197},
         }
 
     def _dq(self, sleep_live=True):
@@ -875,6 +969,15 @@ class PayloadAssemblyTests(unittest.TestCase):
         self.assertNotIn("acwr_status_tone", payload["fitness"])
         self.assertEqual(payload["data_quality"]["metrics"]["circadian"]["source"], "live")
         self.assertEqual(datetime.fromisoformat(payload["updated_at"]).utcoffset(), timedelta(0))
+
+    def test_every_published_analysis_paragraph_ends_in_plain_english(self):
+        """The reader's takeaway ships inside the paragraph, not as a spare field."""
+        intel = sync.build_payload(self.client, self.fetched, self._dq())["clinical_intelligence"]
+
+        for key in clinical_engine.NARRATIVE_KEYS:
+            with self.subTest(key=key):
+                self.assertIn(clinical_engine.PLAIN_ENGLISH_PREFIX, intel[key])
+        self.assertNotIn("plain_english", intel)
 
     def test_publish_gate_refuses_to_ship_fallen_back_core_metrics(self):
         with self.assertRaises(SystemExit):
@@ -956,6 +1059,477 @@ class EncryptionTests(unittest.TestCase):
     def test_envelope_records_the_cost_it_was_written_with(self):
         envelope = encrypt_data.encrypt_payload("{}", "Capybara", 123_456)
         self.assertEqual(envelope["iterations"], 123_456)
+
+
+# ---------------------------------------------------------------------------
+# Measured signal groups: oxygen, terrain, capacity
+# ---------------------------------------------------------------------------
+
+class OxygenSignalTests(unittest.TestCase):
+    """Blood oxygen is an on-demand sensor, so coverage is part of the reading.
+
+    Garmin returned a value on 13 of 61 sampled days for this account. A card
+    showing one number and no coverage line would read as a nightly average, which
+    is exactly what the sparse series is not.
+    """
+
+    def test_coverage_is_published_beside_the_reading(self):
+        signal = analytics.build_oxygen_signal([
+            {"date": "2026-09-01", "latest": 96, "sleep_average": 95.0, "lowest": 92,
+             "latest_time_local": "2026-09-01T20:31:00.0"},
+            {"date": "2026-09-08", "latest": 94, "sleep_average": None, "lowest": None,
+             "latest_time_local": "2026-09-08T21:02:00.0"},
+        ])
+
+        self.assertEqual(signal["latest"], 94)
+        self.assertEqual(signal["days_recorded"], 2)
+        self.assertEqual(signal["window_days"], policy.SPO2_LOOKBACK_DAYS)
+        self.assertEqual(signal["coverage_pct"], round(2 / policy.SPO2_LOOKBACK_DAYS * 100))
+        self.assertEqual(signal["latest_clock"], "9:02 PM SGT")
+
+    def test_a_single_spot_reading_is_not_presented_as_a_nightly_average(self):
+        signal = analytics.build_oxygen_signal([
+            {"date": "2026-09-08", "latest": 94, "sleep_average": None, "lowest": None},
+        ])
+
+        self.assertIsNone(signal["sleep_average"])
+        self.assertEqual(signal["sleep_nights"], 0)
+        # The band falls back to the reading that exists rather than inventing one.
+        self.assertEqual(signal["band"], "mild")
+
+    def test_no_readings_publishes_no_band_rather_than_a_placeholder(self):
+        signal = analytics.build_oxygen_signal([])
+
+        self.assertFalse(signal["available"])
+        self.assertIsNone(signal["band"])
+        self.assertEqual(signal["band_tone"], "slate")
+        self.assertIsNone(signal["latest"])
+
+    def test_a_low_reading_is_flagged_and_toned_by_policy(self):
+        signal = analytics.build_oxygen_signal([
+            {"date": "2026-05-18", "latest": 94, "sleep_average": 92.0, "lowest": 84},
+        ])
+
+        self.assertTrue(signal["dip_flagged"])
+        self.assertEqual(signal["band"], policy.spo2_band(92.0))
+        self.assertIn(signal["band_tone"], policy.TONE_NAMES)
+        self.assertTrue(signal["plain"])
+
+
+class EnvironmentSignalTests(unittest.TestCase):
+    """Where training happened and what the air was doing, all device-logged."""
+
+    def setUp(self):
+        self.location_days = (
+            [{"date": f"2026-09-{day:02d}", "location": "Singapore"} for day in range(1, 9)]
+            + [{"date": f"2026-08-{day:02d}", "location": "Quan 1"} for day in range(1, 4)]
+        )
+        self.weather = {"temp_c": policy.HOT_SESSION_TEMP_C + 3.0, "feels_like_c": 30.6,
+                        "humidity_pct": policy.HUMID_SESSION_PCT + 14, "station": "Seletar Airport"}
+
+    def test_home_is_the_location_the_device_logged_most(self):
+        env = analytics.build_environment_signal(self.location_days, self.weather, 5, {})
+
+        self.assertEqual(env["home_location"], "Singapore")
+        self.assertEqual(env["away_sessions"], 3)
+        self.assertEqual(env["away_stays"][0]["location"], "Quan 1")
+        self.assertEqual(env["away_stays"][0]["first"], "2026-08-01")
+        self.assertEqual(env["away_stays"][0]["last"], "2026-08-03")
+
+    def test_a_hot_humid_session_is_recognised_from_the_measurement(self):
+        env = analytics.build_environment_signal(self.location_days, self.weather, 5, {})
+
+        self.assertTrue(env["hot_session"])
+        self.assertTrue(env["humid_session"])
+
+        mild = analytics.build_environment_signal(
+            self.location_days, {**self.weather, "temp_c": policy.HOT_SESSION_TEMP_C - 3.0}, 5, {}
+        )
+        self.assertFalse(mild["hot_session"])
+
+    def test_heat_band_and_wording_come_from_policy(self):
+        for pct, key in ((5, "none"), (25, "partial"), (60, "full")):
+            with self.subTest(pct=pct):
+                env = analytics.build_environment_signal(self.location_days, self.weather, pct, {})
+                self.assertEqual(env["heat_band"], key)
+                self.assertEqual(env["heat_tone"], policy.HEAT_BANDS[key]["tone"])
+                self.assertEqual(env["heat_plain"], policy.HEAT_BANDS[key]["plain"])
+
+    def test_missing_weather_publishes_nothing_invented(self):
+        env = analytics.build_environment_signal(self.location_days, {}, None, {})
+
+        self.assertEqual(env["weather"], {})
+        self.assertFalse(env["hot_session"])
+        self.assertIsNone(env["heat_band"])
+
+    def test_hydration_reports_the_target_and_the_logged_intake(self):
+        env = analytics.build_environment_signal(
+            self.location_days, self.weather, 5, {"goal_ml": 2915.0, "intake_ml": 0.0, "sweat_loss_ml": 786.0}
+        )
+
+        self.assertEqual(env["hydration"]["goal_ml"], 2915.0)
+        self.assertEqual(env["hydration"]["intake_pct"], 0)
+        self.assertEqual(env["hydration"]["sweat_loss_ml"], 786.0)
+
+
+class CapacitySignalTests(unittest.TestCase):
+    """Capacity comes from the account's own profile, never from a constant."""
+
+    def test_bmi_is_computed_from_the_profiles_own_height_and_weight(self):
+        cap = analytics.build_capacity_signal(make_profile(), {}, {}, {}, "2026-09-20")
+
+        self.assertEqual(cap["bmi"], round(63.5 / (1.67 ** 2), 1))
+        self.assertEqual(cap["bmi_band"], policy.bmi_band(cap["bmi"]))
+        self.assertEqual(cap["bmi_tone"], policy.BMI_BANDS[cap["bmi_band"]]["tone"])
+
+    def test_no_profile_publishes_no_bmi_rather_than_a_typical_one(self):
+        cap = analytics.build_capacity_signal({}, {}, {}, {}, "2026-09-20")
+
+        self.assertIsNone(cap["bmi"])
+        self.assertIsNone(cap["bmi_band"])
+        self.assertIsNone(cap["vo2max"])
+
+    def test_race_forecasts_are_formatted_from_the_devices_own_seconds(self):
+        cap = analytics.build_capacity_signal(
+            make_profile(),
+            {"time5k": 1553, "time10k": 3295, "time_half": 7390, "time_marathon": 16197},
+            {},
+            {},
+            "2026-09-20",
+        )
+
+        formatted = {race["label"]: race["formatted"] for race in cap["race_predictions"]}
+        self.assertEqual(formatted["5K"], "25:53")
+        self.assertEqual(formatted["Marathon"], "4h 29m")
+
+    def test_intensity_band_and_plain_english_come_from_policy(self):
+        cap = analytics.build_capacity_signal(
+            make_profile(), {}, {"weekly_total": 20, "moderate": 20, "vigorous": 0, "goal": 150}, {}, "2026-09-20"
+        )
+
+        self.assertEqual(cap["intensity"]["band"], "low")
+        self.assertEqual(cap["intensity"]["tone"], policy.INTENSITY_BANDS["low"]["tone"])
+        self.assertEqual(cap["intensity"]["plain"], policy.INTENSITY_BANDS["low"]["plain"])
+
+
+class FitnessFallbackTests(unittest.TestCase):
+    """A failed endpoint publishes nothing, instead of a stranger's physiology."""
+
+    def test_missing_fitness_age_is_none_not_a_placeholder(self):
+        dq = DataQuality()
+        result = source.fetch_fitness_and_workload(FakeClient(), "2026-09-20", make_profile(), dq)
+
+        self.assertIsNone(result["fitness_age"])
+        self.assertIsNone(result["achievable_fitness_age"])
+        self.assertIsNone(result["acwr"])
+        self.assertIsNone(result["acute_load"])
+        self.assertNotIn("bmi", result)  # body composition is the profile's job now
+        self.assertEqual(dq.metrics["fitness_age"]["source"], "fallback")
+
+    def test_age_and_device_come_from_the_account(self):
+        result = source.fetch_fitness_and_workload(FakeClient(), "2026-09-20", make_profile(), DataQuality())
+
+        self.assertEqual(result["chronological_age"], 29)
+        self.assertEqual(result["device_name"], "fenix 6S ASIA Sapphire")
+
+
+# ---------------------------------------------------------------------------
+# Correlation lab
+# ---------------------------------------------------------------------------
+
+class CorrelationTests(unittest.TestCase):
+    """A published correlation must carry its coefficient, its day count and its meaning."""
+
+    @staticmethod
+    def _series(key_a, key_b, days=40, slope=1.0, key_c=None):
+        dates = [f"2026-08-{day:02d}" for day in range(1, days + 1)]
+        series = {key_a: {d: 50 + i for i, d in enumerate(dates)}}
+        series[key_b] = {d: 55 + i * slope for i, d in enumerate(dates)}
+        if key_c:
+            series[key_c] = {d: 90 + (i % 3) for i, d in enumerate(dates)}
+        return series
+
+    def test_a_strong_pair_is_published_with_its_day_count_and_note(self):
+        result = bio_correlate.build_correlations(self._series("hrv", "sleep_score"))
+
+        finding = result["findings"][0]
+        self.assertEqual(finding["r"], 1.0)
+        self.assertEqual(finding["days"], 40)
+        self.assertEqual(finding["strength"], "strong")
+        self.assertEqual(finding["direction"], "higher")
+        self.assertEqual(finding["note"], policy.PAIR_NOTES[("hrv", "sleep_score")])
+
+    def test_a_thin_series_is_refused_rather_than_published(self):
+        result = bio_correlate.build_correlations(self._series("hrv", "sleep_score", days=policy.CORRELATION_MIN_DAYS - 1))
+
+        self.assertEqual(result["findings"], [])
+        self.assertEqual(result["skipped"][0]["days"], policy.CORRELATION_MIN_DAYS - 1)
+
+    def test_a_weak_coefficient_is_not_a_finding(self):
+        series = {
+            "hrv": {f"2026-08-{d:02d}": 50 + (d % 2) for d in range(1, 41)},
+            "sleep_score": {f"2026-08-{d:02d}": 70 + (d % 7) for d in range(1, 41)},
+        }
+        result = bio_correlate.build_correlations(series)
+
+        for finding in result["findings"]:
+            self.assertGreaterEqual(abs(finding["r"]), policy.CORRELATION_MIN_R)
+
+    def test_only_curated_pairs_are_tested(self):
+        # A pair with a strong relationship but no physiological reason behind it
+        # must not be published, and must not even be computed.
+        series = self._series("hrv", "sleep_score")
+        series["steps"] = {d: 9000 + i * 100 for i, d in enumerate(sorted(series["hrv"]))}
+        result = bio_correlate.build_correlations(series)
+
+        pairs = {tuple(sorted((f["metric_a"], f["metric_b"]))) for f in result["findings"]}
+        self.assertTrue(pairs.issubset({tuple(sorted(p)) for p in policy.PAIR_NOTES}))
+        self.assertNotIn(("hrv", "sleep_score"), set())  # sanity: the real pair survived
+        self.assertIn(("hrv", "sleep_score"), pairs)
+
+    def test_a_channel_that_never_moved_cannot_correlate(self):
+        flat = {
+            "hrv": {f"2026-08-{d:02d}": 50 for d in range(1, 41)},
+            "sleep_score": {f"2026-08-{d:02d}": 70 + d for d in range(1, 41)},
+        }
+        r, n = bio_correlate.pearson(flat["hrv"], flat["sleep_score"])
+
+        self.assertIsNone(r)
+        self.assertEqual(n, 40)
+
+    def test_readings_that_were_not_paired_do_not_count_as_days(self):
+        series = self._series("hrv", "sleep_score")
+        for date in list(series["sleep_score"])[:30]:
+            series["sleep_score"].pop(date)
+
+        r, n = bio_correlate.pearson(series["hrv"], series["sleep_score"])
+
+        self.assertIsNone(r)  # 10 paired days is below the minimum
+        self.assertEqual(n, 10)
+
+    def test_strength_wording_tracks_the_coefficient(self):
+        self.assertEqual(bio_correlate.strength_word(0.8), "strong")
+        self.assertEqual(bio_correlate.strength_word(-0.6), "clear")
+        self.assertEqual(bio_correlate.strength_word(0.36), "modest")
+
+
+class LocationComparisonTests(unittest.TestCase):
+    """Home/away differences are only published with enough days on both sides."""
+
+    @staticmethod
+    def _inputs(home_days, away_days):
+        locations = (
+            [{"date": f"2026-09-{d:02d}", "location": "Singapore"} for d in range(1, home_days + 1)]
+            + [{"date": f"2026-08-{d:02d}", "location": "Quan 1"} for d in range(1, away_days + 1)]
+        )
+        metrics = {
+            "hrv": {f"2026-09-{d:02d}": 54.0 for d in range(1, home_days + 1)}
+                   | {f"2026-08-{d:02d}": 50.0 for d in range(1, away_days + 1)},
+        }
+        return locations, metrics
+
+    def test_enough_nights_both_sides_publishes_the_difference(self):
+        locations, metrics = self._inputs(10, 6)
+        result = bio_correlate.location_breakdown(locations, metrics)
+
+        self.assertEqual(result["home_location"], "Singapore")
+        self.assertEqual(result["away_location"], "Quan 1")
+        comparison = result["comparisons"][0]
+        self.assertEqual(comparison["home_mean"], 54.0)
+        self.assertEqual(comparison["away_mean"], 50.0)
+        self.assertEqual(comparison["delta"], -4.0)
+
+    def test_too_few_away_nights_publishes_nothing(self):
+        locations, metrics = self._inputs(20, policy.TRAVEL_MIN_NIGHTS - 1)
+
+        self.assertIsNone(bio_correlate.location_breakdown(locations, metrics))
+
+    def test_no_travel_at_all_publishes_nothing(self):
+        locations, metrics = self._inputs(20, 0)
+
+        self.assertIsNone(bio_correlate.location_breakdown(locations, metrics))
+
+    def test_sessions_without_a_logged_location_are_not_counted_as_travel(self):
+        locations, metrics = self._inputs(10, 6)
+        # Twelve unlocated sessions used to outnumber the real trip and become the
+        # "away" group, producing a travel comparison that never happened.
+        locations += [{"date": f"2026-07-{day:02d}", "location": None} for day in range(1, 13)]
+        metrics["hrv"].update({f"2026-07-{day:02d}": 40.0 for day in range(1, 13)})
+
+        result = bio_correlate.location_breakdown(locations, metrics)
+
+        self.assertEqual(result["away_location"], "Quan 1")
+        self.assertEqual(result["away_days"], 6)
+        comparison = result["comparisons"][0]
+        self.assertEqual(comparison["away_mean"], 50.0)
+        self.assertEqual(comparison["away_days"], 6)
+
+    def test_every_away_place_feeds_the_average_not_just_the_busiest(self):
+        locations = (
+            [{"date": f"2026-09-{d:02d}", "location": "Singapore"} for d in range(1, 11)]
+            + [{"date": f"2026-08-{d:02d}", "location": "Quan 1"} for d in range(1, 5)]
+            + [{"date": f"2026-07-{d:02d}", "location": "Air Hitam"} for d in range(1, 5)]
+        )
+        metrics = {
+            "hrv": {f"2026-09-{d:02d}": 54.0 for d in range(1, 11)}
+                   | {f"2026-08-{d:02d}": 50.0 for d in range(1, 5)}
+                   | {f"2026-07-{d:02d}": 60.0 for d in range(1, 5)},
+        }
+
+        result = bio_correlate.location_breakdown(locations, metrics)
+
+        self.assertEqual(result["away_location"], "Quan 1")
+        self.assertEqual(result["away_days"], 8)
+        self.assertEqual(result["away_location_count"], 2)
+        self.assertEqual(result["comparisons"][0]["away_mean"], 55.0)  # both places, not just Quan 1
+
+
+class ChannelSeriesTests(unittest.TestCase):
+    """The correlation window is built from measured days only."""
+
+    def test_each_channel_carries_only_the_days_it_was_measured(self):
+        sleep_history = [
+            {"date": "2026-09-19", "score": 80, "total_seconds": 27000, "deep_seconds": 6000,
+             "rem_seconds": 4000, "avg_stress": 18, "avg_respiration": 13.0},
+            {"date": "2026-09-20", "score": None, "total_seconds": 0, "avg_stress": None},
+        ]
+        series = analytics.daily_channel_series(
+            sleep_history,
+            [{"calendarDate": "2026-09-20", "lastNightAvg": 52}],
+            [{"calendarDate": "2026-09-19", "value": 49}],
+            [{"calendarDate": "2026-09-20", "totalSteps": 8700}],
+            [{"date": "2026-09-20", "latest": 94}],
+        )
+
+        self.assertEqual(series["hrv"], {"2026-09-20": 52})
+        self.assertEqual(series["rhr"], {"2026-09-19": 49})
+        self.assertEqual(series["steps"], {"2026-09-20": 8700})
+        self.assertEqual(series["spo2"], {"2026-09-20": 94})
+        # A night with no score contributes no sleep-score day at all.
+        self.assertEqual(series["sleep_score"], {"2026-09-19": 80})
+        self.assertNotIn("2026-09-20", series["sleep_hours"])
+
+    def test_a_channel_with_no_days_is_omitted_entirely(self):
+        series = analytics.daily_channel_series([], [], [{"calendarDate": "2026-09-20", "value": 49}], [], [])
+
+        self.assertEqual(list(series), ["rhr"])
+
+
+# ---------------------------------------------------------------------------
+# The profile is the only source of personal facts
+# ---------------------------------------------------------------------------
+
+class ProfileHonestyTests(unittest.TestCase):
+    """The prompt may only describe the athlete with measured facts."""
+
+    def _prompt(self, context=None):
+        return clinical_engine._build_prompt(
+            {"hrv_last_night": 52, "rhr": 49, "sleep_stress": 18, "sleep_time_seconds": 24500,
+             "deep_sleep_seconds": 5400, "rem_sleep_seconds": 3300, "sleep_score": 76,
+             "body_battery_charged": 47, "respiration_rate": 13.0, "lowest_respiration": 9.0,
+             "hrv_status": "BALANCED"},
+            {"hrv_30d": 55.1, "hrv_normal_range": [54, 72], "hrv_180d": 58.8, "rhr_30d": 49.8,
+             "rhr_180d": 49.5, "rhr_all_time": 50.0, "deep_sleep_pct_180d": 23.3,
+             "rem_sleep_pct_30d": 15.0, "respiration_avg_30d": 13.0},
+            {"chronological_age": 29, "fitness_age": 24.7, "device_name": "fenix 6S ASIA Sapphire",
+             "acute_load": 43, "chronic_load": 219, "acwr": 0.1, "achievable_fitness_age": 21.1},
+            context,
+        )
+
+    def test_the_prompt_states_profile_facts_rather_than_assuming_them(self):
+        prompt = self._prompt()
+
+        self.assertIn("Age 29", prompt)
+        self.assertIn("fenix 6S ASIA Sapphire", prompt)
+        self.assertIn("no occupation, employer, diet", prompt)
+
+    def test_no_invented_biography_reaches_the_model(self):
+        prompt = self._prompt()
+
+        for invented in ("software", "farm executive", "Oura", "Whoop/"):
+            with self.subTest(invented=invented):
+                self.assertNotIn(invented, prompt)
+
+    def test_measured_context_is_offered_when_it_exists(self):
+        prompt = self._prompt({
+            "profile": make_profile(),
+            "oxygen": {"available": True, "latest": 94, "latest_date": "2026-09-20",
+                       "sleep_average": 93.0, "lowest": 84, "days_recorded": 13, "window_days": 120},
+            "environment": {"home_location": "Singapore", "away_stays": [{"location": "Quan 1", "sessions": 10}],
+                            "weather": {"temp_c": 27.2, "humidity_pct": 89}, "heat_acclimation_pct": 5},
+            "capacity": {"bmi": 22.8, "intensity": {"weekly_total": 20, "goal": 150}},
+        })
+
+        self.assertIn("Blood oxygen: latest 94%", prompt)
+        self.assertIn("recorded on 13 of the last 120 days", prompt)
+        self.assertIn("Singapore", prompt)
+        self.assertIn("heat acclimation 5%", prompt)
+        self.assertIn("20 of 150 weekly intensity minutes", prompt)
+
+    def test_missing_context_says_not_recorded_rather_than_guessing(self):
+        prompt = self._prompt()
+
+        self.assertIn("Blood oxygen: not recorded in the last 120 days", prompt)
+        self.assertIn("Training logged around: not recorded", prompt)
+
+    def test_rule_engine_uses_measured_conditions_not_a_named_city(self):
+        verdict = clinical_engine.deterministic_engine(
+            {"hrv_last_night": 52, "rhr": 49, "sleep_stress": 18, "sleep_time_seconds": 24500,
+             "deep_sleep_seconds": 5400, "rem_sleep_seconds": 3300},
+            {"hrv_30d": 55.1, "rhr_30d": 49.8, "deep_sleep_pct_180d": 23.3},
+            {"chronological_age": 29, "fitness_age": 24.7, "acwr": 0.1},
+            {"environment": {"home_location": "Singapore", "weather": {"temp_c": 27.2, "humidity_pct": 89},
+                             "heat_acclimation_pct": 5,
+                             "hydration": {"goal_ml": 2915.0, "sweat_loss_ml": 786.0}}},
+        )
+
+        self.assertIn("training is logged around Singapore", verdict["workload_and_biological_age"])
+        self.assertIn("latest session ran at 27.2C", verdict["workload_and_biological_age"])
+        self.assertTrue(any("Hydration & Heat" in d for d in verdict["actionable_directives"]))
+        self.assertFalse(any("3.0L" in d for d in verdict["actionable_directives"]))
+        self.assertTrue(all("Singapore" not in d or "logged" in d for d in verdict["actionable_directives"]))
+
+
+class SignalPayloadTests(unittest.TestCase):
+    """The new groups must reach the payload with their provenance recorded."""
+
+    def test_payload_ships_the_measured_signal_groups(self):
+        client = FakeClient(
+            stress={"stressValuesArray": [[i, 20] for i in range(60)]},
+            body_battery=[{"charged": 41, "drained": 12}],
+            summary={"totalSteps": 9100, "averageStressLevel": 21},
+        )
+        fetched = {
+            "today_str": "2026-09-20",
+            "profile": make_profile(),
+            "rhr": make_rhr("2026-06-01", 120),
+            "hrv": make_hrv("2026-06-01", 120),
+            "sleep": [make_sleep(f"2026-0{month}-{day:02d}", bedtime=1380)
+                      for month in (8, 9) for day in range(1, 11)],
+            "fitness": make_fitness(),
+            "activities": [],
+            "location": {"location_days": [], "weather": {}, "weather_live": False},
+            "spo2": [{"date": "2026-09-19", "latest": 95, "sleep_average": 94.0, "lowest": 90,
+                      "latest_time_local": "2026-09-19T21:10:00.0"}],
+            "steps": [{"calendarDate": f"2026-09-{day:02d}", "totalSteps": 8000} for day in range(1, 21)],
+            "hydration": {},
+            "daily_activity": {},
+            "intensity": {},
+            "races": {},
+        }
+        dq = DataQuality()
+        for key in ("sleep", "rhr", "hrv"):
+            dq.record(key, True, "fixture")
+
+        payload = sync.build_payload(client, fetched, dq)
+
+        self.assertEqual(payload["oxygen"]["latest"], 95)
+        self.assertEqual(payload["capacity"]["bmi"], round(63.5 / (1.67 ** 2), 1))
+        self.assertIn("findings", payload["correlations"])
+        self.assertIn("home_location", payload["environment"])
+        # Year-on-year RHR is still published, and no field invented a person.
+        self.assertEqual(payload["athlete"]["chronological_age"], 29)
+        self.assertNotIn("bmi", payload["fitness"])
 
 
 if __name__ == "__main__":

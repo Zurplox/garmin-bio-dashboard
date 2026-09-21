@@ -1,6 +1,6 @@
-# 🧬 Garmin Bio-Intelligence Terminal
+# 🧬 Meridian Bio-Intelligence Terminal
 
-An automated, end-to-end encrypted physiological dashboard and intelligence pipeline for athlete Harvin ([@Zurplox](https://github.com/Zurplox)), continuously syncing biometrics from Garmin Connect™ and computing deep biological baselines.
+An automated, end-to-end encrypted physiological dashboard and intelligence pipeline for athlete Harvin ([@Zurplox](https://github.com/Zurplox)), continuously syncing biometrics from the linked device account and computing deep biological baselines.
 
 * **Live:** https://zurplox.github.io/garmin-bio-dashboard/
 * **Stack:** Python ingestion → AES-256-GCM vault → single-file static dashboard (Tailwind + Chart.js, no build step)
@@ -32,7 +32,7 @@ Because `DEFAULT_PASS` exists in a public repository and is used whenever the `G
 
 ## 📈 Data provenance: which numbers are real
 
-Every Garmin endpoint can fail independently. A failed call used to be swallowed and a hard-coded placeholder substituted, then rendered indistinguishably from a measurement. The pipeline now records the origin of every metric group and publishes it:
+Every device endpoint can fail independently. A failed call used to be swallowed and a hard-coded placeholder substituted, then rendered indistinguishably from a measurement. The pipeline now records the origin of every metric group and publishes it:
 
 ```json
 "data_quality": {
@@ -52,7 +52,7 @@ In the UI this becomes:
 * a `STALE DATA` flag when the last successful sync is more than 30 hours old;
 * a hard abort (`exit 1`) when any **core** metric (sleep, RHR, HRV) falls back — a run that would publish mostly placeholder physiology fails the workflow instead, leaving the previous vault in place.
 
-Values that are *models* rather than measurements are labelled as such: **Day Strain** is computed from steps, session duration × aerobic training effect, and all-day stress; it is not a Garmin field.
+Values that are *models* rather than measurements are labelled as such: **Day Strain** is computed from steps, session duration × aerobic training effect, and all-day stress; it is not a device field. Equally, a value the device did not supply is published as `null` and rendered `--`: the pipeline no longer substitutes a plausible-looking placeholder for a missing measurement, and the narrative is written from the account's own profile rather than from assumed facts about the athlete's life.
 
 ---
 
@@ -60,17 +60,26 @@ Values that are *models* rather than measurements are labelled as such: **Day St
 
 | Metric | Source | Notes |
 |:---|:---|:---|
-| Sleep architecture (186 nights) | Garmin | total, deep, REM, light, awake, sleep stress, nocturnal respiration |
-| Overnight HRV + 7d rolling baseline | Garmin | personal corridor derived from Garmin's own balanced range |
-| Resting heart rate (1,506 days, 2022→now) | Garmin | daily, 30/180-day and per-year averages, all-time baseline |
-| Body Battery charge/drain | Garmin | falls back to a flagged placeholder if unavailable |
-| 24-hour stress distribution | Garmin stress samples | bucketed 0–25 / 26–50 / 51–75 / 76–100, excludes sentinel values, percentages always total 100 |
+| Sleep architecture (186 nights) | device | total, deep, REM, light, awake, sleep stress, nocturnal respiration |
+| Overnight HRV + 7d rolling baseline | Garmin | personal corridor derived from the watch's own balanced range |
+| Resting heart rate (1,506 days, 2022→now) | device | daily, 30/180-day and per-year averages, all-time baseline |
+| Body Battery charge/drain | device | falls back to a flagged placeholder if unavailable |
+| 24-hour stress distribution | device stress samples | bucketed 0–25 / 26–50 / 51–75 / 76–100, excludes sentinel values, percentages always total 100 |
 | Circadian architecture | derived from sleep onsets | median onset, night-to-night spread, melatonin gate, alignment % |
 | Sleep need & bedtime | derived | baseline 7h30m + debt paydown + strain need, rendered as a 12-hour clock |
 | Day strain, readiness, injury risk | derived | thresholds in `bio_policy.py`, models in `bio_analytics.py` |
 | Recovery score, readiness, bands | derived by the rule engine | always computed from the measurements above; the optional model cannot change them |
-| AI clinical narrative | Gemini (optional) | prose only; the UI discloses which engine wrote the words |
-| Workout feed | Garmin | normalised into Running / Walking / Cycling / Gym |
+| AI clinical narrative | Gemini (optional) | prose only; the UI discloses which engine wrote the words, and each paragraph closes with a rule-written `In plain English:` sentence |
+| Workout feed | device | normalised into Running / Walking / Cycling / Gym |
+| Blood oxygen (SpO₂) | device Pulse Ox | sparse by nature — the card publishes `days_recorded` out of the 120-day window beside the reading, because an on-demand sensor is not a nightly average |
+| Location & travel | device activity records | the most-logged location is "home"; anywhere else is listed as travel with sessions and dates. No location is assumed |
+| Session climate | device weather station | temperature, humidity, feels-like and dew point for the most recent session, converted from the account's own units |
+| Heat & altitude acclimation | device max-metrics | the device's own estimate of heat adaptation, banded in `bio_policy` |
+| Hydration | device hydration | daily target, logged intake and the latest session's measured sweat loss |
+| Capacity (VO₂max, BMI, threshold HR) | account profile + max-metrics | age, sex, height and weight are read from the profile; BMI is computed from those, never assumed |
+| Race forecasts | device race predictions | 5K / 10K / half / marathon, formatted from the device's own seconds |
+| Intensity minutes, steps, floors, calories | device daily summaries | weekly moderate-equivalent minutes against the 150-minute guideline |
+| Correlations | computed from the athlete's own paired days | curated pairs only, each published with `r`, the paired-day count and a plain-English note; a pair below 14 paired days or |r| < 0.35 is refused rather than published |
 
 ---
 
@@ -94,6 +103,8 @@ Six Python modules and one static page, split by concern — see [ARCHITECTURE.m
 
 One owner per fact: the **deterministic rule engine computes every published number** — recovery score, its band, tone and zone, readiness, injury risk, the illness risk level and the training target — from the measurements in this run. Gemini, when `GEMINI_API_KEY` is set, writes **prose only**: the three analysis paragraphs and the narrative directives. Its own recovery score is recorded as `model_score` for comparison and never published.
 
+Every analysis paragraph ends with a **plain-English sentence**, and the rules write that sentence whichever engine wrote the paragraph above it. `clinical_engine` pairs each verdict with its restatement (`PLAIN_ENGLISH_PREFIX`), and `synthesize()` appends it after the prose, so a reader who does not know the clinical vocabulary still gets the same takeaway — and a model paragraph can never drop it.
+
 This is not cosmetic. Publishing the model's number meant the same physiology produced **different verdicts depending on which engine answered**: one day's byte-identical inputs published recovery 94% / GREEN / PRIME with no key and 62% / YELLOW / READY with one — a 32-point swing that flipped the training advice. The payload carries `score_source: "deterministic"` and `narrative_source`, so a reader can always tell which engine produced which half. Bands are still recomputed from the score rather than trusted from the model, which is what stops the old "score 68 labelled YELLOW" contradiction from returning.
 
 ---
@@ -102,7 +113,7 @@ This is not cosmetic. Publishing the model's number meant the same physiology pr
 
 `daily_sync.yml` runs at **08:00 AM SGT (00:00 UTC)** with an **08:30 SGT** catch-up, serialised by a concurrency group so the two runs cannot race to push:
 
-1. Authenticates headlessly with Garmin SSO using encrypted session tokens in `GARMIN_TOKENS`.
+1. Authenticates headlessly with the device account's SSO using encrypted session tokens in `GARMIN_TOKENS`.
 2. Ingests sleep architecture, HRV, multi-year RHR, Body Battery, stress telemetry and activities.
 3. Records data provenance and aborts if the core metrics are unavailable.
 4. Scores clinical intelligence with the rule engine, then optionally overlays Gemini's narrative.
@@ -117,7 +128,7 @@ This is not cosmetic. Publishing the model's number meant the same physiology pr
 The dashboard is a static page, so it cannot run the Python pipeline itself. The **Refresh** button therefore does the two things it honestly can:
 
 1. **Re-read the published vault** (always available, no configuration). It fetches `data/biometrics.enc.json` with a cache-busting request, compares `data/status.json` against the publish this session already loaded, and re-decrypts and re-renders when there is something new. If nothing has changed it says so instead of pretending to work.
-2. **Trigger a Garmin sync** (opt-in). The gear button beside it accepts a GitHub token with `Actions: read and write` on this repository. With a token stored, Refresh POSTs a `workflow_dispatch` to `daily_sync.yml`, then polls `status.json` for up to 15 minutes — a full sync takes several minutes and Pages has to redeploy — and loads the new vault automatically when it lands. Without a token, the same button only re-reads the vault, and says so.
+2. **Trigger a sync** (opt-in). The gear button beside it accepts a GitHub token with `Actions: read and write` on this repository. With a token stored, Refresh POSTs a `workflow_dispatch` to `daily_sync.yml`, then polls `status.json` for up to 15 minutes — a full sync takes several minutes and Pages has to redeploy — and loads the new vault automatically when it lands. Without a token, the same button only re-reads the vault, and says so.
 
 The token is kept in this browser's local storage, is never committed, and is sent nowhere except `api.github.com`. It is optional because a static page has no other way to authenticate as you; if you would rather not store one, trigger the sync from the Actions tab and press Refresh afterwards.
 
@@ -183,7 +194,7 @@ python -m http.server 8971 --bind 127.0.0.1   # then open http://127.0.0.1:8971
 
 * **Timezone-correct sync times.** Timestamps were naive, so browsers read a UTC sync time as local; the dashboard now emits and renders `+00:00` values explicitly in SGT.
 * **12-hour clock fixed.** The vault contained `"22:03 PM SGT"` and `"22:15 PM — 22:45 PM SGT"`; both are now proper 12-hour clocks.
-* **Real stress telemetry.** The 24-hour distribution was inferred from a single daily average with hard-coded percentages and labelled as 24-hour architecture. It is now computed from Garmin's ~3-minute stress samples (91% rest / 9% low on the first live run, versus the invented 75/18/5/2).
+* **Real stress telemetry.** The 24-hour distribution was inferred from a single daily average with hard-coded percentages and labelled as 24-hour architecture. It is now computed from the device's ~3-minute stress samples (91% rest / 9% low on the first live run, versus the invented 75/18/5/2).
 * **Real circadian metrics.** `88%` alignment and a fixed melatonin window were hard-coded; both now come from the athlete's own sleep onsets (median 11:57 PM, 55-minute spread, 73% alignment on the first live run).
 * **Day Strain recalibrated.** The old formula clamped at a hard floor so every light day reported an identical `3.8`; the model is now monotonic, unbounded at the bottom, and documented.
 * **Dead UI values removed.** The Body Battery graphic was frozen at `78%` regardless of data, the stress narrative always said `75%`, the recovery-factor/drain-rate labels and the "Immune Status: Highly Resilient" line were static, and the sleep/HRV night counts were literal strings.
@@ -191,7 +202,7 @@ python -m http.server 8971 --bind 127.0.0.1   # then open http://127.0.0.1:8971
 * **Real lock semantics.** Logging out destroys chart instances and clears rendered tables instead of only nulling a global.
 * **KDF work factor raised** to 600,000 iterations, with the cost read from the envelope rather than hard-coded at `100000`.
 * **Baseline windowing hardened.** "Recent N days" windows now sort by date instead of trusting endpoint ordering.
-* **Escaping + accessibility.** Garmin activity names and AI directives are HTML-escaped; the 13 disclosure toggles use a shared `toggleInfo()` helper with `aria-expanded`.
+* **Escaping + accessibility.** Device activity names and AI directives are HTML-escaped; the 13 disclosure toggles use a shared `toggleInfo()` helper with `aria-expanded`.
 
 ---
 
@@ -206,4 +217,4 @@ python -m http.server 8971 --bind 127.0.0.1   # then open http://127.0.0.1:8971
 
 ---
 
-*Built with Python, Garmin Connect API, Web Crypto API, Tailwind CSS, and Chart.js.*
+*Built with Python, the device data API, Web Crypto API, Tailwind CSS, and Chart.js.*

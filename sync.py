@@ -2,11 +2,10 @@
 Garmin Historical Biometrics Sync -- orchestration layer.
 
 Pipeline:  garmin_source  ->  bio_analytics  ->  clinical_engine  ->  payload
-                  |                                  |
-             provenance.py                      bio_policy.py
-                                                    |
-                                       (bands, tones, labels,
-                                        shared with the browser)
+                  |               |                  |
+                  |          bio_correlate           |
+             provenance.py            bio_policy.py (bands, tones, labels,
+                                                     shared with the browser)
 
 This file owns the run itself and nothing else: it fetches, calls the analytics,
 asks the clinical engine for verdicts, decides whether the dataset is fit to
@@ -22,6 +21,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 import bio_analytics as analytics
+import bio_correlate
 import bio_policy as policy
 import clinical_engine
 import garmin_source as source
@@ -49,15 +49,30 @@ def utc_now_iso():
 
 def collect(client, dq):
     """Fetch every input the payload needs. Ordering is not established here:
-    `bio_analytics` picks the windows and the latest record itself."""
+    `bio_analytics` picks the windows and the latest record itself.
+
+    The profile is fetched first because age, body metrics and the device name are
+    the athlete's own facts, and everything downstream reads them from there.
+    """
     today_str = date.today().isoformat()
+    profile = source.fetch_profile(client, today_str, dq)
+    activities = source.fetch_recent_activities(client, limit=90, dq=dq)
+    intensity, races = source.fetch_intensity_and_races(client, today_str, None, dq)
     return {
         "today_str": today_str,
+        "profile": profile,
         "rhr": source.fetch_multi_year_rhr(client, dq),
         "hrv": source.fetch_multi_year_hrv(client, dq),
         "sleep": source.fetch_sleep_history(client, days=210, dq=dq),
-        "fitness": source.fetch_fitness_and_workload(client, today_str, dq),
-        "activities": source.fetch_recent_activities(client, limit=60, dq=dq),
+        "fitness": source.fetch_fitness_and_workload(client, today_str, profile, dq),
+        "activities": activities,
+        "location": source.fetch_activity_context(client, activities, dq),
+        "spo2": source.fetch_spo2_history(client, dq),
+        "steps": source.fetch_daily_steps_history(client, policy.CORRELATION_WINDOW_DAYS, dq),
+        "hydration": source.fetch_hydration(client, today_str, dq),
+        "daily_activity": source.fetch_daily_activity(client, today_str, dq),
+        "intensity": intensity,
+        "races": races,
     }
 
 
@@ -79,6 +94,7 @@ def build_payload(client, fetched, dq):
     today_str = fetched["today_str"]
     all_rhr, all_hrv, sleep_history = fetched["rhr"], fetched["hrv"], fetched["sleep"]
     fitness_data, activities = fetched["fitness"], fetched["activities"]
+    profile = fetched["profile"]
 
     baselines, rhr_multi_year = analytics.calculate_baselines(all_rhr, all_hrv, sleep_history)
     circadian = analytics.compute_circadian_architecture(sleep_history)
@@ -101,7 +117,43 @@ def build_payload(client, fetched, dq):
         dq,
     )
 
-    intelligence = clinical_engine.synthesize(today_snapshot, baselines, fitness_data)
+    # The signals the pipeline used to leave on the table: blood oxygen, where the
+    # training happened and what the air was doing, capacity from the athlete's own
+    # profile, and the correlations between channels. They are built before the
+    # clinical engine runs so the narrative is written from the same measurements.
+    oxygen = analytics.build_oxygen_signal(fetched["spo2"])
+    environment = analytics.build_environment_signal(
+        fetched["location"]["location_days"],
+        fetched["location"]["weather"],
+        profile.get("heat_acclimation_pct"),
+        fetched["hydration"],
+    )
+    capacity = analytics.build_capacity_signal(
+        profile, fetched["races"], fetched["intensity"], fetched["daily_activity"], today_str
+    )
+    channels = analytics.daily_channel_series(
+        sleep_history, all_hrv, all_rhr, fetched["steps"], fetched["spo2"]
+    )
+    correlations = {
+        **bio_correlate.build_correlations(channels),
+        "location": bio_correlate.location_breakdown(
+            fetched["location"]["location_days"], channels
+        ),
+    }
+
+    intelligence = clinical_engine.synthesize(
+        today_snapshot,
+        baselines,
+        fitness_data,
+        # The measured facts the prose may use, and the only ones.
+        {
+            "profile": profile,
+            "oxygen": oxygen,
+            "environment": environment,
+            "capacity": capacity,
+            "correlations": correlations,
+        },
+    )
 
     whoop_data = analytics.calculate_whoop_metrics(
         today_snapshot, activities, sleep_history, intelligence
@@ -170,6 +222,12 @@ def build_payload(client, fetched, dq):
             "activities": activities,
         },
         "clinical_intelligence": intelligence,
+        # Measured signal groups. Each one carries whether it was measured and, where
+        # the data is sparse by nature, how sparse.
+        "oxygen": oxygen,
+        "environment": environment,
+        "capacity": capacity,
+        "correlations": correlations,
         "data_quality": quality,
     }
 
@@ -201,7 +259,17 @@ def main():
     print(f"   • Recovery Score: {intelligence['recovery_score']}% ({intelligence['recovery_zone']})")
     print(f"   • Readiness: {payload['readiness']['score']}/100 ({payload['readiness']['badge']}) | Injury risk: {payload['injury_risk']['pct']}% ({payload['injury_risk']['badge']})")
     print(f"   • Illness Early Warning: {intelligence['illness_early_warning']['risk_level']} ({intelligence['illness_early_warning']['status_headline']})")
-    print(f"   • Data provenance: {quality['live_count']}/{quality['total_count']} metric groups from Garmin ({quality['live_pct']}%)")
+    print(f"   • Data provenance: {quality['live_count']}/{quality['total_count']} metric groups live ({quality['live_pct']}%)")
+    oxygen, environment = payload["oxygen"], payload["environment"]
+    print(
+        f"   • Blood oxygen: {oxygen['days_recorded']}/{oxygen['window_days']} days recorded"
+        + (f" | sleep-time avg {oxygen['sleep_average']}%" if oxygen["sleep_average"] else " | no sleep-time average")
+    )
+    print(
+        f"   • Location: {environment['home_location']} ({len(environment['locations'])} logged) | "
+        f"climate {environment['weather'].get('temp_c')}C {environment['weather'].get('humidity_pct')}%"
+    )
+    print(f"   • Correlations published: {len(payload['correlations']['findings'])} of {payload['correlations']['tested_pairs']} curated pairs")
     for metric in quality["metrics"].values():
         if metric["source"] != "live":
             print(f"       ⚠️ {metric['label']}: {metric['note']}")

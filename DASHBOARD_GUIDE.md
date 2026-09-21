@@ -1,6 +1,8 @@
-# 🧬 Garmin Bio-Intelligence Terminal — User & Clinical Guide
+# 🧬 Meridian Bio-Intelligence Terminal — User & Clinical Guide
 
 A comprehensive, plain-English reference manual for Harvin's personal bio-intelligence dashboard. Designed for daily performance optimization, immune tracking, recovery planning, and longevity analytics without requiring medical training.
+
+**A note on where the personal details come from.** Every fact about the athlete on this dashboard is measured: age, sex, height, weight, BMI, VO₂max and threshold heart rate come from the linked account's own profile, and location, climate, blood oxygen and training totals come from the device's own records. Nothing is assumed about occupation, diet, family, schedule or living situation, and a value the device did not measure reads `--` rather than a plausible substitute.
 
 ---
 
@@ -18,7 +20,8 @@ A comprehensive, plain-English reference manual for Harvin's personal bio-intell
 
 ### 1. 🧠 Daily Briefing
 * **What it is:** A personalized daily executive briefing combining your overnight sleep, recovery, stress, and workload trends. The narrative paragraphs can be written by Google Gemini AI when a key is configured; the **Recovery and Readiness numbers inside it are always computed by the deterministic rule engine** from your own measured baselines. The badge above the briefing names which engine wrote the words, and reads `Deterministic rule engine` when no model key is present.
-* **Why it matters:** Because the numbers never come from the model, the same overnight data always produces the same score, zone and training advice — a missing or failed model call changes the prose, never the verdict.
+* **Read the last sentence of each paragraph first.** Every analysis paragraph — whether the rule engine or Gemini wrote it — ends with a sentence beginning **`In plain English:`** that restates the same finding in everyday words, written by the rule engine from your own measurements. The clinical sentences above it carry the detail and the exact figures; the closing sentence is what it means for today. Example: *"Autonomic tone is Below Baseline… **In plain English: your overnight recovery signal reads 52 ms against your own 30-day average of 55.1 ms, so this is an ordinary day-to-day dip — train as planned, but do not chase a personal best.**"*
+* **Why it matters:** Because the numbers never come from the model, the same overnight data always produces the same score, zone and training advice — a missing or failed model call changes the prose, never the verdict. The plain-English sentence is written by the rules for the same reason, so a dense or abstract model paragraph still ends with your takeaway.
 * **How to read it:** Scan the greeting and the 4 status indicators (Recovery, HRV, Readiness, Injury Risk). Green indicates primed capacity; amber signals moderate fatigue; red indicates required rest.
 
 ---
@@ -62,7 +65,7 @@ A comprehensive, plain-English reference manual for Harvin's personal bio-intell
 
 ---
 
-### 6. 🔋 Garmin Body Battery™ Dynamics (0 – 100)
+### 6. 🔋 Body Battery Dynamics (0 – 100)
 * **What it is:** An energy reserve gauge tracking real-time physical and nervous energy depletion vs. charging.
 * **Charging (+pts charged):** How many energy points your restorative sleep replenished. $+35\text{ to }+50\text{ points}$ represents an optimal recharge.
 * **Drain Rate:** Measures daytime energy expenditure from work, movement, and stress.
@@ -98,7 +101,7 @@ A comprehensive, plain-English reference manual for Harvin's personal bio-intell
   * 🔵 **< 0.8 ("Fresh / Under-trained"):** Low fatigue, high readiness; capacity to safely add workload.
   * 🟠 **1.3 – 1.5 ("High"):** Approaching the danger zone; hold volume where it is rather than adding more.
   * 🔴 **> 1.5 ("Danger Zone"):** Exponentially increased injury risk due to sudden workload spikes.
-* **These four names are what the dashboard shows everywhere** — the ACWR badge, the workload band on the Training Readiness card and the ACWR info panel all use them, so the same ratio can never be described two ways. Garmin's own status word for the ratio is kept in the ACWR panel as context only.
+* **These four names are what the dashboard shows everywhere** — the ACWR badge, the workload band on the Training Readiness card and the ACWR info panel all use them, so the same ratio can never be described two ways. The watch's own status word for the ratio is kept in the ACWR panel as context only.
 
 ---
 
@@ -144,6 +147,42 @@ A comprehensive, plain-English reference manual for Harvin's personal bio-intell
 
 ---
 
+### 16. 🫁 Blood Oxygen (SpO₂)
+* **What it is:** The share of your red blood cells carrying oxygen, measured by the light sensor on the back of the watch. At sea level most healthy adults sit between **95% and 100%**; a sustained reading below **90%** is the point at which a doctor should look at it.
+* **Why your series looks patchy:** Pulse Ox is an on-demand sensor. It only records when the watch is still and sitting flat on the wrist, which in practice means some days and not others — **9% of the last 120 days** on the current data, with one overnight average in the window. The card therefore states how many days actually carried a reading, and every reading is one sample rather than a nightly average.
+* **Values:**
+  * **In Range (≥ 95%):** Nothing to do; this is the normal band.
+  * **Slightly Low (92–94%):** Worth watching if it repeats. A cold hand, a loose strap, altitude or a mild illness all move a single reading.
+  * **Low (< 92%):** Below the normal band. If it persists, raise it with a doctor rather than with training.
+  * **Single dip:** A flagged point is one reading at 90% or below — one dip is a data point, not a diagnosis.
+* **To get a reading every night:** set **Pulse Ox → During Sleep** in the watch settings. Until then, treat each reading as a single sample.
+
+### 17. 🗺️ Terrain & Climate (Location, Heat, Hydration)
+* **What it is:** Where your sessions actually happened — taken from the location the watch logged with each activity — what the air was doing at the most recent one, and how adapted your body is to training in that heat.
+* **Values:**
+  * **Where you train:** the place your device logged most often (currently Singapore). Anywhere else is listed as travel with the sessions and dates, so a trip shows up as a trip and nothing is assumed about where you live.
+  * **Temperature, humidity and feels-like:** measured by the weather station your device paired with your last session (currently 27.2 °C, 89% humidity, feels 30.6 °C, Seletar Airport). These are that session's conditions, not a forecast.
+  * **Heat acclimation:** your device's own estimate of heat adaptation. **Not Acclimated** (below 20%) means a hot session costs you more heart-rate work; **Partly Acclimated** (20–49%) is mid-adaptation; **Heat Acclimated** (50%+) means your body has adapted and the same pace costs less. It fades after roughly a week without hot sessions.
+  * **Hydration:** your daily target (2.9 L), what you logged (0 L — nothing logged), and the fluid your latest session sweated (786 ml).
+
+### 18. 🏃 Capacity & Forecast (VO₂max, BMI, Race Times, Intensity Minutes)
+* **What it is:** Your aerobic ceiling and what the device projects from it, all read from your own profile and records.
+* **Values:**
+  * **VO₂max (51.2 ml/kg/min):** the most oxygen your body can use per minute per kilogram — the standard single number for aerobic capacity. A rise of one or two points over months of consistent training is a real improvement.
+  * **BMI (22.8, In Range):** computed from the height and weight on your profile, not assumed. Below 18.5 is under range, 18.5–24.9 in range, 25–29.9 above range, 30+ high.
+  * **Threshold HR (166 bpm):** the heart rate at which your body starts accumulating lactate faster than it clears it — the ceiling for a hard but sustainable effort.
+  * **Race forecast (5K 25:53 · 10K 54:55 · Half 2h03 · Marathon 4h29):** the device's own projection from your recent running, which assumes you keep training the way you have been. It is a fair estimate of current fitness rather than a promise.
+  * **Intensity minutes (20 of 150 this week, Below Target):** moderate-equivalent minutes of movement; vigorous minutes count double. The 150-minute weekly figure is the widely used guideline, and most of this week has been easy walking rather than moderate exercise.
+  * **Today:** steps against your own goal, floors climbed and active calories.
+
+### 19. 🔬 Correlation Lab (How Your Own Signals Move Together)
+* **What it is:** Patterns computed from your own paired days — for example, whether nights with a higher sleep score are also nights with a higher HRV. Each published pattern carries its coefficient (`r`), the number of paired days behind it, and a plain-English note explaining why that pairing is physiologically plausible.
+* **How to read `r`:** near **+1** the two readings rise and fall together; near **−1** one rises as the other falls; near **0** they are unrelated. The day count is how many nights **both** were measured, so `r = −0.70` across 109 nights is a pattern and `r = 0.5` across 14 nights is a hint.
+* **What is deliberately hidden:** only pairings with **at least 14 paired days** and **|r| ≥ 0.35** are published, and only pairings with a plausible physiological reason are tested at all. Testing every combination of channels would eventually produce a strong-looking number by chance — the fixed rate of false positives that makes most "insights" panels untrustworthy.
+* **Location check:** the same comparison run across your own trips. Over 5 travel days (12 sessions, mostly Quan 1) against 40 days at home in Singapore: overnight HRV **54.0 ms** away versus **59.6 ms** at home, resting heart rate **52.0** away versus **49.0** at home, sleep score **70.2** away versus **81.2** at home, sleep duration **6.0 h** away versus **7.0 h** at home. Read that as travel being expensive for your recovery, not as proof of why. Two things to hold in mind: "away" means your device logged a session somewhere else (not necessarily where you slept), and a correlation is a pattern in your data, never proof of cause.
+
+---
+
 ## ⌨️ Dashboard Hotkeys & Navigation
 
 | Key | Action |
@@ -152,9 +191,9 @@ A comprehensive, plain-English reference manual for Harvin's personal bio-intell
 | `O` | Toggle RHR dual-axis overlay on the HRV chart |
 | `M` | Toggle tactile audio sound feedback |
 | `P` | Open one-click Clinical Report Print dialog (clean PDF styling) |
-| `R` | Refresh: re-read the published vault (and trigger a Garmin sync when a GitHub token is stored) |
+| `R` | Refresh: re-read the published vault (and trigger a sync when a GitHub token is stored) |
 | `L` | Instantly lock vault and purge decrypted data from browser memory |
 | `ESC` | Dismiss any open modal |
 
 ---
-*Maintained by Harvin (@Zurplox) // Powered by Garmin Connect™ API, a deterministic scoring engine, and optional Google Gemini AI narrative.*
+*Maintained by Harvin (@Zurplox) // Meridian: device-recorded biometrics, a deterministic scoring engine, and an optional AI narrative layer whose closing plain-English sentence is always written by the rules.*

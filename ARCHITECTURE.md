@@ -1,16 +1,20 @@
 # Architecture
 
-Six Python modules and one static page. Each concern has exactly one owner; if
+Seven Python modules and one static page. Each concern has exactly one owner; if
 you are about to write a threshold or a colour somewhere else, you are in the
-wrong file.
+wrong file. Personal facts have one owner too: the linked account's own profile,
+read by `garmin_source.fetch_profile`. Anything the account did not supply ships
+as `null` and renders as `--`, and the narrative is forbidden from assuming it.
 
 ```
                  garmin_source.py ──┐
-   (the only Garmin I/O)            │
+   (the only device I/O)            │
                                     ▼
                             bio_analytics.py ──────► clinical_engine.py
                             (pure arithmetic)        (verdicts: rules; model narrates)
-                                    │                        │
+                                    │      │                 │
+                                    │      └─ bio_correlate.py
+                                    │         (channel relationships)
                                     └────────┬───────────────┘
                                              ▼
                                     sync.py (orchestrator)
@@ -35,7 +39,8 @@ wrong file.
 | Arithmetic (baselines, windows, strain, sleep need, readiness, injury risk) | `bio_analytics.py` | Pure functions: values in, values out. No I/O, no environment, no provenance. Also decides positional windows ("last 30 days") and which record is latest. |
 | Garmin access (auth, endpoints, parsing into records) | `garmin_source.py` | The only module that performs Garmin I/O. Records live/fallback provenance as it fetches. |
 | Live/fallback bookkeeping and the publish decision | `provenance.py` | `DataQuality.publishable()` is the gate; the orchestrator consults it, nothing else decides. |
-| Clinical synthesis | `clinical_engine.py` | The rule engine is the **only** author of the recovery score and of everything derived from it (band, tone, zone, readiness inputs, illness risk level, training target); Gemini is merged on top as narrative and its own score is kept as `model_score`, never published. Returns meaning, never layout or colour classes. |
+| Clinical synthesis | `clinical_engine.py` | The rule engine is the **only** author of the recovery score and of everything derived from it (band, tone, zone, readiness inputs, illness risk level, training target); Gemini is merged on top as narrative and its own score is kept as `model_score`, never published. Every analysis paragraph closes with a rule-written plain-English restatement (`PLAIN_ENGLISH_PREFIX`), appended by `synthesize()` after whichever engine wrote the prose. Band meanings in plain words live on the band itself in `bio_policy.py`. Returns meaning, never layout or colour classes. |
+| Relationships between the athlete's daily channels | `bio_correlate.py` | Pure Pearson and comparison logic over series that were already measured. Curated pairs only, with a floor on paired days and coefficient magnitude, so nothing is published that its own thresholds call noise. Also decides home/away from device-logged locations. |
 | The run itself (fetch → analyse → publish → report) | `sync.py` | Wires the modules, assembles the payload envelope (`updated_at`, `athlete`, `history`, `policy`), writes `data/biometrics.json`, prints the summary. |
 | Payload encryption and status file | `encrypt_data.py` | Standalone; reads the pipeline's JSON, never imports the pipeline. |
 | Rendering and interaction | `index.html` | Consumes resolved bands/tones from the payload. The only decisions it makes are layout, and the only colours are `TONE_STROKE` / `badgeClass()` fed by the engine's tones. |
@@ -72,5 +77,5 @@ frontend: that is how the page once displayed a recovery score of 68 labelled
 `tests/test_pipeline.py` mirrors this structure: one test class per owner
 (time, stress, provenance, baselines, circadian, strain/scores, snapshot,
 model validation, payload assembly). `PayloadAssemblyTests` is the integration
-guard — it runs the real `build_payload()` against a fake Garmin client, so the
+guard — it runs the real `build_payload()` against a fake device client, so the
 publish gate and the resolved-band contract are exercised offline.

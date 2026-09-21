@@ -11,9 +11,11 @@ they are ported here unchanged so the engine owns every score and the dashboard
 owns only its presentation.
 """
 
+import datetime
 import math
 from statistics import median
 
+import bio_correlate
 import bio_policy as policy
 
 
@@ -669,6 +671,266 @@ def build_garmin_signature(today, circadian):
             "onsets_analysed": (circadian or {}).get("nights_used", 0),
         },
     }
+
+
+# --- additional measured signal groups -------------------------------------
+
+def _clock_from_local_timestamp(stamp):
+    """"2026-09-21T20:31:00.0" -> "8:31 PM SGT". None when unparseable."""
+    if not isinstance(stamp, str) or "T" not in stamp:
+        return None
+    time_part = stamp.split("T", 1)[1][:5]
+    try:
+        hour, minute = (int(p) for p in time_part.split(":"))
+    except ValueError:
+        return None
+    return f"{format_clock_12h(hour * 60 + minute)} SGT"
+
+
+def build_oxygen_signal(days):
+    """Blood oxygen from the device's own readings, with its coverage stated.
+
+    This watch records Pulse Ox opportunistically -- a spot reading most days and
+    an overnight summary on some nights -- so the signal publishes how many days
+    in the window actually carried a reading. Presenting one number without that
+    coverage line would make a spot check look like a nightly average.
+    """
+    days = [d for d in (days or []) if d.get("latest") is not None or d.get("sleep_average") is not None]
+    days.sort(key=lambda d: d.get("date") or "")
+    window = policy.SPO2_LOOKBACK_DAYS
+
+    latest = days[-1] if days else None
+    sleep_averages = [d["sleep_average"] for d in days if d.get("sleep_average") is not None]
+    lowest_values = [(d["lowest"], d["date"]) for d in days if d.get("lowest") is not None]
+    sleep_average = round(sum(sleep_averages) / len(sleep_averages), 1) if sleep_averages else None
+    lowest, lowest_date = min(lowest_values) if lowest_values else (None, None)
+
+    band = policy.spo2_band(sleep_average if sleep_average is not None else (latest or {}).get("latest"))
+    coverage_pct = round(len(days) / window * 100) if window else 0
+
+    return {
+        "available": bool(days),
+        "latest": (latest or {}).get("latest"),
+        "latest_date": (latest or {}).get("date"),
+        "latest_clock": _clock_from_local_timestamp((latest or {}).get("latest_time_local")),
+        "sleep_average": sleep_average,
+        "sleep_nights": len(sleep_averages),
+        "lowest": lowest,
+        "lowest_date": lowest_date,
+        "dip_flagged": bool(lowest is not None and lowest <= policy.SPO2_DIP_MIN),
+        "days_recorded": len(days),
+        "window_days": window,
+        "coverage_pct": coverage_pct,
+        "band": band,
+        "band_label": policy.SPO2_BANDS[band]["label"] if band else None,
+        "band_tone": policy.SPO2_BANDS[band]["tone"] if band else "slate",
+        "plain": policy.SPO2_BANDS[band]["plain"] if band else None,
+        "series": [{"date": d["date"], "value": d.get("latest") or d.get("sleep_average")} for d in days],
+    }
+
+
+def build_environment_signal(location_days, weather, heat_acclimation_pct, hydration):
+    """Where the training happened, what the air was doing, and heat adaptation.
+
+    Locations come from the device's own activity records, so "home" is the
+    location it logged most often -- not an assumption about where the athlete
+    lives -- and "away" is any other logged location.
+    """
+    counts, spans = {}, {}
+    for entry in location_days or []:
+        name = entry.get("location")
+        if not name:
+            continue
+        counts[name] = counts.get(name, 0) + 1
+        date = entry.get("date")
+        if date:
+            first, last = spans.get(name, (date, date))
+            spans[name] = (min(first, date), max(last, date))
+
+    home = bio_correlate.home_location(location_days)
+    away_stays = [
+        {"location": name, "sessions": sessions, "first": spans[name][0], "last": spans[name][1]}
+        for name, sessions in sorted(counts.items(), key=lambda kv: -kv[1])
+        if name != home
+    ]
+    last_location = (location_days or [{}])[-1].get("location") if location_days else None
+
+    heat_band = policy.heat_band(heat_acclimation_pct)
+    hydration = hydration or {}
+    goal_ml = hydration.get("goal_ml")
+    intake_ml = hydration.get("intake_ml")
+
+    return {
+        "available": bool(counts),
+        "home_location": home,
+        "last_location": last_location,
+        "locations": [
+            {"name": name, "sessions": sessions, "first": spans[name][0], "last": spans[name][1]}
+            for name, sessions in sorted(counts.items(), key=lambda kv: -kv[1])
+        ],
+        "away_stays": away_stays,
+        "away_sessions": sum(s["sessions"] for s in away_stays),
+        "weather": weather or {},
+        "hot_session": bool(
+            weather
+            and weather.get("temp_c") is not None
+            and weather["temp_c"] >= policy.HOT_SESSION_TEMP_C
+        ),
+        "humid_session": bool(
+            weather
+            and weather.get("humidity_pct") is not None
+            and weather["humidity_pct"] >= policy.HUMID_SESSION_PCT
+        ),
+        "heat_acclimation_pct": heat_acclimation_pct,
+        "heat_band": heat_band,
+        "heat_label": policy.HEAT_BANDS[heat_band]["label"] if heat_band else None,
+        "heat_tone": policy.HEAT_BANDS[heat_band]["tone"] if heat_band else "slate",
+        "heat_plain": policy.HEAT_BANDS[heat_band]["plain"] if heat_band else None,
+        "hydration": {
+            "goal_ml": goal_ml,
+            "intake_ml": intake_ml,
+            "sweat_loss_ml": hydration.get("sweat_loss_ml"),
+            "intake_pct": (
+                round(intake_ml / goal_ml * 100) if goal_ml and intake_ml is not None else None
+            ),
+        },
+    }
+
+
+def build_capacity_signal(profile, race_predictions, intensity, daily_activity, today_str):
+    """Training capacity from the athlete's own profile and forecasts.
+
+    Chronological age, height, weight and BMI are read from the account's profile
+    rather than assumed, so the only personal facts on the page are measured ones.
+    """
+    profile = profile or {}
+    height_cm = profile.get("height_cm")
+    weight_kg = profile.get("weight_kg")
+    bmi = None
+    if height_cm and weight_kg:
+        bmi = round(weight_kg / ((height_cm / 100.0) ** 2), 1)
+    bmi_key = policy.bmi_band(bmi)
+
+    weekly_minutes = (intensity or {}).get("weekly_total")
+    intensity_key = policy.intensity_band(weekly_minutes)
+    races = []
+    for label, key in (("5K", "time5k"), ("10K", "time10k"), ("Half", "time_half"), ("Marathon", "time_marathon")):
+        seconds = (race_predictions or {}).get(key)
+        if seconds:
+            hours, remainder = divmod(int(seconds), 3600)
+            minutes, secs = divmod(remainder, 60)
+            races.append(
+                {
+                    "label": label,
+                    "seconds": int(seconds),
+                    "formatted": (
+                        f"{hours}h {minutes:02d}m" if hours else f"{minutes}:{secs:02d}"
+                    ),
+                }
+            )
+
+    return {
+        "available": bool(profile) or bool(races),
+        "age_years": profile.get("age_years"),
+        "gender": profile.get("gender"),
+        "height_cm": height_cm,
+        "weight_kg": weight_kg,
+        "bmi": bmi,
+        "bmi_band": bmi_key,
+        "bmi_label": policy.BMI_BANDS[bmi_key]["label"] if bmi_key else None,
+        "bmi_tone": policy.BMI_BANDS[bmi_key]["tone"] if bmi_key else "slate",
+        "vo2max": profile.get("vo2max"),
+        "lactate_threshold_hr": profile.get("lactate_threshold_hr"),
+        "activity_level": profile.get("activity_level"),
+        "devices": profile.get("devices") or [],
+        "race_predictions": races,
+        "race_source_date": (race_predictions or {}).get("date"),
+        "intensity": {
+            "weekly_total": weekly_minutes,
+            "moderate": (intensity or {}).get("moderate"),
+            "vigorous": (intensity or {}).get("vigorous"),
+            "goal": (intensity or {}).get("goal") or policy.INTENSITY_GOAL_MINUTES,
+            "band": intensity_key,
+            "label": policy.INTENSITY_BANDS[intensity_key]["label"] if intensity_key else None,
+            "tone": policy.INTENSITY_BANDS[intensity_key]["tone"] if intensity_key else "slate",
+            "plain": policy.INTENSITY_BANDS[intensity_key]["plain"] if intensity_key else None,
+        },
+        "day": {
+            "steps": (daily_activity or {}).get("steps"),
+            "step_goal": (daily_activity or {}).get("step_goal"),
+            "floors": (daily_activity or {}).get("floors"),
+            "active_kcal": (daily_activity or {}).get("active_kcal"),
+            "total_kcal": (daily_activity or {}).get("total_kcal"),
+        },
+        "date": today_str,
+    }
+
+
+def daily_channel_series(sleep_history, hrv_history, rhr_history, steps_history, spo2_days):
+    """The daily channels a correlation is allowed to run over, by date.
+
+    Only channels that were actually measured on a day appear for that day, which
+    is what keeps a correlation's paired-day count honest.
+    """
+    window = policy.CORRELATION_WINDOW_DAYS
+    cutoff = None
+    for source in (sleep_history, hrv_history, rhr_history, steps_history, spo2_days):
+        for record in source or []:
+            date = record.get("date") or record.get("calendarDate")
+            if date and (cutoff is None or date > cutoff):
+                cutoff = date
+    if cutoff is None:
+        return {}
+
+    def within(date):
+        if not date:
+            return False
+        year, month, day = (int(p) for p in cutoff.split("-"))
+        end = datetime.date(year, month, day)
+        record = datetime.date(*(int(p) for p in date.split("-")))
+        return 0 <= (end - record).days < window
+
+    series = {key: {} for key in policy.CORRELATION_METRICS}
+
+    for night in sleep_history or []:
+        date = night.get("date")
+        if not within(date):
+            continue
+        total = night.get("total_seconds") or 0
+        if night.get("score") is not None:
+            series["sleep_score"][date] = night["score"]
+        if night.get("avg_stress") is not None:
+            series["sleep_stress"][date] = night["avg_stress"]
+        if night.get("avg_respiration") is not None:
+            series["respiration"][date] = night["avg_respiration"]
+        if total:
+            series["sleep_hours"][date] = round(total / 3600.0, 2)
+            series["deep_pct"][date] = round((night.get("deep_seconds") or 0) / total * 100, 1)
+            series["rem_pct"][date] = round((night.get("rem_seconds") or 0) / total * 100, 1)
+
+    for record in hrv_history or []:
+        date, value = record.get("calendarDate"), record.get("lastNightAvg")
+        if within(date) and value is not None:
+            series["hrv"][date] = value
+
+    for record in rhr_history or []:
+        date, value = record.get("calendarDate"), record.get("value")
+        if within(date) and value is not None:
+            series["rhr"][date] = value
+
+    for record in steps_history or []:
+        date = record.get("calendarDate") or record.get("date")
+        value = record.get("totalSteps", record.get("steps"))
+        if within(date) and value:  # a day with no step count is not a zero
+            series["steps"][date] = value
+
+    for day in spo2_days or []:
+        date = day.get("date")
+        value = day.get("sleep_average") or day.get("latest")
+        if within(date) and value is not None:
+            series["spo2"][date] = value
+
+    return {key: values for key, values in series.items() if values}
 
 
 # --- composite scores (ported from the browser) ----------------------------

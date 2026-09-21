@@ -11,7 +11,9 @@ one. Its own recovery score is kept beside the published one as a second
 opinion (`model_score`), not as the answer.
 
 The engine returns meaning (bands, tones, verdicts), never layout: the dashboard
-renders what it is handed.
+renders what it is handed. Every analysis paragraph ends with a plain-English
+sentence written by the rules -- never by the model -- that restates the verdict
+in everyday words.
 """
 
 import json
@@ -35,13 +37,85 @@ def _zone_fields(recovery_score):
     }
 
 
-def _build_prompt(today, baselines, fitness):
-    chrono_age = fitness.get("chronological_age", 29)
-    device = fitness.get("device_name", "Garmin")
-    return f"""
-    You are an elite sports cardiologist and Whoop/Oura lead recovery scientist.
-    Analyze the following biometrics for athlete Harvin ({chrono_age}M, software/farm executive in Singapore, training with {device}):
+def _profile_block(today, baselines, fitness, context):
+    """The measured facts about the athlete, and nothing else.
 
+    This block used to open with an assumed biography -- an age, an occupation and
+    a city that no measurement supplied. Everything here now comes from the
+    athlete's own account or from the device's own records, and the prompt says so,
+    so the model cannot dress an assumption up as an observation.
+    """
+    context = context or {}
+    profile = context.get("profile") or {}
+    capacity = context.get("capacity") or {}
+    environment = context.get("environment") or {}
+    oxygen = context.get("oxygen") or {}
+
+    age = profile.get("age_years") or fitness.get("chronological_age")
+    gender = profile.get("gender") or "not recorded"
+    height = profile.get("height_cm") or "not recorded"
+    weight = profile.get("weight_kg") or "not recorded"
+    bmi = capacity.get("bmi") or "not recorded"
+    vo2max = profile.get("vo2max") or "not recorded"
+    lthr = profile.get("lactate_threshold_hr") or "not recorded"
+    device = fitness.get("device_name") or "the primary device"
+
+    weather = environment.get("weather") or {}
+    climate = ", ".join(
+        str(part)
+        for part in (
+            f"{weather.get('temp_c')}C" if weather.get("temp_c") is not None else None,
+            f"{weather.get('humidity_pct')}% humidity" if weather.get("humidity_pct") is not None else None,
+            f"heat acclimation {environment.get('heat_acclimation_pct')}%"
+            if environment.get("heat_acclimation_pct") is not None
+            else None,
+        )
+        if part
+    ) or "not recorded"
+
+    if oxygen.get("available"):
+        oxygen_line = (
+            f"latest {oxygen['latest']}% on {oxygen['latest_date']}"
+            + (f", sleep-time average {oxygen['sleep_average']}%" if oxygen.get("sleep_average") else "")
+            + (f", lowest recorded {oxygen['lowest']}%" if oxygen.get("lowest") is not None else "")
+            + f" -- recorded on {oxygen['days_recorded']} of the last {oxygen['window_days']} days"
+        )
+    else:
+        oxygen_line = "not recorded in the last 120 days"
+
+    weekly = (capacity.get("intensity") or {}).get("weekly_total")
+    intensity_line = (
+        f"{weekly} of {(capacity.get('intensity') or {}).get('goal')} weekly intensity minutes"
+        if weekly is not None
+        else "not recorded"
+    )
+
+    return f"""
+    ATHLETE PROFILE (measured: the account's own profile plus the device's own records).
+    These are the ONLY personal facts available. Do not assume or mention anything
+    not on this list -- no occupation, employer, diet, family, schedule, travel
+    plans, medical history or living situation.
+    - Age {age} | Sex {gender} | Height {height} cm | Weight {weight} kg | BMI {bmi}
+    - VO2max {vo2max} ml/kg/min | Lactate threshold HR {lthr} bpm | Device {device}
+    - Training logged around: {environment.get('home_location') or 'not recorded'}
+      ({"; ".join(f"{s['location']} {s['sessions']} sessions" for s in (environment.get('away_stays') or [])[:3]) or 'no other locations logged'})
+    - Latest session conditions: {climate}
+    - Blood oxygen: {oxygen_line}
+    - Weekly movement: {intensity_line}
+    """
+
+
+def _measured(value):
+    """How an unmeasured value reads to the model: named, never filled in."""
+    return "not measured" if value is None else value
+
+
+def _build_prompt(today, baselines, fitness, context=None):
+    chrono_age = _measured((context or {}).get("profile", {}).get("age_years") or fitness.get("chronological_age"))
+    return f"""
+    You are a sports cardiologist writing a daily recovery brief for one athlete.
+    You have their measurements below and nothing else.
+{_profile_block(today, baselines, fitness, context)}
     BIOMETRICS SNAPSHOT:
     - Today Sleep Score: {today['sleep_score']}/100, Total Duration: {today['sleep_time_seconds']//3600}h {(today['sleep_time_seconds']%3600)//60}m
     - Deep Sleep: {today['deep_sleep_seconds']//3600}h {(today['deep_sleep_seconds']%3600)//60}m ({(today['deep_sleep_seconds']/today['sleep_time_seconds']*100):.1f}%) [6-month baseline: {baselines.get('deep_sleep_pct_180d')}%]
@@ -50,9 +124,10 @@ def _build_prompt(today, baselines, fitness):
     - Resting Heart Rate: {today['rhr']} bpm [30d baseline: {baselines['rhr_30d']} bpm, 6-month baseline: {baselines.get('rhr_180d')} bpm, 4-year baseline: {baselines['rhr_all_time']} bpm]
     - Sleep Stress Index: {today['sleep_stress']}/100
     - Nocturnal Respiration: {today.get('respiration_rate', 13.0)} brpm [30d baseline: {baselines.get('respiration_avg_30d')} brpm]
-    - Biological Fitness Age: {fitness.get('fitness_age', 24.7)} years (Chronological: {chrono_age})
-    - Workload: Acute Load {fitness.get('acute_load', 44)}, Chronic Load {fitness.get('chronic_load', 219)}, ACWR {fitness.get('acwr', 0.2)} ({fitness.get('acwr_status', 'LOW')})
+    - Biological Fitness Age: {_measured(fitness.get('fitness_age'))} years (Chronological: {chrono_age})
+    - Workload: Acute Load {_measured(fitness.get('acute_load'))}, Chronic Load {_measured(fitness.get('chronic_load'))}, ACWR {_measured(fitness.get('acwr'))} ({_measured(fitness.get('acwr_status'))})
     - Body Battery: +{today['body_battery_charged']} charged
+    - Sleep respiration: {_measured(today.get('respiration_rate'))} brpm (lowest {_measured(today.get('lowest_respiration'))})
 
     Evaluate strictly. Output a single JSON object with these EXACT keys. The
     recovery score, its zone and the illness risk level are published from the
@@ -64,18 +139,26 @@ def _build_prompt(today, baselines, fitness):
     4. "actionable_directives": array of 3 strings (1. deep-work cognitive capacity, 2. caffeine cutoff time, 3. sleep hygiene directive)
     5. "recovery_score": integer 0-100 (Whoop scale) -- your independent second opinion, recorded for comparison against the published score
 
+    Write for a non-medical reader: define each clinical term in the same sentence
+    you use it. Do not write a summary sentence of your own -- a plain-English
+    closing sentence is added to each paragraph after you return.
+
+    Ground every sentence in the measurements above. If a value you would want is
+    not listed, say it was not measured rather than estimating it, and never state
+    a fact about the athlete's life that the profile block does not contain.
+
     Output ONLY valid, parseable JSON without code fences or markdown blocks.
     """
 
 
-def query_gemini_api(today, baselines, fitness):
+def query_gemini_api(today, baselines, fitness, context=None):
     """Query Google AI Studio (Gemini Flash) when GEMINI_API_KEY is set."""
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return None
 
     payload = {
-        "contents": [{"parts": [{"text": _build_prompt(today, baselines, fitness)}]}],
+        "contents": [{"parts": [{"text": _build_prompt(today, baselines, fitness, context)}]}],
         "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"},
     }
 
@@ -112,6 +195,11 @@ NARRATIVE_KEYS = (
     "sleep_architecture_analysis",
     "workload_and_biological_age",
 )
+
+# Marks the sentence that restates the paragraph above it in everyday words. The
+# rules write it, never the model, so the reader's verdict is the same whichever
+# engine wrote the clinical half.
+PLAIN_ENGLISH_PREFIX = "In plain English:"
 
 
 def narrative_overlay(ai_result, verdict):
@@ -201,13 +289,59 @@ def _illness_screen(today, baselines):
     return risk, headline, details, delta_rhr, delta_hrv_pct
 
 
-def deterministic_engine(today, baselines, fitness):
+def _conditions_sentence(context):
+    """Where this athlete trains and what the air was doing, when the device logged it.
+
+    The old text asserted the athlete's city by name. This reads the location the
+    device recorded and the weather it measured at the last session.
+    """
+    environment = (context or {}).get("environment") or {}
+    weather = environment.get("weather") or {}
+    bits = []
+    if environment.get("home_location"):
+        bits.append(f"training is logged around {environment['home_location']}")
+    if weather.get("temp_c") is not None:
+        condition = f"the latest session ran at {_trim(weather['temp_c'])}C"
+        if weather.get("humidity_pct") is not None:
+            condition += f" and {_trim(weather['humidity_pct'])}% humidity"
+        bits.append(condition)
+    if environment.get("heat_acclimation_pct") is not None:
+        bits.append(f"heat acclimation reads {_trim(environment['heat_acclimation_pct'])}%")
+    if not bits:
+        return ""
+    return " Conditions where you train: " + "; ".join(bits) + "."
+
+
+def _hydration_directive(context):
+    """Hydration advice from the goal and the sweat loss the device recorded."""
+    environment = (context or {}).get("environment") or {}
+    hydration = environment.get("hydration") or {}
+    goal, sweat, heat = hydration.get("goal_ml"), hydration.get("sweat_loss_ml"), environment.get(
+        "heat_acclimation_pct"
+    )
+    if goal is None and sweat is None and heat is None:
+        return None
+    parts = []
+    if goal:
+        parts.append(f"your daily target is {goal / 1000:.1f}L")
+    if sweat:
+        parts.append(f"the latest logged session sweated {int(sweat)} ml")
+    if heat is not None:
+        parts.append(f"heat acclimation reads {heat}%")
+    return "Hydration & Heat: " + ", ".join(parts) + "."
+
+
+def deterministic_engine(today, baselines, fitness, context=None):
     """Rule engine used when Gemini is unavailable, rejected, or contradictory.
 
     Every sentence is assembled from values measured in this run: the previous
     version hard-coded its verdicts ("Peak 5-minute HRV reached 89 ms", a
     "+4.3 years younger" advantage, a fixed 22:15 wind-down) even when the
     measurements said otherwise.
+
+    Each paragraph is paired with a plain-English restatement under
+    `plain_english`, which `synthesize` appends after the prose so the reader's
+    takeaway survives a Gemini overlay.
     """
     hrv = today.get("hrv_last_night", 60)
     hrv_base = baselines.get("hrv_30d", 55.3) or 1
@@ -244,15 +378,37 @@ def deterministic_engine(today, baselines, fitness):
         f"{sleep_debt_minutes} min of debt against the {policy.TARGET_SLEEP_HOURS:g}h target. "
         f"Nightly stress at {sleep_stress}/100."
     )
+    if sleep_debt_minutes:
+        sleep_plain_debt = (
+            f"You are {sleep_debt_minutes} minutes short of your "
+            f"{policy.TARGET_SLEEP_HOURS:g}-hour target, so an earlier bedtime tonight is the "
+            f"cheapest way to improve tomorrow."
+        )
+    else:
+        sleep_plain_debt = "You reached your sleep-length target, so nothing here needs fixing tonight."
+    sleep_plain = (
+        f"{PLAIN_ENGLISH_PREFIX} you slept {sleep_hours:.1f} hours. Deep tissue-repair sleep was "
+        f"{deep_pct:.1f}% of the night, {deep_verdict} your {_trim(deep_base)}% baseline, and "
+        f"memory-forming REM sleep was {rem_pct:.1f}%, {rem_verdict} the 16% reference. "
+        f"{sleep_plain_debt}"
+    )
 
     hrv_band = policy.hrv_band(hrv, hrv_base)
+    hrv_label = policy.HRV_BANDS[hrv_band]["label"]
     hrv_corridor = baselines.get("hrv_normal_range", [54, 73])
+    # The paragraph names the band with the same words the badge, the Autonomic
+    # State row and the quadrant show. It used to say "DEGRADED" for any reading
+    # below baseline, which is both alarming and a second name for a -5% dip.
     autonomic_verdict = (
-        f"Autonomic tone is {'BALANCED' if hrv_band == 'above' else 'SUPPRESSED' if hrv_band == 'below' else 'DEGRADED'}: "
+        f"Autonomic tone is {hrv_label}: "
         f"overnight HRV averaged {hrv} ms ({delta_hrv_pct:+.1f}% versus your 30-day baseline of "
         f"{hrv_base} ms and 6-month baseline of {baselines.get('hrv_180d')} ms), against a normal "
         f"physiological band of {hrv_corridor[0]}-{hrv_corridor[1]} ms. Resting heart rate moved "
         f"{delta_rhr:+.1f} bpm versus its 30-day baseline."
+    )
+    autonomic_plain = (
+        f"{PLAIN_ENGLISH_PREFIX} your overnight recovery signal reads {_trim(hrv)} ms against your "
+        f"own 30-day average of {_trim(hrv_base)} ms, so {policy.HRV_BANDS[hrv_band]['plain']}."
     )
 
     chrono_age = fitness.get("chronological_age", 29)
@@ -266,8 +422,19 @@ def deterministic_engine(today, baselines, fitness):
         f"{fitness.get('acute_load', 44)} against a Chronic Load of {fitness.get('chronic_load', 219)}, "
         f"a {policy.acwr_workload_band(_as_float(acwr, 0.2)).lower()} workload band."
     )
+    acwr_key = policy.acwr_band(_as_float(acwr, 0.2))
+    if age_advantage > 0:
+        age_phrase = f"{_trim(age_advantage)} years younger than"
+    elif age_advantage < 0:
+        age_phrase = f"{_trim(abs(age_advantage))} years older than"
+    else:
+        age_phrase = "the same as"
+    workload_plain = (
+        f"{PLAIN_ENGLISH_PREFIX} your recent training load sits in the "
+        f"{policy.ACWR_BANDS[acwr_key]['label']} band: {policy.ACWR_BANDS[acwr_key]['plain']}. "
+        f"Your measured fitness age is {age_phrase} your real age of {chrono_age}."
+    )
 
-    heat = fitness.get("heat_acclimation_pct")
     directives = [
         {
             "prime": "Cardiovascular / Physical Target: green light for high-intensity interval training, heavy resistance work, or high-volume Zone 2 cardio.",
@@ -279,11 +446,9 @@ def deterministic_engine(today, baselines, fitness):
         "Caffeine Cutoff: stop caffeine at least 8 hours before your recommended bedtime (see the sleep architecture card).",
         "Sleep Hygiene: begin a screen-free wind-down 30 minutes before your recommended bedtime to protect REM duration.",
     ]
-    if heat is not None:
-        directives.append(
-            f"Hydration & Heat Acclimation: Singapore heat acclimation currently reads {heat}%; "
-            "maintain 3.0L electrolyte-supported fluid intake."
-        )
+    hydration_directive = _hydration_directive(context)
+    if hydration_directive:
+        directives.append(hydration_directive)
 
     return {
         "recovery_score": recovery_score,
@@ -302,8 +467,17 @@ def deterministic_engine(today, baselines, fitness):
         },
         "sleep_architecture_analysis": sleep_verdict,
         "autonomic_nervous_analysis": autonomic_verdict,
-        "workload_and_biological_age": workload_verdict,
+        # The measured conditions sit with the workload paragraph because that is the
+        # paragraph about adaptation, and they are measured, not assumed.
+        "workload_and_biological_age": workload_verdict + _conditions_sentence(context),
         "actionable_directives": directives,
+        # Kept apart from the paragraphs so the orchestrator can append each one to
+        # whichever engine wrote the paragraph above it. Not published on its own.
+        "plain_english": {
+            "autonomic_nervous_analysis": autonomic_plain,
+            "sleep_architecture_analysis": sleep_plain,
+            "workload_and_biological_age": workload_plain,
+        },
     }
 
 
@@ -314,23 +488,50 @@ def _as_float(value, default=None):
         return default
 
 
-def synthesize(today, baselines, fitness):
+def _trim(value):
+    """A measurement as it reads in a sentence: 52.0 -> "52", 55.3 -> "55.3".
+
+    An unmeasurable value reads "--", the same as every other absent number the
+    dashboard shows, rather than a plausible-looking guess.
+    """
+    number = _as_float(value)
+    return f"{number:g}" if number is not None else "--"
+
+
+def close_with_plain_english(verdict, plain):
+    """End each analysis paragraph with the rule-owned plain-English sentence.
+
+    The clinical prose (model-written or rule-written) sits above that sentence
+    and never replaces it, so a reader who does not know the vocabulary always
+    gets the same verdict in words they use themselves.
+    """
+    for key, sentence in plain.items():
+        paragraph = verdict.get(key)
+        if isinstance(paragraph, str) and paragraph.strip():
+            verdict[key] = f"{paragraph.strip()} {sentence}"
+    return verdict
+
+
+def synthesize(today, baselines, fitness, context=None):
     """Score owned by the rules, prose optionally owned by Gemini.
 
     The deterministic verdict is computed first and always, so the published
     score, band, tone, zone and illness risk are identical with and without a
-    model key; Gemini is asked second and merged over it as narrative only.
+    model key; Gemini is asked second and merged over it as narrative only. Each
+    analysis paragraph is then closed with the rule-owned plain-English sentence,
+    so the reader gets everyday words whichever engine wrote the clinical half.
     """
-    verdict = deterministic_engine(today, baselines, fitness)
+    verdict = deterministic_engine(today, baselines, fitness, context)
+    plain = verdict.pop("plain_english")
 
-    ai_result = query_gemini_api(today, baselines, fitness)
+    ai_result = query_gemini_api(today, baselines, fitness, context)
     if not ai_result:
-        return verdict
+        return close_with_plain_english(verdict, plain)
 
     overlay = narrative_overlay(ai_result, verdict)
     if overlay is None:
         print("   ⚠️ Gemini returned no usable narrative; keeping the deterministic verdict.")
-        return verdict
+        return close_with_plain_english(verdict, plain)
 
     model_score = overlay.get("model_score")
     if model_score is not None and model_score != verdict["recovery_score"]:
@@ -338,4 +539,4 @@ def synthesize(today, baselines, fitness):
             f"   ℹ️ Model scored recovery {model_score} vs rule-based "
             f"{verdict['recovery_score']}; publishing the rule-based score."
         )
-    return {**verdict, **overlay}
+    return close_with_plain_english({**verdict, **overlay}, plain)

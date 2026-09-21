@@ -74,6 +74,14 @@ ILLNESS_SLEEP_STRESS_MAX = 25
 
 METRIC_LABELS = {
     "sleep": "Sleep architecture",
+    "spo2": "Blood oxygen (Pulse Ox)",
+    "profile": "Athlete profile (age, body, VO2max)",
+    "environment": "Location, climate & heat adaptation",
+    "hydration": "Hydration balance",
+    "intensity_minutes": "Weekly intensity minutes",
+    "race_predictions": "Race time predictions",
+    "daily_activity": "Daily activity totals",
+    "steps_history": "Daily step history",
     "rhr": "Resting heart rate",
     "hrv": "Overnight HRV",
     "fitness_age": "Biological fitness age",
@@ -189,15 +197,36 @@ RHR_TIERS = {
 # The ACWR bands, named with the guide's own words so the badge, the readiness
 # card and the ACWR panel cannot describe the same ratio differently. Garmin's own
 # status word is context for that panel, never a second set of names.
+#
+# Each band also carries the plain-English restatement of what it means for today,
+# which is what closes the workload analysis paragraph (see `clinical_engine`).
+# Keeping it on the band rather than in a second table means one band can never
+# have two explanations to disagree with each other.
 ACWR_SWEET_MIN = 0.8
 ACWR_SWEET_MAX = 1.3
 ACWR_SAFE_MAX = 1.5
 
 ACWR_BANDS = {
-    "under": {"label": "Fresh / Under-trained", "tone": "cyan"},
-    "sweet": {"label": "Sweet Spot", "tone": "green"},
-    "high": {"label": "High", "tone": "amber"},
-    "danger": {"label": "Danger Zone", "tone": "rose"},
+    "under": {
+        "label": "Fresh / Under-trained",
+        "tone": "cyan",
+        "plain": "you have room to add training, and little injury risk in doing so",
+    },
+    "sweet": {
+        "label": "Sweet Spot",
+        "tone": "green",
+        "plain": "this is the range where fitness improves fastest with the least injury risk",
+    },
+    "high": {
+        "label": "High",
+        "tone": "amber",
+        "plain": "your load has risen faster than your body has adapted, so hold volume steady for a few days",
+    },
+    "danger": {
+        "label": "Danger Zone",
+        "tone": "rose",
+        "plain": "this is the load pattern that usually comes before an injury, so cut volume now",
+    },
 }
 
 # Overnight HRV relative to the athlete's own 30-day baseline. This band is the
@@ -206,16 +235,240 @@ ACWR_BANDS = {
 # healthy and strained at once. Garmin's own status word is context for the HRV
 # panel, never a second verdict that could outrank the band.
 HRV_BANDS = {
-    "above": {"tone": "green", "label": "Resilient (Balanced)"},
-    "near": {"tone": "amber", "label": "Below Baseline"},
-    "below": {"tone": "rose", "label": "Suppressed"},
+    "above": {
+        "tone": "green",
+        "label": "Resilient (Balanced)",
+        "plain": "you have recovered, and a hard session is well tolerated today",
+    },
+    "near": {
+        "tone": "amber",
+        "label": "Below Baseline",
+        "plain": "this is an ordinary day-to-day dip -- train as planned, but do not chase a personal best",
+    },
+    "below": {
+        "tone": "rose",
+        "label": "Suppressed",
+        "plain": "your body has not finished recovering -- keep today light and go to bed earlier",
+    },
 }
 
 # Illness radar risk levels map onto the same tone vocabulary.
 RISK_TONES = {"LOW": "green", "MODERATE": "amber", "HIGH": "rose"}
 
 
+# --- blood oxygen ----------------------------------------------------------
+# Pulse Ox on this watch records opportunistically: a spot reading most days and a
+# sleep summary on some nights, not a nightly average. Coverage is therefore a
+# published fact beside the value, because a number with no coverage line reads
+# like a nightly average it never was.
+SPO2_LOOKBACK_DAYS = 120
+SPO2_MAX_NEW_FETCHES_PER_RUN = 25  # keeps a cold cache from hammering the API
+SPO2_NORMAL_MIN = 95
+SPO2_MILD_MIN = 92
+SPO2_DIP_MIN = 90  # a single reading at or below this is worth flagging
+
+SPO2_BANDS = {
+    "normal": {
+        "label": "In Range",
+        "tone": "green",
+        "plain": "your blood oxygen stayed in the normal range while you slept",
+    },
+    "mild": {
+        "label": "Slightly Low",
+        "tone": "amber",
+        "plain": "your blood oxygen sat a little below the normal range -- worth watching if it repeats",
+    },
+    "low": {
+        "label": "Low",
+        "tone": "rose",
+        "plain": "your blood oxygen sat below the normal range, which can follow illness, altitude or a loose sensor fit",
+    },
+}
+
+# --- environment -----------------------------------------------------------
+HEAT_ACCLIMATION_PARTIAL_MIN = 20
+HEAT_ACCLIMATION_FULL_MIN = 50
+
+HEAT_BANDS = {
+    "none": {
+        "label": "Not Acclimated",
+        "tone": "cyan",
+        "plain": "your body has not yet adapted to training in the heat",
+    },
+    "partial": {
+        "label": "Partly Acclimated",
+        "tone": "amber",
+        "plain": "you are part-way through adapting to heat, so expect a slightly higher heart rate outdoors",
+    },
+    "full": {
+        "label": "Heat Acclimated",
+        "tone": "green",
+        "plain": "your body is adapted to training in the heat, which lowers the heart-rate cost of a hot session",
+    },
+}
+
+# A session counts as heat exposure at or above these, measured by the device's
+# own weather station rather than assumed from where the athlete lives.
+HOT_SESSION_TEMP_C = 28.0
+HUMID_SESSION_PCT = 75.0
+
+# Nights needed on one side of a home/away split before its average is published.
+TRAVEL_MIN_NIGHTS = 5
+TRAVEL_WINDOW_DAYS = 120
+
+# Which metrics the home/away comparison reports, in this order and no further.
+# Nine metrics in one sentence is a wall of numbers nobody reads; these four are
+# the ones a trip plausibly moves.
+TRAVEL_METRIC_ORDER = ("hrv", "rhr", "sleep_score", "sleep_hours")
+TRAVEL_MAX_COMPARISONS = 4
+
+# --- training capacity -----------------------------------------------------
+INTENSITY_GOAL_MINUTES = 150  # WHO-equivalent moderate-intensity weekly target
+INTENSITY_MET_MIN = 150
+INTENSITY_PARTIAL_MIN = 75
+
+INTENSITY_BANDS = {
+    "met": {
+        "label": "Target Met",
+        "tone": "green",
+        "plain": "you have already hit the weekly guideline for moderate-intensity movement",
+    },
+    "partial": {
+        "label": "Partly There",
+        "tone": "amber",
+        "plain": "you are part of the way to the weekly moderate-intensity guideline",
+    },
+    "low": {
+        "label": "Below Target",
+        "tone": "cyan",
+        "plain": "most of this week has been easy movement rather than moderate-intensity minutes",
+    },
+}
+
+# BMI is computed from the athlete's own profile (height and weight), never assumed.
+BMI_NORMAL_MIN = 18.5
+BMI_OVERWEIGHT_MIN = 25.0
+BMI_OBESE_MIN = 30.0
+
+BMI_BANDS = {
+    "under": {"label": "Under Range", "tone": "cyan"},
+    "normal": {"label": "In Range", "tone": "green"},
+    "overweight": {"label": "Above Range", "tone": "amber"},
+    "obese": {"label": "High", "tone": "rose"},
+}
+
+# --- correlations ----------------------------------------------------------
+# A correlation is only published when it has enough paired days and a strong
+# enough coefficient; below that it is noise wearing a decimal point.
+CORRELATION_WINDOW_DAYS = 120
+CORRELATION_MIN_DAYS = 14
+CORRELATION_MIN_R = 0.35
+CORRELATION_MAX_FINDINGS = 4
+
+# The daily channels a correlation may be computed over, named the way the
+# sentence around them reads. A pair is only tested when both sides are measured.
+CORRELATION_METRICS = {
+    "hrv": "overnight HRV (ms)",
+    "rhr": "resting heart rate (bpm)",
+    "sleep_score": "sleep score",
+    "deep_pct": "deep-sleep share (%)",
+    "rem_pct": "REM-sleep share (%)",
+    "sleep_hours": "sleep duration (hours)",
+    "sleep_stress": "nightly stress (/100)",
+    "respiration": "breathing rate (brpm)",
+    "steps": "daily steps",
+    "spo2": "blood oxygen (%)",
+}
+
+# Outdoor temperature and humidity are deliberately absent above. They are real
+# data (the device's own weather station), but Garmin serves them per activity, so
+# a daily series would cost one API call per day and could never honestly reach
+# CORRELATION_MIN_DAYS. They appear on the climate card, where they are current
+# conditions, rather than as a correlation the data cannot support.
+
+# Curated plain-English meaning for the pairs worth explaining, keyed unordered.
+PAIR_NOTES = {
+    ("hrv", "sleep_score"): (
+        "Recovery and sleep are the same story told twice: the nights your sleep scores climbed are the nights "
+        "your nervous system had more room to recover."
+    ),
+    ("hrv", "rhr"): (
+        "The two classic recovery dials moved together here. The usual reading is that a higher HRV comes with a "
+        "lower resting heart rate, so a negative relationship between them is the expected one."
+    ),
+    ("deep_pct", "hrv"): (
+        "Deep sleep is when tissue repair and parasympathetic recovery happen, so a stronger deep-sleep share "
+        "tending to follow a higher HRV is the physiological result you would hope to see."
+    ),
+    ("rhr", "sleep_hours"): (
+        "Sleep length and resting heart rate move against each other: shorter nights leave a higher resting "
+        "heart rate the next morning."
+    ),
+    ("rhr", "steps"): (
+        "More movement on a day, and a lower heart rate at rest that night, is the training effect showing up "
+        "in your own numbers."
+    ),
+    ("respiration", "hrv"): (
+        "Breathing rate and HRV are both autonomic signals, so when one moves the other tends to follow."
+    ),
+    ("sleep_stress", "hrv"): (
+        "Overnight stress and HRV pull against each other: more autonomic arousal during sleep leaves less "
+        "recovery capacity in the morning."
+    ),
+    ("spo2", "hrv"): (
+        "Oxygen saturation and HRV are both measured while you sleep, so a night that is harder on one usually "
+        "reads harder on the other."
+    ),
+    ("hrv", "steps"): (
+        "Harder days demand more overnight repair, so the relationship between movement and recovery shows up "
+        "in the pairing of these two."
+    ),
+}
+
+
 # --- resolvers -------------------------------------------------------------
+
+def spo2_band(average):
+    if average is None:
+        return None
+    if average >= SPO2_NORMAL_MIN:
+        return "normal"
+    if average >= SPO2_MILD_MIN:
+        return "mild"
+    return "low"
+
+
+def heat_band(pct):
+    if pct is None:
+        return None
+    if pct >= HEAT_ACCLIMATION_FULL_MIN:
+        return "full"
+    if pct >= HEAT_ACCLIMATION_PARTIAL_MIN:
+        return "partial"
+    return "none"
+
+
+def intensity_band(weekly_minutes):
+    if weekly_minutes is None:
+        return None
+    if weekly_minutes >= INTENSITY_MET_MIN:
+        return "met"
+    if weekly_minutes >= INTENSITY_PARTIAL_MIN:
+        return "partial"
+    return "low"
+
+
+def bmi_band(bmi):
+    if bmi is None:
+        return None
+    if bmi < BMI_NORMAL_MIN:
+        return "under"
+    if bmi < BMI_OVERWEIGHT_MIN:
+        return "normal"
+    if bmi < BMI_OBESE_MIN:
+        return "overweight"
+    return "obese"
+
 
 def recovery_band(score):
     if score >= RECOVERY_GREEN_MIN:
