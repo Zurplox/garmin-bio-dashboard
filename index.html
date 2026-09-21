@@ -1612,11 +1612,11 @@
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse-dot"></span>
             <span id="hrvHudDate" class="font-bold text-white mono text-sm">Today (Latest)</span>
-            <span id="hrvHudStatus" class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono font-bold">BALANCED (+8.5%)</span>
+            <span id="hrvHudStatus" class="px-2 py-0.5 rounded font-mono font-bold bg-slate-500/10 text-slate-400">--</span>
           </div>
           <div class="flex items-center gap-4 flex-wrap text-slate-300 mono text-[11px]">
-            <span>Overnight HRV: <strong id="hrvHudVal" class="text-emerald-400 font-bold text-sm">60 ms</strong></span>
-            <span>7-Day Baseline: <strong id="hrvHudBase" class="text-cyan-400 font-bold">57 ms</strong></span>
+            <span>Overnight HRV: <strong id="hrvHudVal" class="text-slate-200 font-bold text-sm">--</strong></span>
+            <span>30-Day Baseline: <strong id="hrvHudBase" class="text-slate-300 font-bold">--</strong></span>
             <span>Personal Corridor: <strong id="hrvHudCorridor" class="text-slate-300">--</strong></span>
           </div>
         </div>
@@ -1985,6 +1985,34 @@
 
     function badgeClass(tone, shade = 400) {
       return `px-2 py-0.5 rounded-full bg-${tone}-500/10 border border-${tone}-500/30 text-${tone}-${shade} font-bold text-[10px]`;
+    }
+
+    // One owner for an HRV night's verdict. The word, the tone and the percentage
+    // all come from the band the engine resolved for that night on the athlete's
+    // own 30-day basis, so the scrub HUD and its callout cannot describe one
+    // reading two ways. A night without a band yields nothing, and every surface
+    // then renders it the way this dashboard renders any absent value.
+    function hrvNightVerdict(item) {
+      if (!item || !item.band_label || item.delta_pct === null || item.delta_pct === undefined) return null;
+      const sign = item.delta_pct >= 0 ? '+' : '';
+      return {
+        label: item.band_label,
+        tone: item.tone || 'slate',
+        delta: `${sign}${item.delta_pct}% vs 30-day`,
+        basis: (item.baseline === null || item.baseline === undefined) ? '--' : `${item.baseline} ms`,
+      };
+    }
+
+    // The word and its colour travel together, so no surface can print one without
+    // the other: a measured night reads the band's own label in the band's own
+    // tone, an absent one reads the dashboard's usual absent value.
+    function hrvVerdictChip(item) {
+      const verdict = hrvNightVerdict(item);
+      if (!verdict) return { text: '--', cls: 'bg-slate-500/10 text-slate-400' };
+      return {
+        text: `${verdict.label} (${verdict.delta})`,
+        cls: `bg-${verdict.tone}-500/10 text-${verdict.tone}-400`,
+      };
     }
 
     function toggleInfo(btn) {
@@ -3718,22 +3746,29 @@
     function scrubHrvCallout(item, rhrVal) {
       if (!item) return;
       document.getElementById("hrvHudDate").textContent = item.date || '--';
-      const val = item.lastNightAvg || 60;
-      const base = item.weeklyAvg || 57;
-      const deltaPct = base ? (((val - base) / base) * 100).toFixed(1) : '0';
-      const sign = deltaPct >= 0 ? '+' : '';
 
+      // The value and the basis are the engine's own numbers, never a default, so
+      // a night with no measurement reads as absent instead of as a plausible
+      // reading. The verdict beside them is the night's band, word and tone alike.
+      const val = item.lastNightAvg;
       const rhrPart = rhrVal ? ` • RHR: ${rhrVal} bpm` : '';
-      document.getElementById("hrvHudVal").textContent = `${val} ms${rhrPart}`;
-      document.getElementById("hrvHudBase").textContent = `${base} ms`;
-      document.getElementById("hrvHudStatus").textContent = `${item.status || 'BALANCED'} (${sign}${deltaPct}%)`;
+      document.getElementById("hrvHudVal").textContent =
+        (val === null || val === undefined) ? '--' : `${val} ms${rhrPart}`;
+
+      const verdict = hrvNightVerdict(item);
+      document.getElementById("hrvHudBase").textContent = verdict ? verdict.basis : '--';
+
+      const chip = hrvVerdictChip(item);
+      const statusEl = document.getElementById("hrvHudStatus");
+      statusEl.textContent = chip.text;
+      statusEl.className = `px-2 py-0.5 rounded font-mono font-bold ${chip.cls}`;
     }
 
     function getHrvCalloutHtml(item, rhrVal) {
-      const val = item.lastNightAvg || 60;
-      const base = item.weeklyAvg || 57;
-      const deltaPct = base ? (((val - base) / base) * 100).toFixed(1) : '0';
-      const sign = deltaPct >= 0 ? '+' : '';
+      const val = item.lastNightAvg;
+      const verdict = hrvNightVerdict(item);
+      const deltaText = verdict ? ` (${verdict.delta})` : '';
+      const chip = hrvVerdictChip(item);
 
       const rhrLine = rhrVal ? `
         <div class="flex justify-between text-amber-400 font-bold">
@@ -3748,17 +3783,17 @@
               <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
               <span>${item.date}</span>
             </div>
-            <span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold mono text-[10px]">${item.status || 'BALANCED'}</span>
+            <span class="px-1.5 py-0.5 rounded font-bold mono text-[10px] ${chip.cls}">${chip.text}</span>
           </div>
           <div class="space-y-1 font-mono text-[11px]">
-            <div class="flex justify-between text-emerald-400 font-bold">
+            <div class="flex justify-between text-slate-200 font-bold">
               <span class="text-slate-400">Overnight HRV:</span>
-              <span>${val} ms (${sign}${deltaPct}%)</span>
+              <span>${(val === null || val === undefined) ? '--' : val + ' ms'}${deltaText}</span>
             </div>
             ${rhrLine}
-            <div class="flex justify-between text-cyan-400">
-              <span class="text-slate-400">7-Day Rolling:</span>
-              <span>${base} ms</span>
+            <div class="flex justify-between text-slate-300">
+              <span class="text-slate-400">30-Day Baseline:</span>
+              <span>${verdict ? verdict.basis : '--'}</span>
             </div>
             <div class="flex justify-between text-slate-400 text-[10px] pt-1.5 mt-1 border-t border-slate-800/80">
               <span>Personal Corridor:</span>

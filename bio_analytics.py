@@ -201,7 +201,7 @@ def calculate_baselines(all_rhr, all_hrv, sleep_history):
     recent_180_hrv = [h["lastNightAvg"] for h in all_hrv[-180:] if h.get("lastNightAvg")]
     hrv_180d = round(sum(recent_180_hrv) / len(recent_180_hrv), 1) if recent_180_hrv else hrv_all_time
 
-    recent_30_hrv = [h["lastNightAvg"] for h in all_hrv[-30:] if h.get("lastNightAvg")]
+    recent_30_hrv = [h["lastNightAvg"] for h in all_hrv[-policy.HRV_BASELINE_DAYS:] if h.get("lastNightAvg")]
     hrv_30d = round(sum(recent_30_hrv) / len(recent_30_hrv), 1) if recent_30_hrv else hrv_all_time
 
     recent_7_hrv = [h["lastNightAvg"] for h in all_hrv[-7:] if h.get("lastNightAvg")]
@@ -864,6 +864,34 @@ def build_capacity_signal(profile, race_predictions, intensity, daily_activity, 
         },
         "date": today_str,
     }
+
+
+def hrv_night_bands(hrv_history):
+    """Each night's HRV band, on the same basis and in the same words as the card.
+
+    The baseline is the athlete's own trailing 30-night mean *as of that night*,
+    which is why the most recent entry reproduces the published `hrv_30d` exactly:
+    the chart's scrub callout and the KPI card are then reading one number, so they
+    cannot describe one night two ways. A night with no measurement is left out
+    rather than judged against a default.
+    """
+    window = []
+    bands = {}
+    for record in _by(hrv_history or [], "calendarDate"):
+        date, value = record.get("calendarDate"), record.get("lastNightAvg")
+        window.append(value)
+        if len(window) > policy.HRV_BASELINE_DAYS:
+            window.pop(0)
+        measured = [v for v in window if v]
+        if not date or value is None or not measured:
+            continue
+        baseline = round(sum(measured) / len(measured), 1)
+        bands[date] = {
+            "baseline": baseline,
+            "delta_pct": round((value - baseline) / baseline * 100.0, 1) if baseline else None,
+            **policy.hrv_band_fields(value, baseline),
+        }
+    return bands
 
 
 def daily_channel_series(sleep_history, hrv_history, rhr_history, steps_history, spo2_days):

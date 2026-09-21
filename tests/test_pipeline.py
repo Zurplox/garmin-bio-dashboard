@@ -663,6 +663,79 @@ class HrvSingleMeaningTests(unittest.TestCase):
         labels = [entry["label"] for entry in policy.HRV_BANDS.values()]
         self.assertEqual(len(labels), len(set(labels)))
 
+    # --- the chart's scrub HUD ------------------------------------------------
+
+    def _night_series(self, final_hrv):
+        """60 steady nights plus one final reading, as Garmin returns them."""
+        history = make_hrv("2026-07-01", 60, value=56.0)
+        history.append({"calendarDate": "2026-08-30", "lastNightAvg": final_hrv,
+                        "weeklyAvg": 57.4, "status": "BALANCED"})
+        return history
+
+    def test_a_nights_published_band_sits_on_the_cards_own_basis(self):
+        """The HUD keyed on a 7-day average while the card keyed on the 30-day.
+
+        That is how one 52 ms night read "BALANCED (-8.8%)" in the chart's HUD and
+        "Below Baseline (-5.6%)" on the card 40 lines away. Each night now ships the
+        band for that night, on the baseline the card reads, so the two agree.
+        """
+        history = self._night_series(52.0)
+        baselines, _ = analytics.calculate_baselines(make_rhr("2026-07-01", 60), history, [])
+        night = analytics.hrv_night_bands(history)["2026-08-30"]
+
+        self.assertEqual(night["baseline"], baselines["hrv_30d"])
+        self.assertEqual(
+            night["delta_pct"],
+            round((52.0 - baselines["hrv_30d"]) / baselines["hrv_30d"] * 100, 1),
+        )
+        expected_band = policy.hrv_band(52.0, baselines["hrv_30d"])
+        self.assertEqual(night["band"], expected_band)
+        self.assertEqual(night["band_label"], policy.HRV_BANDS[expected_band]["label"])
+        self.assertEqual(night["tone"], policy.HRV_BANDS[expected_band]["tone"])
+
+    def test_every_night_carries_one_label_and_one_tone(self):
+        for final_hrv, band in ((70.0, "above"), (52.0, "near"), (44.0, "below")):
+            with self.subTest(final_hrv=final_hrv):
+                night = analytics.hrv_night_bands(self._night_series(final_hrv))["2026-08-30"]
+                self.assertEqual(night["band"], band)
+                self.assertIn(night["tone"], policy.TONE_NAMES)
+                self.assertEqual(night["band_label"], policy.HRV_BANDS[band]["label"])
+
+    def test_a_night_without_a_measurement_publishes_no_band(self):
+        """Absent must stay absent: the HUD defaulted to "BALANCED" instead."""
+        self.assertEqual(analytics.hrv_night_bands([{"calendarDate": "2026-09-01"}]), {})
+        self.assertEqual(analytics.hrv_night_bands([]), {})
+        self.assertEqual(policy.hrv_band_fields(None, 56.0), {})
+        self.assertEqual(policy.hrv_band_fields(52.0, 0), {})
+
+    def test_the_scrub_hud_reads_the_published_band_not_garmins_word(self):
+        """The last surface that gave one reading two verdicts.
+
+        The HUD printed `item.status || 'BALANCED'` beside a chip whose emerald was
+        fixed in markup, so a below-baseline night could read "BALANCED" in green
+        next to a card reading "Below Baseline" in amber.
+        """
+        page = (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+        hud_bar = page.split("function scrubHrvCallout", 1)[1].split("function getHrvCalloutHtml", 1)[0]
+        callout = page.split("function getHrvCalloutHtml", 1)[1].split("function renderScatterMatrix", 1)[0]
+
+        # Neither scrub surface may read Garmin's word or invent a reading.
+        self.assertNotIn("item.status", page)
+        for surface in (hud_bar, callout):
+            with self.subTest(surface=surface[:44]):
+                self.assertNotIn("BALANCED", surface)
+                self.assertNotIn("|| 60", surface)
+                self.assertNotIn("|| 57", surface)
+                self.assertIn("hrvVerdictChip(item)", surface)
+        # The callout's chip takes its colour from that one verdict, and the HUD's
+        # chip ships as an absent value with no tone of its own.
+        self.assertIn("${chip.cls}", callout)
+        hud_chip = page.split('id="hrvHudStatus"', 1)[1].split("</span>", 1)[0]
+        self.assertTrue(hud_chip.rstrip().endswith(">--"), hud_chip)
+        self.assertNotIn("emerald", hud_chip)
+
 
 # ---------------------------------------------------------------------------
 # Score ownership: the rules score, the model narrates
@@ -961,6 +1034,15 @@ class PayloadAssemblyTests(unittest.TestCase):
         expected_band = policy.hrv_band(payload["today"]["hrv_last_night"], payload["baselines"]["hrv_30d"])
         self.assertEqual(hrv_pillar["status"], policy.HRV_BANDS[expected_band]["label"])
         self.assertEqual(hrv_pillar["status_color"], policy.HRV_BANDS[expected_band]["tone"])
+        # Every night in the chart carries its own band too, resolved on that same
+        # 30-night basis, so the scrub HUD cannot give a night a second verdict.
+        nights = payload["history"]["daily_hrv"]
+        self.assertTrue(nights)
+        last_night = nights[-1]
+        self.assertEqual(last_night["baseline"], payload["baselines"]["hrv_30d"])
+        night_band = policy.hrv_band(last_night["lastNightAvg"], last_night["baseline"])
+        self.assertEqual(last_night["band_label"], policy.HRV_BANDS[night_band]["label"])
+        self.assertEqual(last_night["tone"], policy.HRV_BANDS[night_band]["tone"])
         # One band, one name, on both surfaces that describe the ratio, while
         # Garmin's own word ships as context for the ACWR panel.
         acwr = payload["fitness"]["acwr"]

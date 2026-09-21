@@ -61,6 +61,9 @@ RHR_AVERAGE_MAX = 80
 
 DAY_STRAIN_SCALE_MAX = 21.0
 HRV_LOW_BASELINE_RATIO = 0.85
+# The window overnight HRV is judged against. One constant, because the KPI card
+# and the chart's per-night band both mean this same window by "baseline".
+HRV_BASELINE_DAYS = 30
 STALE_AFTER_HOURS = 30
 
 # Illness screening thresholds used by the clinical engine.
@@ -683,6 +686,23 @@ def hrv_band(hrv, baseline):
     if hrv >= baseline * HRV_LOW_BASELINE_RATIO:
         return "near"
     return "below"
+
+
+def hrv_band_fields(hrv, baseline):
+    """One night's HRV resolved into the word and tone every surface shows.
+
+    A night with no measurement publishes nothing rather than a band, so a
+    surface has to render the absence as absent instead of falling back to a
+    reassuring word nobody measured.
+    """
+    if hrv is None or not baseline:
+        return {}
+    band = hrv_band(hrv, baseline)
+    return {
+        "band": band,
+        "band_label": HRV_BANDS[band]["label"],
+        "tone": HRV_BANDS[band]["tone"],
+    }
 
 
 def acwr_band(acwr):
