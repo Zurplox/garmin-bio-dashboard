@@ -450,7 +450,7 @@ class CompositeScoreTests(unittest.TestCase):
         balanced = self._readiness(70, fitness=make_fitness(acwr=1.0), whoop={"accumulated_7d_debt_hours": 1.0})
         spiked = self._readiness(70, fitness=make_fitness(acwr=1.8), whoop={"accumulated_7d_debt_hours": 9.0})
         self.assertGreater(balanced["score"], spiked["score"])
-        self.assertEqual(spiked["workload_band"], "Too Heavy")
+        self.assertEqual(spiked["workload_band"], "Danger Zone")
 
     def test_band_badge_and_tone_agree_with_the_score(self):
         for score in (0, 24, 25, 49, 50, 74, 75, 100):
@@ -562,33 +562,40 @@ class RhrTierTests(unittest.TestCase):
                 self.assertEqual(snapshot["rhr_tier_tone"], policy.RHR_TIERS[expected]["tone"])
 
 
-class StatusToneTests(unittest.TestCase):
-    """A status badge's colour is policy's reading of Garmin's word, not markup's.
+class AcwrBandTests(unittest.TestCase):
+    """One set of ACWR band names, in the guide's words, on every surface.
 
-    The ACWR badge wrote its text from the render pass but kept its colour in the
-    markup, so a LOW reading arrived cyan-by-accident and any other word would not
-    have re-toned at all.
+    The badge used to show Garmin's word (LOW) while the readiness card showed
+    policy's old ladder (Very Light) for the identical ratio -- two vocabularies,
+    neither of them the one the user's own guide documents.
     """
 
-    def test_known_acwr_words_get_their_policy_tone(self):
-        for word, tone in policy.ACWR_STATUS_TONES.items():
-            with self.subTest(word=word):
-                self.assertEqual(policy.status_tone(word, policy.ACWR_STATUS_TONES), tone)
-                self.assertIn(tone, policy.TONE_NAMES)
+    def test_the_four_bands_use_the_guides_words(self):
+        self.assertEqual(policy.acwr_workload_band(0.4), "Fresh / Under-trained")
+        self.assertEqual(policy.acwr_workload_band(1.0), "Sweet Spot")
+        self.assertEqual(policy.acwr_workload_band(1.4), "High")
+        self.assertEqual(policy.acwr_workload_band(1.9), "Danger Zone")
 
-    def test_unknown_or_missing_acwr_words_are_not_reassuring(self):
-        for word in (None, "", "   ", "SOMETHING_NEW"):
-            with self.subTest(word=word):
-                self.assertEqual(
-                    policy.status_tone(word, policy.ACWR_STATUS_TONES),
-                    policy.UNKNOWN_STATUS_TONE,
-                )
-        self.assertNotEqual(policy.UNKNOWN_STATUS_TONE, "green")
+    def test_band_boundaries_follow_the_guides_numbers(self):
+        for acwr, band in ((0.79, "under"), (0.8, "sweet"), (1.3, "sweet"),
+                           (1.31, "high"), (1.5, "high"), (1.51, "danger")):
+            with self.subTest(acwr=acwr):
+                self.assertEqual(policy.acwr_band(acwr), band)
 
-    def test_case_and_padding_do_not_change_the_meaning(self):
-        self.assertEqual(policy.status_tone("very_high", policy.ACWR_STATUS_TONES), "rose")
+    def test_every_band_carries_a_label_and_a_policy_tone(self):
+        labels = []
+        for band, entry in policy.ACWR_BANDS.items():
+            with self.subTest(band=band):
+                self.assertIn(entry["tone"], policy.TONE_NAMES)
+                self.assertTrue(entry["label"])
+                labels.append(entry["label"])
+        self.assertEqual(len(labels), len(set(labels)))
 
-    def test_the_snapshot_keeps_garmins_word_as_context_only(self):
+    def test_an_unmeasured_ratio_publishes_no_band(self):
+        self.assertEqual(sync.acwr_band_fields({}), {})
+        self.assertEqual(sync.acwr_band_fields({"acwr": None}), {})
+
+    def test_the_snapshot_keeps_garmins_hrv_word_as_context_only(self):
         """HRV used to carry a second, word-keyed meaning alongside the band."""
         hrv_record = {**make_hrv("2026-09-20", 1)[0], "status": "UNBALANCED"}
         snapshot = source.fetch_today_snapshot(
@@ -857,10 +864,15 @@ class PayloadAssemblyTests(unittest.TestCase):
         expected_band = policy.hrv_band(payload["today"]["hrv_last_night"], payload["baselines"]["hrv_30d"])
         self.assertEqual(hrv_pillar["status"], policy.HRV_BANDS[expected_band]["label"])
         self.assertEqual(hrv_pillar["status_color"], policy.HRV_BANDS[expected_band]["tone"])
-        self.assertEqual(
-            payload["fitness"]["acwr_status_tone"],
-            policy.status_tone(payload["fitness"]["acwr_status"], policy.ACWR_STATUS_TONES),
-        )
+        # One band, one name, on both surfaces that describe the ratio, while
+        # Garmin's own word ships as context for the ACWR panel.
+        acwr = payload["fitness"]["acwr"]
+        expected_band = policy.acwr_band(acwr)
+        self.assertEqual(payload["fitness"]["acwr_band_label"], policy.ACWR_BANDS[expected_band]["label"])
+        self.assertEqual(payload["fitness"]["acwr_band_tone"], policy.ACWR_BANDS[expected_band]["tone"])
+        self.assertEqual(payload["readiness"]["workload_band"], payload["fitness"]["acwr_band_label"])
+        self.assertIn("acwr_status", payload["fitness"])
+        self.assertNotIn("acwr_status_tone", payload["fitness"])
         self.assertEqual(payload["data_quality"]["metrics"]["circadian"]["source"], "live")
         self.assertEqual(datetime.fromisoformat(payload["updated_at"]).utcoffset(), timedelta(0))
 

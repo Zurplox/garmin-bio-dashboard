@@ -61,6 +61,19 @@ def collect(client, dq):
     }
 
 
+def acwr_band_fields(fitness_data):
+    """The resolved ACWR band for the dashboard, or nothing when unmeasured."""
+    acwr = fitness_data.get("acwr")
+    if acwr is None:
+        return {}
+    band = policy.acwr_band(acwr)
+    return {
+        "acwr_band": band,
+        "acwr_band_label": policy.ACWR_BANDS[band]["label"],
+        "acwr_band_tone": policy.ACWR_BANDS[band]["tone"],
+    }
+
+
 def build_payload(client, fetched, dq):
     """Analyse the fetched data and assemble the encrypted payload."""
     today_str = fetched["today_str"]
@@ -128,14 +141,11 @@ def build_payload(client, fetched, dq):
             "primary_device": fitness_data["device_name"],
         },
         "today": today_snapshot,
-        "fitness": {
-            **fitness_data,
-            # Garmin reports the ACWR status word; policy decides what it means, so
-            # the badge beside the ratio cannot keep a colour from the markup.
-            "acwr_status_tone": policy.status_tone(
-                fitness_data.get("acwr_status"), policy.ACWR_STATUS_TONES
-            ),
-        },
+        # A ratio has one set of band names, and policy owns them, so the badge and
+        # the readiness card cannot label the same 0.1 differently. Garmin's own
+        # status word stays as context for the ACWR panel. An absent ratio publishes
+        # no band at all, so the badge reads "--" instead of inventing one.
+        "fitness": {**fitness_data, **acwr_band_fields(fitness_data)},
         "whoop": whoop_data,
         "fitbit": fitbit_data,
         "garmin_signature": garmin_sig,

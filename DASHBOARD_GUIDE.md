@@ -96,7 +96,9 @@ A comprehensive, plain-English reference manual for Harvin's personal bio-intell
 * **How to read:**
   * 🟢 **0.8 – 1.3 ("Sweet Spot"):** Safe, progressive fitness building with minimized injury risk.
   * 🔵 **< 0.8 ("Fresh / Under-trained"):** Low fatigue, high readiness; capacity to safely add workload.
+  * 🟠 **1.3 – 1.5 ("High"):** Approaching the danger zone; hold volume where it is rather than adding more.
   * 🔴 **> 1.5 ("Danger Zone"):** Exponentially increased injury risk due to sudden workload spikes.
+* **These four names are what the dashboard shows everywhere** — the ACWR badge, the workload band on the Training Readiness card and the ACWR info panel all use them, so the same ratio can never be described two ways. Garmin's own status word for the ratio is kept in the ACWR panel as context only.
 
 ---
 

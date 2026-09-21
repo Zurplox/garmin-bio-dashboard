@@ -186,18 +186,18 @@ RHR_TIERS = {
     "elevated": {"badge": "ELEVATED", "tone": "rose"},
 }
 
-# Garmin reports a status *word* for the ACWR badge; what that word means -- and
-# therefore its colour -- is policy's, so the label and the tone beside it are
-# always the same decision. An unrecognised word is never reassuring.
-UNKNOWN_STATUS_TONE = "amber"
+# The ACWR bands, named with the guide's own words so the badge, the readiness
+# card and the ACWR panel cannot describe the same ratio differently. Garmin's own
+# status word is context for that panel, never a second set of names.
+ACWR_SWEET_MIN = 0.8
+ACWR_SWEET_MAX = 1.3
+ACWR_SAFE_MAX = 1.5
 
-# Garmin's training-load status ladder: LOW is the "fresh, safe to build" end.
-ACWR_STATUS_TONES = {
-    "LOW": "cyan",
-    "OPTIMAL": "green",
-    "MODERATE": "green",
-    "HIGH": "amber",
-    "VERY_HIGH": "rose",
+ACWR_BANDS = {
+    "under": {"label": "Fresh / Under-trained", "tone": "cyan"},
+    "sweet": {"label": "Sweet Spot", "tone": "green"},
+    "high": {"label": "High", "tone": "amber"},
+    "danger": {"label": "Danger Zone", "tone": "rose"},
 }
 
 # Overnight HRV relative to the athlete's own 30-day baseline. This band is the
@@ -270,16 +270,6 @@ def body_battery_band(charged):
     return "low"
 
 
-def status_tone(status, table):
-    """Colour for a status word that arrived from Garmin.
-
-    The word is Garmin's; the tone is this module's reading of it, so a badge can
-    never pair a reassuring word with an unrelated colour. Words the table does
-    not know are amber rather than green -- an unknown state is not a good state.
-    """
-    return table.get(str(status or "").strip().upper(), UNKNOWN_STATUS_TONE)
-
-
 def rhr_tier(value):
     """Population tier for a resting heart rate.
 
@@ -306,17 +296,20 @@ def hrv_band(hrv, baseline):
     return "below"
 
 
+def acwr_band(acwr):
+    """The ACWR band key for a ratio."""
+    if acwr < ACWR_SWEET_MIN:
+        return "under"
+    if acwr <= ACWR_SWEET_MAX:
+        return "sweet"
+    if acwr <= ACWR_SAFE_MAX:
+        return "high"
+    return "danger"
+
+
 def acwr_workload_band(acwr):
-    """The five-step training-load ladder, shared by every surface."""
-    if acwr < 0.5:
-        return "Very Light"
-    if acwr < 0.8:
-        return "Light"
-    if acwr < 1.3:
-        return "Moderate"
-    if acwr < 1.5:
-        return "Heavy"
-    return "Too Heavy"
+    """The band's name -- the one set of words every ACWR surface shows."""
+    return ACWR_BANDS[acwr_band(acwr)]["label"]
 
 
 def policy_snapshot():
