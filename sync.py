@@ -174,6 +174,9 @@ def build_payload(client, fetched, dq):
     # The ratio's band is resolved once here and read by both the dashboard and the
     # coach, so no prescription re-derives a band of its own.
     fitness_data = {**fitness_data, **acwr_band_fields(fitness_data)}
+    # HRV's per-night bands, resolved here for the same reason: the chart's scrub
+    # HUD reads the night's own band instead of Garmin's status word.
+    night_bands = analytics.hrv_night_bands(all_hrv)
     coaching = bio_coach.build_coaching(
         today_str,
         activities,
@@ -228,6 +231,10 @@ def build_payload(client, fetched, dq):
                     "lastNightAvg": h.get("lastNightAvg"),
                     "weeklyAvg": h.get("weeklyAvg"),
                     "status": h.get("status"),
+                    # The night's own band, resolved by policy on the same 30-night
+                    # basis the KPI card reads, so no HRV surface can give one
+                    # reading a second verdict.
+                    **night_bands.get(h.get("calendarDate"), {}),
                 }
                 for h in all_hrv[-210:]
             ],
