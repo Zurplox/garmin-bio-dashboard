@@ -333,6 +333,7 @@ def build_today_snapshot(today_str, sleep_record, hrv_record, recent_rhr, body_b
     latest_rhr_record = max(recent_rhr, key=lambda r: r.get("calendarDate") or "") if recent_rhr else None
     rhr_today = latest_rhr_record["value"] if latest_rhr_record is not None else 51.0
     rhr_tier = policy.rhr_tier(rhr_today)
+    hrv_status = hrv_record.get("status", "BALANCED")
 
     stress_avg = daily_summary.get("stress_avg", 15)
     if stress.get("average") is not None:
@@ -351,7 +352,8 @@ def build_today_snapshot(today_str, sleep_record, hrv_record, recent_rhr, body_b
         "lowest_respiration": sleep_record.get("lowest_respiration", 9.0),
         "hrv_last_night": hrv_record.get("lastNightAvg", 60),
         "hrv_weekly_avg": hrv_record.get("weeklyAvg", 57),
-        "hrv_status": hrv_record.get("status", "BALANCED"),
+        "hrv_status": hrv_status,
+        "hrv_status_tone": policy.status_tone(hrv_status, policy.HRV_STATUS_TONES),
         "hrv_baseline_low": hrv_record.get("baseline", {}).get("balancedLow", 54),
         "hrv_baseline_high": hrv_record.get("baseline", {}).get("balancedUpper", 73),
         "rhr": rhr_today,
