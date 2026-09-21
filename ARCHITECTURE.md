@@ -35,12 +35,13 @@ as `null` and renders as `--`, and the narrative is forbidden from assuming it.
 
 | Concern | Owner | Rule |
 |:---|:---|:---|
-| Thresholds, bands, tones, metric labels | `bio_policy.py` | Neither Python nor the browser may compare a metric against a number of its own; the payload carries resolved bands. `TONE_NAMES` is the whole colour vocabulary. |
+| Thresholds, bands, tones, metric labels, coaching targets, the study each coaching rule cites | `bio_policy.py` | Neither Python nor the browser may compare a metric against a number of its own; the payload carries resolved bands. `TONE_NAMES` is the whole colour vocabulary, and `COACH_PRIORITY` is the stated tie-break for which domain wins today. |
 | Arithmetic (baselines, windows, strain, sleep need, readiness, injury risk) | `bio_analytics.py` | Pure functions: values in, values out. No I/O, no environment, no provenance. Also decides positional windows ("last 30 days") and which record is latest. |
 | Garmin access (auth, endpoints, parsing into records) | `garmin_source.py` | The only module that performs Garmin I/O. Records live/fallback provenance as it fetches. |
 | Live/fallback bookkeeping and the publish decision | `provenance.py` | `DataQuality.publishable()` is the gate; the orchestrator consults it, nothing else decides. |
 | Clinical synthesis | `clinical_engine.py` | The rule engine is the **only** author of the recovery score and of everything derived from it (band, tone, zone, readiness inputs, illness risk level, training target); Gemini is merged on top as narrative and its own score is kept as `model_score`, never published. Every analysis paragraph closes with a rule-written plain-English restatement (`PLAIN_ENGLISH_PREFIX`), appended by `synthesize()` after whichever engine wrote the prose. Band meanings in plain words live on the band itself in `bio_policy.py`. Returns meaning, never layout or colour classes. |
 | Relationships between the athlete's daily channels | `bio_correlate.py` | Pure Pearson and comparison logic over series that were already measured. Curated pairs only, with a floor on paired days and coefficient magnitude, so nothing is published that its own thresholds call noise. Also decides home/away from device-logged locations. |
+| Prescriptions — what to do about the numbers | `bio_coach.py` | Pure rules over already-measured sessions, steps, nights and readings. One card per training domain, each with the reading, the action, the progression, the guard-off and the studies behind it; a domain with no measured history publishes no prescription. Personal patterns need a floor on paired days, and they compare the hard side with the quiet side rather than reporting one of them. |
 | The run itself (fetch → analyse → publish → report) | `sync.py` | Wires the modules, assembles the payload envelope (`updated_at`, `athlete`, `history`, `policy`), writes `data/biometrics.json`, prints the summary. |
 | Payload encryption and status file | `encrypt_data.py` | Standalone; reads the pipeline's JSON, never imports the pipeline. |
 | Rendering and interaction | `index.html` | Consumes resolved bands/tones from the payload. The only decisions it makes are layout, and the only colours are `TONE_STROKE` / `badgeClass()` fed by the engine's tones. |
@@ -64,6 +65,7 @@ browser belongs on the workflow side instead.
 * `today`, `baselines`, `history` — measurements, unchanged shape;
 * `whoop`, `fitbit`, `garmin_signature` — derived blocks whose bands, badges and tones are already resolved;
 * `readiness`, `injury_risk` — the composite scores, their bands/tones and the four contributing factors (previously computed in the browser);
+* `coaching` — today's focus, one card per training domain (reading, action, progression, guard-off, cited evidence) and the personal patterns, all written by the engine;
 * `clinical_intelligence` — score, band, tone, zone label and briefing wording;
 * `data_quality` — per-metric origin plus the core-failure list.
 

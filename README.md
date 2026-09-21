@@ -83,9 +83,32 @@ Values that are *models* rather than measurements are labelled as such: **Day St
 
 ---
 
+## 🧑‍🏫 Coaching, not just monitoring
+
+The dashboard reports what your numbers say; the **Coach** section says what to do
+about them. Each training domain the device records gets one card — Recovery &
+Load, Strength & Muscle, Running & Hard Cardio, Walking & Daily Movement, Hiking &
+Hills, Sleep — and every card carries the reading, a plain-English restatement, one
+concrete action, how it progresses, the condition that cancels it, and the study the
+rule came from.
+
+Two rules keep it honest. A domain with no measured history publishes **no
+prescription** (it says NOT MEASURED and offers to start from your first logged
+session), and a personal pattern is withheld until it has enough paired days. The
+"Know Yourself" panel compares your hard days with your quiet ones rather than
+reporting one side, and labels every finding an association, not a cause.
+
+The rules are drawn from published work — load ratios (Gabbett 2016), HRV-guided
+prescription (Vesterinen 2016), sleep extension (Mah 2011) and sleep regularity
+(Windred 2024), resistance-training frequency (Schoenfeld 2016), daily steps
+(Paluch 2022), heat-acclimation decay (Daanen 2018), grade cost (Minetti 2002),
+fluid replacement (ACSM 2007) and the WHO activity floor. Each anchor publishes what
+the study found **and what it does not settle**, so a recommendation can be argued
+with rather than merely obeyed.
+
 ## 🧱 Code structure
 
-Six Python modules and one static page, split by concern — see [ARCHITECTURE.md](ARCHITECTURE.md) for the ownership rules.
+Seven Python modules and one static page, split by concern — see [ARCHITECTURE.md](ARCHITECTURE.md) for the ownership rules.
 
 | Module | Owns |
 |:---|:---|
@@ -93,6 +116,8 @@ Six Python modules and one static page, split by concern — see [ARCHITECTURE.m
 | `bio_analytics.py` | all arithmetic: baselines, series windows, strain, sleep need, readiness, injury risk |
 | `provenance.py` | live-vs-fallback recording and the publish gate |
 | `garmin_source.py` | Garmin authentication and endpoint access (the only module that talks to Garmin) |
+| `bio_correlate.py` | patterns between the athlete's own daily channels, and the home/away comparison |
+| `bio_coach.py` | prescriptions per training domain and the personal patterns, from measured sessions, steps, nights and readings |
 | `clinical_engine.py` | the deterministic rule engine (sole author of scores, bands, tones and risk) plus the optional Gemini narrative overlay |
 | `sync.py` | the run: fetch → analyse → publish |
 | `index.html` | rendering and interaction only |
