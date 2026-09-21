@@ -1033,6 +1033,7 @@
             <p>🏆 Elite endurance athletes: 60–100+ ms. General healthy adults: 30–60 ms.</p>
             <p class="text-slate-500">Your HRV is best compared to YOUR OWN baseline — not population averages. What matters is whether today's reading is above or below your personal 30-day norm.</p>
             <p class="text-slate-500">Your corridor is the range your own readings normally fall in. Inside the corridor means today is normal for you; below it means your body is under strain. A separate "Band" shows the balanced range your watch reports for today.</p>
+            <p class="text-slate-500">Your watch's own status word for last night read <span id="infoHrvWatchStatus" class="text-slate-300">--</span>. It is kept here as context only: every HRV verdict on this page — the badge, the Autonomic State row, the pillar and the quadrant chart — compares your reading with your own 30-day baseline, so they always say the same thing.</p>
           </div>
         </div>
 
@@ -2342,7 +2343,7 @@
       // Both status badges take their colour from the tone the engine resolved for
       // Garmin's own status word, so the label and the colour are one decision.
       const acwrStatusEl = document.getElementById("kpiAcwrStatus");
-      acwrStatusEl.textContent = fitness.acwr_status || "FRESH";
+      acwrStatusEl.textContent = fitness.acwr_status || "--";
       const acwrTone = fitness.acwr_status_tone || "slate";
       acwrStatusEl.className =
         `ml-auto text-xs px-2 py-0.5 rounded bg-${acwrTone}-500/10 text-${acwrTone}-400 font-semibold`;
@@ -2351,11 +2352,18 @@
       document.getElementById("kpiChronicLoad").textContent = fitness.chronic_load || "219";
 
       document.getElementById("kpiHrvValue").textContent = today.hrv_last_night || 60;
+
+      // HRV has one meaning: the band this reading sits in against the athlete's own
+      // 30-day baseline. The badge, the Autonomic State row, the pillar dot and the
+      // quadrant matrix all render that band, so they cannot contradict each other.
+      // Garmin's own status word is context in the panel below, not a second verdict.
+      const hrvPillar = (fitbit.health_metrics_5_pillars || []).find(p => p.key === "hrv");
       const hrvStatusEl = document.getElementById("kpiHrvStatus");
-      hrvStatusEl.textContent = today.hrv_status || "BALANCED";
-      const hrvStatusTone = today.hrv_status_tone || "slate";
+      hrvStatusEl.textContent = (hrvPillar && hrvPillar.status) || "--";
+      const hrvStatusTone = (hrvPillar && hrvPillar.status_color) || "slate";
       hrvStatusEl.className =
         `ml-auto text-xs px-2 py-0.5 rounded bg-${hrvStatusTone}-500/10 text-${hrvStatusTone}-400 font-semibold`;
+      document.getElementById("infoHrvWatchStatus").textContent = today.hrv_status || "--";
       document.getElementById("kpiHrvBaseline").textContent = `${baselines.hrv_30d || 55.3} ms`;
       document.getElementById("kpiHrvRange").textContent = `${today.hrv_baseline_low || 54} - ${today.hrv_baseline_high || 73} ms`;
 
@@ -2374,7 +2382,7 @@
       // the engine resolved for this reading, so a 45 or a 62 bpm value can no
       // longer sit beside a fixed "ATHLETIC".
       const rhrTierEl = document.getElementById("kpiRhrTier");
-      const rhrTierTone = today.rhr_tier_tone || "emerald";
+      const rhrTierTone = today.rhr_tier_tone || "slate";
       rhrTierEl.textContent = today.rhr_tier_label || "--";
       rhrTierEl.className =
         `ml-auto text-xs px-2 py-0.5 rounded bg-${rhrTierTone}-500/10 text-${rhrTierTone}-400 font-semibold`;
@@ -2499,15 +2507,15 @@
       // renders the bands, tones and factors it is handed and compares nothing.
       const readiness = data.readiness || {};
 
-      // Autonomic State is the same overnight HRV-versus-baseline measurement that
-      // the HRV card and the Health Metrics HRV pillar already own, so the label
-      // comes from Garmin's HRV status and the tone from the engine's policy tone
-      // rather than the fixed "BALANCED (+8.5%)" the markup used to hard-code.
-      const hrvPillar = (fitbit.health_metrics_5_pillars || []).find(p => p.key === "hrv");
+      // Autonomic State renders the same band as the HRV badge and the pillar -- the
+      // label and the tone both come from that one entry -- and says nothing at all
+      // when the payload carries no band, rather than inventing a verdict.
       const hrvDeltaPct = hrv30 ? ((hrv - hrv30) / hrv30) * 100 : 0;
       const autonomicEl = document.getElementById("autonomicStateBadge");
-      autonomicEl.textContent = `${today.hrv_status || "BALANCED"} (${hrvDeltaPct >= 0 ? "+" : ""}${hrvDeltaPct.toFixed(1)}%)`;
-      autonomicEl.className = `text-${hrvPillar ? hrvPillar.status_color : "emerald"}-400`;
+      autonomicEl.textContent = hrvPillar
+        ? `${hrvPillar.status} (${hrvDeltaPct >= 0 ? "+" : ""}${hrvDeltaPct.toFixed(1)}%)`
+        : "--";
+      autonomicEl.className = hrvPillar ? `text-${hrvPillar.status_color}-400` : "text-slate-500";
 
       // The Body Battery panel used to quote a fixed "+38 pts"; it now reads the
       // same field the Fitbit/readiness tile reads.
