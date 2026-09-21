@@ -68,7 +68,8 @@ Values that are *models* rather than measurements are labelled as such: **Day St
 | Circadian architecture | derived from sleep onsets | median onset, night-to-night spread, melatonin gate, alignment % |
 | Sleep need & bedtime | derived | baseline 7h30m + debt paydown + strain need, rendered as a 12-hour clock |
 | Day strain, readiness, injury risk | derived | thresholds in `bio_policy.py`, models in `bio_analytics.py` |
-| AI clinical synthesis | Gemini (optional) | validated and normalised; the active engine is disclosed in the UI |
+| Recovery score, readiness, bands | derived by the rule engine | always computed from the measurements above; the optional model cannot change them |
+| AI clinical narrative | Gemini (optional) | prose only; the UI discloses which engine wrote the words |
 | Workout feed | Garmin | normalised into Running / Walking / Cycling / Gym |
 
 ---
@@ -83,15 +84,17 @@ Six Python modules and one static page, split by concern — see [ARCHITECTURE.m
 | `bio_analytics.py` | all arithmetic: baselines, series windows, strain, sleep need, readiness, injury risk |
 | `provenance.py` | live-vs-fallback recording and the publish gate |
 | `garmin_source.py` | Garmin authentication and endpoint access (the only module that talks to Garmin) |
-| `clinical_engine.py` | Gemini + deterministic synthesis and model-output validation |
+| `clinical_engine.py` | the deterministic rule engine (sole author of scores, bands, tones and risk) plus the optional Gemini narrative overlay |
 | `sync.py` | the run: fetch → analyse → publish |
 | `index.html` | rendering and interaction only |
 
 ---
 
-## 🤖 AI synthesis validation
+## 🤖 Score ownership and the optional model
 
-When `GEMINI_API_KEY` is set the dossier is written by Gemini; otherwise a deterministic rule engine does the same job. Either way the output passes through `normalize_ai_result()`, which coerces numeric fields, **recomputes the recovery zone from the recovery score** (the vault previously shipped a score of 68 labelled "YELLOW", contradicting the page's own green-zone text), fills missing fields from values this pipeline measured itself, and rejects unusable output so the rule engine runs instead. The UI names whichever engine actually produced the analysis.
+One owner per fact: the **deterministic rule engine computes every published number** — recovery score, its band, tone and zone, readiness, injury risk, the illness risk level and the training target — from the measurements in this run. Gemini, when `GEMINI_API_KEY` is set, writes **prose only**: the three analysis paragraphs and the narrative directives. Its own recovery score is recorded as `model_score` for comparison and never published.
+
+This is not cosmetic. Publishing the model's number meant the same physiology produced **different verdicts depending on which engine answered**: one day's byte-identical inputs published recovery 94% / GREEN / PRIME with no key and 62% / YELLOW / READY with one — a 32-point swing that flipped the training advice. The payload carries `score_source: "deterministic"` and `narrative_source`, so a reader can always tell which engine produced which half. Bands are still recomputed from the score rather than trusted from the model, which is what stops the old "score 68 labelled YELLOW" contradiction from returning.
 
 ---
 
@@ -102,7 +105,7 @@ When `GEMINI_API_KEY` is set the dossier is written by Gemini; otherwise a deter
 1. Authenticates headlessly with Garmin SSO using encrypted session tokens in `GARMIN_TOKENS`.
 2. Ingests sleep architecture, HRV, multi-year RHR, Body Battery, stress telemetry and activities.
 3. Records data provenance and aborts if the core metrics are unavailable.
-4. Synthesises clinical intelligence (Gemini, or the rule engine).
+4. Scores clinical intelligence with the rule engine, then optionally overlays Gemini's narrative.
 5. Encrypts with AES-256-GCM and commits the vault.
 
 `tests.yml` runs on every push and pull request: the offline unit suite, a frontend syntax check, and a Web Crypto decryption of the vault.

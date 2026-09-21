@@ -1,11 +1,14 @@
 """
 Clinical intelligence engine: turns a biometric snapshot into verdicts.
 
-Two engines live behind one interface: Google Gemini when GEMINI_API_KEY is
-present, and a deterministic rule engine that always runs. Model output is
-validated before it is trusted -- numbers are coerced, bands are recomputed from
-policy rather than taken from the model's own labels, and unusable output is
-rejected so the deterministic path runs instead.
+One owner per fact. The rule engine computes every published score, band, tone
+and risk level from this run's own measurements; Google Gemini, when
+GEMINI_API_KEY is present, supplies prose describing those numbers. The model is
+never allowed to author a number, because the same physiology then published
+different verdicts depending on which engine answered -- byte-identical inputs
+once produced recovery 94% GREEN PRIME with no key and 62% YELLOW READY with
+one. Its own recovery score is kept beside the published one as a second
+opinion (`model_score`), not as the answer.
 
 The engine returns meaning (bands, tones, verdicts), never layout: the dashboard
 renders what it is handed.
@@ -51,22 +54,15 @@ def _build_prompt(today, baselines, fitness):
     - Workload: Acute Load {fitness.get('acute_load', 44)}, Chronic Load {fitness.get('chronic_load', 219)}, ACWR {fitness.get('acwr', 0.2)} ({fitness.get('acwr_status', 'LOW')})
     - Body Battery: +{today['body_battery_charged']} charged
 
-    Evaluate strictly. Output a single JSON object with these EXACT keys:
-    1. "recovery_score": integer 0-100 (Whoop scale)
-    2. "recovery_zone": "GREEN (OPTIMAL RECOVERY)", "YELLOW (ADEQUATE RECOVERY)", or "RED (HIGH NEUROLOGICAL STRAIN)"
-    3. "illness_early_warning": {{
-         "risk_level": "LOW", "MODERATE", or "HIGH",
-         "status_headline": string,
-         "delta_rhr_bpm": float,
-         "delta_hrv_pct": float,
-         "sleep_stress": float,
-         "respiration_rate": float,
-         "details": [string]
-       }}
-    4. "autonomic_nervous_analysis": string (detailed diagnostic paragraph on parasympathetic tone and vagal recovery)
-    5. "sleep_architecture_analysis": string (detailed diagnostic paragraph on somatic physical vs cognitive REM repair and sleep debt)
-    6. "workload_and_biological_age": string (detailed diagnostic paragraph on cardiovascular adaptation, ACWR ratio, and biological fitness age)
-    7. "actionable_directives": array of 4 strings (1. workout target, 2. deep-work cognitive capacity, 3. caffeine cutoff time, 4. sleep hygiene directive)
+    Evaluate strictly. Output a single JSON object with these EXACT keys. The
+    recovery score, its zone and the illness risk level are published from the
+    athlete's own measured baselines rather than from your output, so the only
+    thing that reaches the dashboard is the prose below:
+    1. "autonomic_nervous_analysis": string (detailed diagnostic paragraph on parasympathetic tone and vagal recovery)
+    2. "sleep_architecture_analysis": string (detailed diagnostic paragraph on somatic physical vs cognitive REM repair and sleep debt)
+    3. "workload_and_biological_age": string (detailed diagnostic paragraph on cardiovascular adaptation, ACWR ratio, and biological fitness age)
+    4. "actionable_directives": array of 3 strings (1. deep-work cognitive capacity, 2. caffeine cutoff time, 3. sleep hygiene directive)
+    5. "recovery_score": integer 0-100 (Whoop scale) -- your independent second opinion, recorded for comparison against the published score
 
     Output ONLY valid, parseable JSON without code fences or markdown blocks.
     """
@@ -111,87 +107,50 @@ def query_gemini_api(today, baselines, fitness):
     return None
 
 
-def normalize_ai_result(ai_result, today, baselines):
-    """Validate and normalise model output before it reaches the dashboard.
+NARRATIVE_KEYS = (
+    "autonomic_nervous_analysis",
+    "sleep_architecture_analysis",
+    "workload_and_biological_age",
+)
 
-    The prompt asks Gemini for a recovery score *and* a zone label derived from
-    it, but nothing forces the two to agree -- the deployed vault contained a
-    score of 68 labelled "YELLOW (ADEQUATE RECOVERY)", while the threshold table
-    puts 68 in the green zone, so the page contradicted itself in adjacent
-    paragraphs. Here the numbers are coerced, the band is recomputed from the
-    score via policy, missing fields fall back to values this pipeline measured
-    itself, and unusable output is rejected.
+
+def narrative_overlay(ai_result, verdict):
+    """The model's prose for a rule-owned verdict, or None if it supplied none.
+
+    Only `NARRATIVE_KEYS` and the narrative directives cross over; every number,
+    band, tone, zone and risk level stays exactly as the rule engine computed it.
+    Paragraphs the model omitted keep this run's measured verdict, and the
+    training directive stays rule-owned because it is a function of the published
+    score -- a model that scored the day differently would otherwise recommend
+    training its own number rather than the one on the page.
     """
     if not isinstance(ai_result, dict):
         return None
 
-    def as_float(value, default=None):
-        if value is None or isinstance(value, bool):
-            return default
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return default
+    def text(key):
+        value = ai_result.get(key)
+        return value.strip() if isinstance(value, str) else ""
 
-    score = as_float(ai_result.get("recovery_score"))
-    if score is None:
-        return None
-    recovery_score = int(clamp(round(score), 0, 100))
-
-    warning = ai_result.get("illness_early_warning")
-    if not isinstance(warning, dict):
-        warning = {}
-    risk = str(warning.get("risk_level") or "").upper()
-    if risk not in policy.RISK_TONES:
-        risk = "LOW"
-
-    hrv_base = baselines.get("hrv_30d") or 0
-    computed_delta_rhr = round((today.get("rhr") or 0) - (baselines.get("rhr_30d") or 0), 1)
-    computed_delta_hrv = (
-        round(((today.get("hrv_last_night") or 0) - hrv_base) / hrv_base * 100.0, 1) if hrv_base else 0.0
-    )
-
-    details = warning.get("details")
-    if isinstance(details, str):
-        details = [details]
-    if not isinstance(details, list):
-        details = []
+    overlay = {key: text(key) or verdict[key] for key in NARRATIVE_KEYS}
 
     directives = ai_result.get("actionable_directives")
     if isinstance(directives, str):
         directives = [directives]
     if not isinstance(directives, list):
         directives = []
-    directives = [str(d).strip() for d in directives if str(d).strip()][:6]
+    directives = [str(d).strip() for d in directives if str(d).strip()][:3]
 
-    def text_or(key, fallback):
-        value = ai_result.get(key)
-        return value.strip() if isinstance(value, str) and value.strip() else fallback
+    if not directives and all(overlay[key] == verdict[key] for key in NARRATIVE_KEYS):
+        return None
 
-    headline = warning.get("status_headline")
-    if not isinstance(headline, str) or not headline.strip():
-        headline = "Model risk assessment"
+    if directives:
+        overlay["actionable_directives"] = [verdict["actionable_directives"][0], *directives]
+    overlay["narrative_source"] = "gemini"
 
-    return {
-        "recovery_score": recovery_score,
-        **_zone_fields(recovery_score),
-        "illness_early_warning": {
-            "risk_level": risk,
-            "status_headline": headline.strip(),
-            "delta_rhr_bpm": as_float(warning.get("delta_rhr_bpm"), computed_delta_rhr),
-            "delta_hrv_pct": as_float(warning.get("delta_hrv_pct"), computed_delta_hrv),
-            "sleep_stress": as_float(warning.get("sleep_stress"), today.get("sleep_stress", 0.0)),
-            "respiration_rate": as_float(
-                warning.get("respiration_rate"), today.get("respiration_rate", 0.0)
-            ),
-            "details": [str(d) for d in details],
-        },
-        "autonomic_nervous_analysis": text_or("autonomic_nervous_analysis", ""),
-        "sleep_architecture_analysis": text_or("sleep_architecture_analysis", ""),
-        "workload_and_biological_age": text_or("workload_and_biological_age", ""),
-        "actionable_directives": directives,
-        "source": "gemini",
-    }
+    model_score = _as_float(ai_result.get("recovery_score"))
+    if model_score is not None:
+        overlay["model_score"] = int(clamp(round(model_score), 0, 100))
+    return overlay
 
 
 def _illness_screen(today, baselines):
@@ -329,9 +288,11 @@ def deterministic_engine(today, baselines, fitness):
     return {
         "recovery_score": recovery_score,
         **_zone_fields(recovery_score),
-        "source": "deterministic",
+        "narrative_source": "deterministic",
+        "score_source": "deterministic",
         "illness_early_warning": {
             "risk_level": illness_risk,
+            "risk_tone": policy.RISK_TONES[illness_risk],
             "status_headline": illness_status,
             "delta_rhr_bpm": round(delta_rhr, 1),
             "delta_hrv_pct": round(delta_hrv_pct, 1),
@@ -346,7 +307,7 @@ def deterministic_engine(today, baselines, fitness):
     }
 
 
-def _as_float(value, default):
+def _as_float(value, default=None):
     try:
         return float(value)
     except (TypeError, ValueError):
@@ -354,11 +315,27 @@ def _as_float(value, default):
 
 
 def synthesize(today, baselines, fitness):
-    """Gemini first, deterministic engine as the guaranteed fallback."""
+    """Score owned by the rules, prose optionally owned by Gemini.
+
+    The deterministic verdict is computed first and always, so the published
+    score, band, tone, zone and illness risk are identical with and without a
+    model key; Gemini is asked second and merged over it as narrative only.
+    """
+    verdict = deterministic_engine(today, baselines, fitness)
+
     ai_result = query_gemini_api(today, baselines, fitness)
-    if ai_result:
-        normalized = normalize_ai_result(ai_result, today, baselines)
-        if normalized:
-            return normalized
-        print("   ⚠️ Gemini output failed validation; falling back to the deterministic clinical engine.")
-    return deterministic_engine(today, baselines, fitness)
+    if not ai_result:
+        return verdict
+
+    overlay = narrative_overlay(ai_result, verdict)
+    if overlay is None:
+        print("   ⚠️ Gemini returned no usable narrative; keeping the deterministic verdict.")
+        return verdict
+
+    model_score = overlay.get("model_score")
+    if model_score is not None and model_score != verdict["recovery_score"]:
+        print(
+            f"   ℹ️ Model scored recovery {model_score} vs rule-based "
+            f"{verdict['recovery_score']}; publishing the rule-based score."
+        )
+    return {**verdict, **overlay}

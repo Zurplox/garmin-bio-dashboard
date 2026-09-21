@@ -9,7 +9,7 @@ wrong file.
    (the only Garmin I/O)            │
                                     ▼
                             bio_analytics.py ──────► clinical_engine.py
-                            (pure arithmetic)        (verdicts: Gemini or rules)
+                            (pure arithmetic)        (verdicts: rules; model narrates)
                                     │                        │
                                     └────────┬───────────────┘
                                              ▼
@@ -35,7 +35,7 @@ wrong file.
 | Arithmetic (baselines, windows, strain, sleep need, readiness, injury risk) | `bio_analytics.py` | Pure functions: values in, values out. No I/O, no environment, no provenance. Also decides positional windows ("last 30 days") and which record is latest. |
 | Garmin access (auth, endpoints, parsing into records) | `garmin_source.py` | The only module that performs Garmin I/O. Records live/fallback provenance as it fetches. |
 | Live/fallback bookkeeping and the publish decision | `provenance.py` | `DataQuality.publishable()` is the gate; the orchestrator consults it, nothing else decides. |
-| Clinical synthesis (Gemini, validation, deterministic rules) | `clinical_engine.py` | Returns meaning (score, band, tone, verdicts), never layout or colour classes. Recomputes bands from scores so model output cannot contradict itself. |
+| Clinical synthesis | `clinical_engine.py` | The rule engine is the **only** author of the recovery score and of everything derived from it (band, tone, zone, readiness inputs, illness risk level, training target); Gemini is merged on top as narrative and its own score is kept as `model_score`, never published. Returns meaning, never layout or colour classes. |
 | The run itself (fetch → analyse → publish → report) | `sync.py` | Wires the modules, assembles the payload envelope (`updated_at`, `athlete`, `history`, `policy`), writes `data/biometrics.json`, prints the summary. |
 | Payload encryption and status file | `encrypt_data.py` | Standalone; reads the pipeline's JSON, never imports the pipeline. |
 | Rendering and interaction | `index.html` | Consumes resolved bands/tones from the payload. The only decisions it makes are layout, and the only colours are `TONE_STROKE` / `badgeClass()` fed by the engine's tones. |

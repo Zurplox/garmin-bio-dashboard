@@ -2230,16 +2230,21 @@
       // 5. Illness Early Warning Radar
       const illness = intel.illness_early_warning || {};
       const statusBadge = document.getElementById("illnessStatusBadge");
-      if (illness.risk_level === "LOW") {
-        statusBadge.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-xs";
-        statusBadge.innerHTML = "<span class='w-2 h-2 rounded-full bg-emerald-400 animate-pulse-dot'></span> LOW RISK // ZERO INFECTION DETECTED";
-      } else if (illness.risk_level === "MODERATE") {
-        statusBadge.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-xs";
-        statusBadge.innerHTML = "<span class='w-2 h-2 rounded-full bg-amber-400 animate-pulse-dot'></span> MODERATE STRAIN // MONITOR RECOVERY";
-      } else {
-        statusBadge.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold text-xs";
-        statusBadge.innerHTML = "<span class='w-2 h-2 rounded-full bg-rose-400 animate-pulse-dot'></span> IMMUNE ACTIVATION // POTENTIAL ILLNESS";
-      }
+      // The engine owns the risk level *and* its tone (policy.RISK_TONES). The
+      // level-derived fallback only covers payloads published before that field
+      // existed, so an older vault never renders the wrong colour.
+      const riskTone = illness.risk_tone || { LOW: "green", MODERATE: "amber" }[illness.risk_level] || "rose";
+      const riskStyles = {
+        green: { pill: "bg-emerald-500/10 border-emerald-500/30 text-emerald-400", dot: "bg-emerald-400" },
+        amber: { pill: "bg-amber-500/10 border-amber-500/30 text-amber-400", dot: "bg-amber-400" },
+        rose: { pill: "bg-rose-500/10 border-rose-500/30 text-rose-400", dot: "bg-rose-400" },
+      }[riskTone];
+      const riskCopy = {
+        LOW: "LOW RISK // ZERO INFECTION DETECTED",
+        MODERATE: "MODERATE STRAIN // MONITOR RECOVERY",
+      }[illness.risk_level] || "IMMUNE ACTIVATION // POTENTIAL ILLNESS";
+      statusBadge.className = `inline-flex items-center gap-1.5 px-3 py-1 rounded-full border font-bold text-xs ${riskStyles.pill}`;
+      statusBadge.innerHTML = `<span class='w-2 h-2 rounded-full animate-pulse-dot ${riskStyles.dot}'></span> ${riskCopy}`;
 
       document.getElementById("markerDeltaRhr").textContent = (illness.delta_rhr_bpm >= 0 ? '+' : '') + illness.delta_rhr_bpm + ' bpm';
       document.getElementById("markerDeltaHrv").textContent = (illness.delta_hrv_pct >= 0 ? '+' : '') + illness.delta_hrv_pct + '%';
@@ -2280,9 +2285,10 @@
       // 8. AI Diagnostic Dossier
       // The rule engine and Gemini both produce this analysis, so the UI now
       // names whichever one actually ran instead of crediting the model always.
-      const usesGemini = intel.source === "gemini";
+      // `source` is the pre-fix field name, still honoured for older payloads.
+      const usesGemini = (intel.narrative_source || intel.source) === "gemini";
       document.getElementById("intelSourceBadge").textContent =
-        usesGemini ? "Gemini AI synthesized" : "Deterministic rule engine";
+        usesGemini ? "Gemini narrative · rule-based score" : "Deterministic rule engine";
       document.getElementById("intelSourceBadge").className = usesGemini
         ? "text-xs px-2.5 py-1 rounded-full bg-violet-500/10 border border-violet-500/30 text-violet-300 font-mono text-[11px]"
         : "text-xs px-2.5 py-1 rounded-full bg-slate-800/60 border border-slate-700 text-slate-300 font-mono text-[11px]";

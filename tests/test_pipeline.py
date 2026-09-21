@@ -526,10 +526,36 @@ class TodaySnapshotTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Model output validation
+# Score ownership: the rules score, the model narrates
 # ---------------------------------------------------------------------------
 
-class AiOutputValidationTests(unittest.TestCase):
+class ScoreOwnershipTests(unittest.TestCase):
+    """The published verdict must not depend on which engine answered.
+
+    Byte-identical inputs once published recovery 94% GREEN PRIME locally (no
+    key, rule engine) and 62% YELLOW READY on the runner (real key, model-
+    authored) -- a 32-point swing that changed the training verdict. The rule
+    engine now owns the recovery score and everything derived from it; Gemini
+    supplies prose, and its own number is kept as `model_score` so the two can
+    be compared rather than silently swapped.
+    """
+
+    # Deliberately contrarian: numbers and labels that disagree with the rule
+    # engine's read of the same measurements.
+    MODEL_REPLY = {
+        "recovery_score": 62,
+        "recovery_zone": "YELLOW (ADEQUATE RECOVERY)",
+        "illness_early_warning": {
+            "risk_level": "HIGH",
+            "status_headline": "Model thinks you are falling ill",
+            "details": ["model illness prose"],
+        },
+        "autonomic_nervous_analysis": "model autonomic prose",
+        "sleep_architecture_analysis": "model sleep prose",
+        "workload_and_biological_age": "model workload prose",
+        "actionable_directives": ["model directive a", "model directive b", "model directive c"],
+    }
+
     def setUp(self):
         self.baselines = {"hrv_30d": 55.0, "rhr_30d": 50.0}
         self.today = {"hrv_last_night": 60.0, "rhr": 51.0, "sleep_stress": 16.0, "respiration_rate": 13.0}
@@ -542,109 +568,115 @@ class AiOutputValidationTests(unittest.TestCase):
             {"fitness_age": 24.7},
         )
 
-    def test_zone_is_recomputed_so_it_cannot_contradict_the_score(self):
-        # The deployed vault shipped score 68 with a YELLOW zone label, so the
-        # page argued with itself in two adjacent paragraphs.
-        result = clinical_engine.normalize_ai_result(
-            {"recovery_score": 68, "recovery_zone": "YELLOW (ADEQUATE RECOVERY)"},
-            self.today, self.baselines,
+    def _synthesize(self, model_reply):
+        """Run the real engine with the model stubbed to `model_reply` (None == no key)."""
+        original = clinical_engine.query_gemini_api
+        clinical_engine.query_gemini_api = lambda *a, **k: model_reply
+        try:
+            return clinical_engine.synthesize(*self._engine_inputs())
+        finally:
+            clinical_engine.query_gemini_api = original
+
+    def test_published_verdict_is_identical_with_and_without_a_model(self):
+        without = self._synthesize(None)
+        with_model = self._synthesize(self.MODEL_REPLY)
+
+        for key in ("recovery_score", "recovery_band", "recovery_tone", "recovery_zone",
+                    "recovery_briefing", "illness_early_warning", "score_source"):
+            with self.subTest(key=key):
+                self.assertEqual(without[key], with_model[key])
+        self.assertEqual(
+            with_model["actionable_directives"][0],
+            without["actionable_directives"][0],
         )
-        self.assertEqual(result["recovery_score"], 68)
-        self.assertEqual(result["recovery_zone"], policy.RECOVERY_ZONE_LABELS["green"])
-        self.assertEqual(result["recovery_band"], "green")
 
-    def test_low_score_cannot_claim_a_green_zone(self):
-        result = clinical_engine.normalize_ai_result(
-            {"recovery_score": 30, "recovery_zone": "GREEN (OPTIMAL RECOVERY)"},
-            self.today, self.baselines,
+    def test_the_models_number_is_recorded_but_never_published(self):
+        rules_score = self._synthesize(None)["recovery_score"]
+        result = self._synthesize(self.MODEL_REPLY)
+
+        self.assertEqual(result["recovery_score"], rules_score)
+        self.assertNotEqual(result["recovery_score"], 62)
+        self.assertEqual(result["model_score"], 62)
+        self.assertEqual(result["score_source"], "deterministic")
+        self.assertEqual(result["narrative_source"], "gemini")
+
+    def test_a_model_score_of_68_can_no_longer_ship_with_a_yellow_zone(self):
+        # The deployed vault shipped exactly that contradictory pair.
+        result = self._synthesize({"recovery_score": 68, "autonomic_nervous_analysis": "prose"})
+
+        self.assertEqual(result["recovery_zone"], policy.recovery_zone(result["recovery_score"]))
+        self.assertEqual(result["recovery_band"], policy.recovery_band(result["recovery_score"]))
+        self.assertEqual(result["model_score"], 68)
+
+    def test_model_labels_never_reach_the_payload(self):
+        result = self._synthesize(self.MODEL_REPLY)
+
+        self.assertEqual(result["recovery_zone"], policy.recovery_zone(result["recovery_score"]))
+        self.assertNotEqual(result["recovery_zone"], "YELLOW (ADEQUATE RECOVERY)")
+        self.assertNotEqual(result["illness_early_warning"]["risk_level"], "HIGH")
+        self.assertNotIn("falling ill", json.dumps(result))
+
+    def test_illness_risk_and_tone_come_from_policy(self):
+        warning = self._synthesize(None)["illness_early_warning"]
+
+        self.assertEqual(warning["risk_tone"], policy.RISK_TONES[warning["risk_level"]])
+
+    def test_output_without_any_prose_is_rejected(self):
+        for reply in ({}, {"recovery_score": 88}, {"autonomic_nervous_analysis": "   "}, "not a dict", [1, 2]):
+            with self.subTest(reply=reply):
+                result = self._synthesize(reply)
+
+                self.assertEqual(result["narrative_source"], "deterministic")
+                self.assertNotIn("model_score", result)
+
+    def test_paragraphs_fall_back_to_the_measured_verdict_where_the_model_omits_them(self):
+        without = self._synthesize(None)
+        result = self._synthesize({"autonomic_nervous_analysis": "model autonomic prose"})
+
+        self.assertEqual(result["autonomic_nervous_analysis"], "model autonomic prose")
+        self.assertEqual(result["sleep_architecture_analysis"], without["sleep_architecture_analysis"])
+        self.assertEqual(result["workload_and_biological_age"], without["workload_and_biological_age"])
+        self.assertEqual(result["actionable_directives"], without["actionable_directives"])
+
+    def test_the_training_target_directive_stays_rule_owned(self):
+        without = self._synthesize(None)
+        result = self._synthesize(self.MODEL_REPLY)
+
+        self.assertEqual(result["actionable_directives"][0], without["actionable_directives"][0])
+        self.assertEqual(
+            result["actionable_directives"][1:],
+            ["model directive a", "model directive b", "model directive c"],
         )
-        self.assertEqual(result["recovery_zone"], policy.RECOVERY_ZONE_LABELS["red"])
-
-    def test_scores_are_coerced_and_clamped(self):
-        cases = {"72": 72, 150: 100, -5: 0, 66.6: 67}
-        for raw, expected in cases.items():
-            with self.subTest(raw=raw):
-                result = clinical_engine.normalize_ai_result({"recovery_score": raw}, self.today, self.baselines)
-                self.assertEqual(result["recovery_score"], expected)
-
-    def test_unusable_scores_are_rejected(self):
-        for bad in ({"recovery_score": None}, {"recovery_score": "high"}, {}, "not a dict", None, [1, 2]):
-            with self.subTest(payload=bad):
-                self.assertIsNone(clinical_engine.normalize_ai_result(bad, self.today, self.baselines))
-
-    def test_missing_numbers_fall_back_to_values_we_measured_ourselves(self):
-        warning = clinical_engine.normalize_ai_result({"recovery_score": 70}, self.today, self.baselines)["illness_early_warning"]
-        self.assertEqual(warning["delta_rhr_bpm"], 1.0)
-        self.assertEqual(warning["delta_hrv_pct"], 9.1)
-        self.assertEqual(warning["sleep_stress"], 16.0)
-        self.assertEqual(warning["respiration_rate"], 13.0)
-        self.assertEqual(warning["risk_level"], "LOW")
-
-    def test_unknown_risk_level_is_not_trusted(self):
-        result = clinical_engine.normalize_ai_result(
-            {"recovery_score": 70, "illness_early_warning": {"risk_level": "CATASTROPHIC"}},
-            self.today, self.baselines,
-        )
-        self.assertEqual(result["illness_early_warning"]["risk_level"], "LOW")
-
-    def test_string_fields_are_normalised_into_lists(self):
-        result = clinical_engine.normalize_ai_result(
-            {"recovery_score": 70,
-             "illness_early_warning": {"details": "single string"},
-             "actionable_directives": "one directive"},
-            self.today, self.baselines,
-        )
-        self.assertEqual(result["illness_early_warning"]["details"], ["single string"])
-        self.assertEqual(result["actionable_directives"], ["one directive"])
-        self.assertEqual(result["source"], "gemini")
 
     def test_directive_list_is_capped_and_stripped(self):
-        result = clinical_engine.normalize_ai_result(
-            {"recovery_score": 70, "actionable_directives": [f"  d{i}  " for i in range(12)]},
-            self.today, self.baselines,
-        )
-        self.assertEqual(len(result["actionable_directives"]), 6)
-        self.assertEqual(result["actionable_directives"][0], "d0")
+        result = self._synthesize({"actionable_directives": [f"  d{i}  " for i in range(12)]})
 
-    def test_invalid_model_output_falls_back_to_the_rule_engine(self):
-        original = clinical_engine.query_gemini_api
-        clinical_engine.query_gemini_api = lambda *a, **k: {"recovery_score": "not a number"}
-        try:
-            result = clinical_engine.synthesize(*self._engine_inputs())
-        finally:
-            clinical_engine.query_gemini_api = original
-        self.assertEqual(result["source"], "deterministic")
+        # One rule-owned training target, then at most three narrative directives.
+        self.assertEqual(len(result["actionable_directives"]), 4)
+        self.assertEqual(result["actionable_directives"][1], "d0")
+        self.assertEqual(result["actionable_directives"][3], "d2")
 
-    def test_valid_model_output_is_used_and_labelled(self):
-        original = clinical_engine.query_gemini_api
-        clinical_engine.query_gemini_api = lambda *a, **k: {
-            "recovery_score": 82,
-            "recovery_zone": "RED (HIGH NEUROLOGICAL STRAIN)",
-            "autonomic_nervous_analysis": "ok",
-        }
-        try:
-            result = clinical_engine.synthesize(self.today, self.baselines, {})
-        finally:
-            clinical_engine.query_gemini_api = original
-        self.assertEqual(result["source"], "gemini")
-        self.assertEqual(result["recovery_zone"], policy.RECOVERY_ZONE_LABELS["green"])
+    def test_a_single_string_directive_is_accepted(self):
+        result = self._synthesize({"actionable_directives": "one directive"})
 
-    def test_rule_engine_output_is_labelled_too(self):
-        original = clinical_engine.query_gemini_api
-        clinical_engine.query_gemini_api = lambda *a, **k: None
-        try:
-            result = clinical_engine.synthesize(*self._engine_inputs())
-        finally:
-            clinical_engine.query_gemini_api = original
-        self.assertEqual(result["source"], "deterministic")
+        self.assertEqual(result["actionable_directives"][1], "one directive")
+
+    def test_model_score_is_coerced_and_clamped_before_it_is_recorded(self):
+        for raw, expected in {"72": 72, 150: 100, -5: 0, 66.6: 67}.items():
+            with self.subTest(raw=raw):
+                result = self._synthesize({"recovery_score": raw, "autonomic_nervous_analysis": "prose"})
+
+                self.assertEqual(result["model_score"], expected)
+
+    def test_unusable_model_score_is_omitted_rather_than_guessed(self):
+        result = self._synthesize({"recovery_score": "high", "autonomic_nervous_analysis": "prose"})
+
+        self.assertNotIn("model_score", result)
+        self.assertEqual(result["narrative_source"], "gemini")
 
     def test_rule_engine_verdicts_do_not_assert_unmeasured_numbers(self):
-        original = clinical_engine.query_gemini_api
-        clinical_engine.query_gemini_api = lambda *a, **k: None
-        try:
-            result = clinical_engine.synthesize(*self._engine_inputs())
-        finally:
-            clinical_engine.query_gemini_api = original
+        result = self._synthesize(None)
+
         # These literals used to be hard-coded even when the measurement said
         # otherwise ("Peak 5-minute HRV reached 89 ms", "+4.3 years younger").
         self.assertNotIn("89 ms", result["autonomic_nervous_analysis"])
@@ -707,6 +739,39 @@ class PayloadAssemblyTests(unittest.TestCase):
     def test_publish_gate_refuses_to_ship_fallen_back_core_metrics(self):
         with self.assertRaises(SystemExit):
             sync.build_payload(self.client, self.fetched, self._dq(sleep_live=False))
+
+    def test_readiness_and_injury_risk_are_identical_with_and_without_a_model(self):
+        """Same physiology, same published verdict -- the point of score ownership."""
+        original = clinical_engine.query_gemini_api
+        try:
+            clinical_engine.query_gemini_api = lambda *a, **k: None
+            without = sync.build_payload(self.client, self.fetched, self._dq())
+            clinical_engine.query_gemini_api = lambda *a, **k: {
+                "recovery_score": 62,
+                "recovery_zone": "YELLOW (ADEQUATE RECOVERY)",
+                "illness_early_warning": {"risk_level": "HIGH", "status_headline": "Model"},
+                "autonomic_nervous_analysis": "model autonomic prose",
+                "sleep_architecture_analysis": "model sleep prose",
+                "workload_and_biological_age": "model workload prose",
+                "actionable_directives": ["model a", "model b", "model c"],
+            }
+            with_model = sync.build_payload(self.client, self.fetched, self._dq())
+        finally:
+            clinical_engine.query_gemini_api = original
+
+        self.assertEqual(
+            with_model["clinical_intelligence"]["recovery_score"],
+            without["clinical_intelligence"]["recovery_score"],
+        )
+        self.assertEqual(
+            with_model["clinical_intelligence"]["recovery_zone"],
+            without["clinical_intelligence"]["recovery_zone"],
+        )
+        self.assertEqual(with_model["readiness"], without["readiness"])
+        self.assertEqual(with_model["injury_risk"], without["injury_risk"])
+        self.assertEqual(with_model["whoop"]["strain_zone"], without["whoop"]["strain_zone"])
+        self.assertEqual(with_model["clinical_intelligence"]["narrative_source"], "gemini")
+        self.assertEqual(with_model["clinical_intelligence"]["model_score"], 62)
 
 
 # ---------------------------------------------------------------------------
