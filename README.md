@@ -145,7 +145,7 @@ Seven Python modules and one static page, split by concern — see [ARCHITECTURE
 
 ## 🤖 Score ownership and the optional model
 
-One owner per fact: the **deterministic rule engine computes every published number** — recovery score, its band, tone and zone, readiness, injury risk, the illness risk level and the training target — from the measurements in this run. Gemini, when `GEMINI_API_KEY` is set, writes **prose only**: the three analysis paragraphs and the narrative directives. Its own recovery score is recorded as `model_score` for comparison and never published.
+One owner per fact: the **deterministic rule engine computes every published number** — recovery score, its band, tone and zone, readiness, injury risk, the illness risk level and the training target — from the measurements in this run. Gemini, when `GEMINI_API_KEY` is set, writes **prose only**: the three analysis paragraphs and the narrative directives. Its own recovery score is recorded as `model_score` for comparison and never published. The API call uses an ordered remote-model fallback chain: `gemini-3.8-flash` → `gemini-3.7-flash` → `gemini-3.6-flash` → `gemini-3.5-flash`; set `GEMINI_MODELS` to a comma-separated list if Google changes availability. No model package is installed locally.
 
 Every analysis paragraph ends with a **plain-English sentence**, and the rules write that sentence whichever engine wrote the paragraph above it. `clinical_engine` pairs each verdict with its restatement (`PLAIN_ENGLISH_PREFIX`), and `synthesize()` appends it after the prose, so a reader who does not know the clinical vocabulary still gets the same takeaway — and a model paragraph can never drop it.
 

@@ -844,6 +844,13 @@ class ScoreOwnershipTests(unittest.TestCase):
         self.baselines = {"hrv_30d": 55.0, "rhr_30d": 50.0}
         self.today = {"hrv_last_night": 60.0, "rhr": 51.0, "sleep_stress": 16.0, "respiration_rate": 13.0}
 
+    def test_gemini_has_a_supported_ordered_fallback_chain(self):
+        self.assertEqual(
+            list(clinical_engine.GEMINI_MODELS),
+            ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash"],
+        )
+        self.assertEqual(len(clinical_engine.GEMINI_MODELS), len(set(clinical_engine.GEMINI_MODELS)))
+
     def _engine_inputs(self):
         return (
             dict(self.today, sleep_time_seconds=27000, deep_sleep_seconds=6000, rem_sleep_seconds=4500),

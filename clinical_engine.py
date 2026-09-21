@@ -11,9 +11,9 @@ one. Its own recovery score is kept beside the published one as a second
 opinion (`model_score`), not as the answer.
 
 The engine returns meaning (bands, tones, verdicts), never layout: the dashboard
-renders what it is handed. Every analysis paragraph ends with a plain-English
-sentence written by the rules -- never by the model -- that restates the verdict
-in everyday words.
+renders what it is handed. Every analysis is followed by an everyday-words
+paragraph written by the rules -- never by the model -- that restates the verdict
+in words a normal reader can use.
 """
 
 import json
@@ -23,7 +23,23 @@ import urllib.request
 import bio_policy as policy
 from bio_analytics import clamp
 
-GEMINI_MODELS = ["gemini-3.5-flash", "gemini-3.7-flash"]
+# Ordered fallback chain. These are remote model IDs, not packages to install:
+# the first available model answers, and a quota/availability failure moves to
+# the next one. GEMINI_MODELS can be overridden in Actions for a temporary model
+# rollout without editing code (comma-separated IDs).
+_DEFAULT_GEMINI_MODELS = (
+    "gemini-3.8-flash",
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+)
+GEMINI_MODELS = tuple(
+    dict.fromkeys(
+        model.strip()
+        for model in os.environ.get("GEMINI_MODELS", ",".join(_DEFAULT_GEMINI_MODELS)).split(",")
+        if model.strip()
+    )
+)
 
 
 def _zone_fields(recovery_score):
@@ -152,7 +168,13 @@ def _build_prompt(today, baselines, fitness, context=None):
 
 
 def query_gemini_api(today, baselines, fitness, context=None):
-    """Query Google AI Studio (Gemini Flash) when GEMINI_API_KEY is set."""
+    """Query Google AI Studio with an ordered fallback chain when a key exists.
+
+    Model IDs are remote service choices, not local packages. A 429, 5xx,
+    timeout, unavailable model, or malformed response moves to the next model;
+    if every model fails, deterministic prose is used and the score remains
+    rule-owned.
+    """
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return None
