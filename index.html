@@ -577,8 +577,9 @@
           <div class="pt-2.5 border-t border-slate-800/80 text-xs text-slate-300 space-y-1">
             <div class="flex justify-between">
               <span class="text-slate-400">Autonomic State:</span>
-              <strong id="autonomicStateBadge" class="text-emerald-400">BALANCED (+8.5%)</strong>
+              <strong id="autonomicStateBadge" class="text-slate-500">--</strong>
             </div>
+            <p class="text-[10px] text-slate-500 leading-tight">In plain English: your nervous system's overnight balance — how far last night's HRV sat from your own 30-day average. At or above your average means a more recovered nervous system; below it means mild strain.</p>
             <div class="flex justify-between">
               <span class="text-slate-400">Resting Heart Rate:</span>
               <strong id="cardRhrVal" class="text-white mono">51 bpm</strong>
@@ -643,6 +644,7 @@
               <p>🟠 <strong class="text-white">14–17</strong> = Hard training (ideal for building fitness)</p>
               <p>🔴 <strong class="text-white">18–21</strong> = Maximal effort (marathon, race day)</p>
               <p class="text-slate-500">Your target window today is personalised to match your recovery level. Going too far above it risks overtraining.</p>
+              <p class="text-slate-500">The badge above the number is today's strain zone — it is set from your recovery zone, so a greener recovery allows more strain while a red one limits you to restorative movement only.</p>
             </div>
           </div>
         </div>
@@ -773,6 +775,13 @@
           </div>
         </div>
 
+        <button onclick="toggleInfo(this)" aria-expanded="false" class="mb-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+          <span>ⓘ Why is this readiness different from Training Readiness?</span>
+        </button>
+        <div class="hidden mb-3 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+          <p class="text-slate-500">This card mirrors Fitbit Premium's own model, so its Daily Readiness score is deliberately not the same as your Training Readiness score above. Fitbit's version is 40% overnight HRV, 40% last night's sleep score and 20% recent training load; Training Readiness also folds in your sleep debt and workload ratio. They normally move together — when they disagree, treat the lower of the two as the safer guide.</p>
+        </div>
+
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5" id="fitbitPillarsContainer">
           <!-- Populated dynamically with 5 cards -->
         </div>
@@ -832,7 +841,7 @@
             <p>🔋 <strong class="text-white">50–74</strong> = Good energy. Suitable for training.</p>
             <p>🔋 <strong class="text-white">25–49</strong> = Low. Light activity recommended.</p>
             <p>🔋 <strong class="text-white">0–24</strong> = Depleted. Your body needs rest and sleep urgently.</p>
-            <p class="text-slate-500">Sleep charges your battery. Stress, exercise, and mental effort drain it. The overnight "+38 pts" means your sleep fully replenished your energy reserves.</p>
+            <p class="text-slate-500">Sleep charges your battery. Stress, exercise, and mental effort drain it. Overnight your sleep added <span id="infoBodyBatteryCharge" class="text-slate-300">--</span> points of charge to it.</p>
           </div>
         </div>
 
@@ -895,7 +904,7 @@
             <p>🔵 <strong class="text-white">Low (26–50)</strong> = Light activity or mild mental engagement. Still healthy.</p>
             <p>🟡 <strong class="text-white">Med (51–75)</strong> = Elevated sympathetic activation. Common during meetings or workouts.</p>
             <p>🔴 <strong class="text-white">High (76–100)</strong> = Full stress response. If sustained daily, this drains recovery capacity.</p>
-            <p class="text-slate-500">Your 75% rest time is exceptional — most people spend less than 50% in rest mode.</p>
+            <p class="text-slate-500">Your rest time today is <span id="infoStressRestPct" class="text-slate-300">--</span> of the cycle — most people spend less than 50% there.</p>
           </div>
         </div>
 
@@ -960,7 +969,7 @@
           </div>
           <div class="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400 flex justify-between">
             <span>Chronological: <strong id="kpiChronologicalAge" class="text-slate-200">29</strong></span>
-            <span>Achievable: <strong class="text-cyan-400">21.1 yrs</strong></span>
+            <span>Achievable: <strong id="kpiAchievableAge" class="text-cyan-400">--</strong></span>
           </div>
           <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
             <span>ⓘ What is Biological Age?</span>
@@ -969,6 +978,7 @@
             <p>Your <strong class="text-cyan-400">Biological Age</strong> is NOT your birthday age — it's an estimate of how old your cardiovascular and aerobic system actually <em>performs</em>, based on your VO2 max (oxygen efficiency).</p>
             <p>A biological age <strong class="text-emerald-400">younger than your real age</strong> means your heart and lungs are in better shape than most people your age. Your <strong class="text-white">−4.3 years advantage</strong> is a genuinely impressive result.</p>
             <p class="text-slate-500">This improves with consistent aerobic training, good sleep, and low resting heart rate.</p>
+            <p class="text-slate-500">"Achievable" is Garmin's estimate of the fitness age you could reach with consistent aerobic training — it is a target, not your current reading.</p>
           </div>
         </div>
 
@@ -995,7 +1005,7 @@
             <p>🟢 <strong class="text-white">0.8 – 1.3</strong> = Sweet spot — building fitness safely</p>
             <p>🔵 <strong class="text-white">&lt; 0.8</strong> = Fresh / undertraining — safe to increase gradually</p>
             <p>🔴 <strong class="text-white">&gt; 1.5</strong> = Danger zone — high injury risk, pull back</p>
-            <p class="text-slate-500">Your 0.2 means you've been very light recently — great for recovery, but you can safely increase training volume over the next 1–2 weeks.</p>
+            <p class="text-slate-500">Your <span id="infoAcwrValue" class="text-slate-300">--</span> today — under 0.8 means you have room to build volume gradually, 0.8–1.3 is the sweet spot to hold, and above 1.5 is where injury risk climbs.</p>
           </div>
         </div>
 
@@ -1022,6 +1032,7 @@
             <p>A LOW HRV means your body is under stress, fighting illness, or inadequately recovered. A HIGH HRV means your nervous system is calm, adapted, and ready for performance.</p>
             <p>🏆 Elite endurance athletes: 60–100+ ms. General healthy adults: 30–60 ms.</p>
             <p class="text-slate-500">Your HRV is best compared to YOUR OWN baseline — not population averages. What matters is whether today's reading is above or below your personal 30-day norm.</p>
+            <p class="text-slate-500">Your corridor is the range your own readings normally fall in. Inside the corridor means today is normal for you; below it means your body is under strain. A separate "Band" shows the balanced range your watch reports for today.</p>
           </div>
         </div>
 
@@ -1045,9 +1056,9 @@
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
             <p><strong class="text-amber-400">RHR (Resting Heart Rate)</strong> is your heart's beats-per-minute when you're completely at rest (usually measured during sleep). Lower is generally better for long-term health.</p>
-            <p>🏆 Elite athletes: 40–50 bpm | ✅ Athletic: 50–60 bpm | 🟡 Average adult: 60–80 bpm</p>
+            <p>🏆 Elite endurance: 38–48 bpm | ✅ Athletic: 48–58 bpm | 🟡 Average adult: 60–80 bpm</p>
             <p>A rising RHR trend over days is one of the earliest warning signs of illness, overtraining, or poor sleep quality — often showing up 24–48h before you feel sick.</p>
-            <p class="text-slate-500">Your 51 bpm puts you firmly in the "Athletic" zone. Your 4-year trend shows consistent cardiovascular improvement.</p>
+            <p class="text-slate-500">Your <span id="infoRhrValue" class="text-slate-300">--</span> bpm against those bands. The 4-year chart below shows whether it is holding.</p>
           </div>
         </div>
 
@@ -1242,8 +1253,8 @@
           <div>
             <div class="flex items-center gap-2">
               <h3 class="text-sm font-bold text-white tracking-tight">Heart Rate Variability (HRV) & Autonomic Balance</h3>
-              <span class="text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
-                Corridor: 54 - 73 ms
+              <span id="hrvChartCorridor" class="text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+                Corridor: --
               </span>
             </div>
             <p class="text-xs text-slate-400">Daily overnight HRV (ms) vs 7-day rolling baseline</p>
@@ -1280,7 +1291,7 @@
           <div class="flex items-center gap-4 flex-wrap text-slate-300 mono text-[11px]">
             <span>Overnight HRV: <strong id="hrvHudVal" class="text-emerald-400 font-bold text-sm">60 ms</strong></span>
             <span>7-Day Baseline: <strong id="hrvHudBase" class="text-cyan-400 font-bold">57 ms</strong></span>
-            <span>Personal Corridor: <strong id="hrvHudCorridor" class="text-slate-300">54 — 73 ms</strong></span>
+            <span>Personal Corridor: <strong id="hrvHudCorridor" class="text-slate-300">--</strong></span>
           </div>
         </div>
 
@@ -1504,6 +1515,12 @@
           <div>
             <h3 class="text-sm font-bold text-white tracking-tight">Training & Workout Activity Feed</h3>
             <p class="text-xs text-slate-400">Aerobic loading, endurance sessions, and caloric expenditures</p>
+            <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+              <span>ⓘ What is Training Effect?</span>
+            </button>
+            <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+              <p class="text-slate-500">Training Effect (0–5) is how much a workout improved your fitness — not how hard it felt. The first number is aerobic (heart and lungs), the second is anaerobic (sprints and heavy lifting). 0–1 barely moves your fitness, 2–3 maintains it, 4–5 is a big improvement.</p>
+            </div>
           </div>
 
           <!-- Sport Category Filters -->
@@ -2318,8 +2335,12 @@
       // 7. Biological Fitness Age & Workload
       document.getElementById("kpiFitnessAge").textContent = fitness.fitness_age || "24.7";
       document.getElementById("kpiChronologicalAge").textContent = fitness.chronological_age || "29";
+      document.getElementById("kpiAchievableAge").textContent = fitness.achievable_fitness_age
+        ? `${fitness.achievable_fitness_age} yrs`
+        : "--";
       document.getElementById("kpiAcwrVal").textContent = fitness.acwr || "0.2";
       document.getElementById("kpiAcwrStatus").textContent = fitness.acwr_status || "FRESH";
+      document.getElementById("infoAcwrValue").textContent = fitness.acwr ?? "--";
       document.getElementById("kpiAcuteLoad").textContent = fitness.acute_load || "44";
       document.getElementById("kpiChronicLoad").textContent = fitness.chronic_load || "219";
 
@@ -2328,7 +2349,16 @@
       document.getElementById("kpiHrvBaseline").textContent = `${baselines.hrv_30d || 55.3} ms`;
       document.getElementById("kpiHrvRange").textContent = `${today.hrv_baseline_low || 54} - ${today.hrv_baseline_high || 73} ms`;
 
+      // The HRV chart's "Corridor" and the HUD's "Personal Corridor" are the same
+      // personal range as the KPI band above, so they read from the same fields
+      // instead of the hard-coded figures the markup shipped with.
+      document.getElementById("hrvChartCorridor").textContent =
+        `Corridor: ${today.hrv_baseline_low || 54} - ${today.hrv_baseline_high || 73} ms`;
+      document.getElementById("hrvHudCorridor").textContent =
+        `${today.hrv_baseline_low || 54} — ${today.hrv_baseline_high || 73} ms`;
+
       document.getElementById("kpiRhrValue").textContent = Math.round(today.rhr || 51);
+      document.getElementById("infoRhrValue").textContent = Math.round(today.rhr || 51);
       document.getElementById("kpiRhr30d").textContent = `${baselines.rhr_30d || 49.8} bpm`;
       document.getElementById("kpiRhrAllTime").textContent = `${baselines.rhr_all_time || 50.0} bpm`;
 
@@ -2391,6 +2421,7 @@
       const pctText = value => (value == null ? '--' : `${value}%`);
       document.getElementById("stressAvgVal").innerHTML = `${gSig.stress_avg ?? '--'} <span class="text-xs text-slate-400 font-normal">avg index</span>`;
       document.getElementById("pctRest").textContent = pctText(sDist.rest_pct);
+      document.getElementById("infoStressRestPct").textContent = pctText(sDist.rest_pct);
       document.getElementById("pctLow").textContent = pctText(sDist.low_pct);
       document.getElementById("pctMed").textContent = pctText(sDist.med_pct);
       document.getElementById("pctHigh").textContent = pctText(sDist.high_pct);
@@ -2448,6 +2479,20 @@
       // 10/11. Readiness and injury risk are computed by the engine; the browser
       // renders the bands, tones and factors it is handed and compares nothing.
       const readiness = data.readiness || {};
+
+      // Autonomic State is the same overnight HRV-versus-baseline measurement that
+      // the HRV card and the Health Metrics HRV pillar already own, so the label
+      // comes from Garmin's HRV status and the tone from the engine's policy tone
+      // rather than the fixed "BALANCED (+8.5%)" the markup used to hard-code.
+      const hrvPillar = (fitbit.health_metrics_5_pillars || []).find(p => p.key === "hrv");
+      const hrvDeltaPct = hrv30 ? ((hrv - hrv30) / hrv30) * 100 : 0;
+      const autonomicEl = document.getElementById("autonomicStateBadge");
+      autonomicEl.textContent = `${today.hrv_status || "BALANCED"} (${hrvDeltaPct >= 0 ? "+" : ""}${hrvDeltaPct.toFixed(1)}%)`;
+      autonomicEl.className = `text-${hrvPillar ? hrvPillar.status_color : "emerald"}-400`;
+
+      // The Body Battery panel used to quote a fixed "+38 pts"; it now reads the
+      // same field the Fitbit/readiness tile reads.
+      document.getElementById("infoBodyBatteryCharge").textContent = readiness.body_battery_charged ?? "--";
       const injury = data.injury_risk || {};
 
       const readinessGaugeEl = document.getElementById('readinessGauge');

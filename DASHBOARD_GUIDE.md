@@ -103,7 +103,7 @@ A comprehensive, plain-English reference manual for Harvin's personal bio-intell
 ### 11. ❤️ Overnight Heart Rate Variability (HRV)
 * **What it is:** Microsecond variations between consecutive heartbeats (measured in milliseconds, ms).
 * **The Core Principle:** **Higher HRV is better.** High HRV reflects a flexible, resilient parasympathetic nervous system ("rest and digest"). Low HRV indicates systemic fatigue, illness, dehydration, or psychological strain.
-* **Personal Corridor:** 54 to 73 ms. Readings within or above this corridor indicate prime adaptation.
+* **Personal Corridor:** the band your watch reports for the current period (it reads as `54 – 72 ms` on the dashboard when the last publish carried a band of 54–72). Readings within or above this corridor indicate prime adaptation.
 
 ---
 
