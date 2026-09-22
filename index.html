@@ -136,11 +136,19 @@
       62% { opacity: 1; transform: translateY(-2px) scale(1.008); }
       100% { opacity: 1; transform: translateY(0) scale(1); }
     }
+    /* Bars fill from their own origin: left to right across the track, bottom to top
+       for a vertical gauge. The overshoot is the spring settling, not a second grow. */
     @keyframes bar-spring {
-      0% { transform: scaleX(0.92); }
+      0% { transform: scaleX(0); }
       62% { transform: scaleX(1.035); }
       82% { transform: scaleX(0.99); }
       100% { transform: scaleX(1); }
+    }
+    @keyframes bar-spring-y {
+      0% { transform: scaleY(0); }
+      62% { transform: scaleY(1.035); }
+      82% { transform: scaleY(0.99); }
+      100% { transform: scaleY(1); }
     }
     @keyframes heat-cell-spring {
       0% { opacity: 0; transform: scale(0.45) rotate(-5deg); }
@@ -150,7 +158,8 @@
     @media (prefers-reduced-motion: no-preference) {
       .motion-gauge-bounce { animation: gauge-spring 2.1s cubic-bezier(0.22, 1.28, 0.36, 1) both; }
       .motion-chart-settle { animation: chart-spring 1.8s cubic-bezier(0.22, 1.28, 0.36, 1) both; }
-      .motion-bar-spring { transform-origin: left center; animation: bar-spring 2s cubic-bezier(0.22, 1.28, 0.36, 1) both; }
+      .motion-bar-spring { transform-origin: left center; animation: bar-spring 1.6s cubic-bezier(0.22, 1.28, 0.36, 1) both; }
+      .motion-bar-spring-y { transform-origin: bottom center; animation: bar-spring-y 1.6s cubic-bezier(0.22, 1.28, 0.36, 1) both; }
       .motion-heat-cell { opacity: 0; transform: scale(0.45) rotate(-5deg); }
       .motion-heat-cell.is-revealed { animation: heat-cell-spring 1.25s cubic-bezier(0.22, 1.28, 0.36, 1) both; }
     }
@@ -249,7 +258,7 @@
       }
     }
     @media (prefers-reduced-motion: reduce) {
-      .motion-gauge-bounce, .motion-chart-settle, .motion-bar-spring,
+      .motion-gauge-bounce, .motion-chart-settle, .motion-bar-spring, .motion-bar-spring-y,
       .motion-heat-cell, .motion-heat-cell.is-revealed { animation: none !important; }
       .motion-heat-cell { opacity: 1 !important; transform: none !important; }
     }
@@ -2337,12 +2346,24 @@
       if (!el || vizPlayed.has(el)) return;
       const target = el.style[prop];
       if (!target) return;
+      // A width grows across the track; a height grows up it.
+      const grow = prop === 'height' ? 'motion-bar-spring-y' : 'motion-bar-spring';
+      let filled = false;
+      const fill = () => {
+        if (filled) return;
+        filled = true;
+        el.style[prop] = target;
+        requestAnimationFrame(() => el.classList.add(grow));
+      };
       // Do not add the animation class until the visual reaches the fold. Adding
       // it here would spend the spring off-screen while the page is loading.
-      playAfterSeen(el, () => {
-        el.style[prop] = target;
-        requestAnimationFrame(() => el.classList.add('motion-bar-spring'));
-      }, delay);
+      playAfterSeen(el, fill, delay);
+      // The sweep runs on a frame the browser may never give us -- a background
+      // tab, a paused frame loop -- and a bar left at zero width is a reading that
+      // was measured and then shown as nothing. The failsafe fills it regardless.
+      window.setTimeout(() => {
+        if (document.documentElement.contains(el)) fill();
+      }, 4000 + delay);
       el.style[prop] = '0%';
     }
 
@@ -2425,6 +2446,11 @@
        ['barMed', 'width', 480], ['barHigh', 'width', 640], ['injuryRiskBar', 'width', 800],
        ['bbLevelBar', 'height', 180], ['glanceSleepBar', 'width', 120]]
         .forEach(([id, prop, delay]) => primeGrow(document.getElementById(id), prop, delay));
+
+      // The five-pillar matrix is rebuilt from the payload on every render, so its bars
+      // are primed here rather than by id, one after the next, and each fills left to
+      // right from zero width.
+      document.querySelectorAll('.pillar-fill').forEach((el, index) => primeGrow(el, 'width', 80 * index));
 
       ['recoveryGaugeCircle', 'strainGaugeCircle', 'readinessGauge', 'movementRingArc', 'glanceStepsRing']
         .forEach(id => primeGauge(document.getElementById(id)));
@@ -3916,7 +3942,7 @@
             <!-- Range Bar -->
             <div class="space-y-1">
               <div class="w-full bg-slate-800 rounded-full h-1.5 relative overflow-hidden">
-                <div class="bg-gradient-to-r from-cyan-500 to-emerald-400 h-1.5 rounded-full" style="width: ${pct}%"></div>
+                <div class="pillar-fill bg-gradient-to-r from-cyan-500 to-emerald-400 h-1.5 rounded-full" style="width: ${pct}%"></div>
               </div>
               <div class="flex justify-between text-[9px] text-slate-500 mono">
                 <span>${pillar.range_min}</span>
@@ -4573,6 +4599,22 @@
           maintainAspectRatio: false,
           baseHrv: baseHrv,
           baseRhr: baseRhr,
+          // Every night falls into the plot from above the visible area, so the chart
+          // reads as points raining onto a map seen from above rather than appearing
+          // already in place. Chart.js resolves `delay` to nothing in this version, so
+          // the stagger comes from each point starting at its own height instead: a
+          // later dataset starts higher and therefore lands later. Reduced motion
+          // skips the whole layer.
+          animation: motionAllows() ? {
+            x: { duration: 0 },
+            y: {
+              from: (ctx) => scatterDropStart(
+                ctx.chart, Number(ctx.datasetIndex) || 0, Number(ctx.dataIndex) || 0
+              ),
+              duration: 1700,
+              easing: 'easeOutQuad',
+            },
+          } : false,
           plugins: {
             legend: {
               display: true,
@@ -4633,6 +4675,20 @@
       if (todayPoint) {
         scrubScatterCallout(todayPoint, baseHrv, baseRhr);
       }
+    }
+
+    // Where a falling point starts. Chart.js animates a point's `y` in pixels, and a
+    // point is only drawn inside the plot area, so a start above the chart area's top
+    // edge is what puts it off the canvas before it drops in. Each dataset starts a
+    // little higher than the last so the quadrants land in waves rather than together,
+    // and each point varies by a few pixels so the fall looks like rain, not a wall.
+    function scatterDropStart(chart, datasetIndex = 0, dataIndex = 0) {
+      const area = chart ? chart.chartArea : null;
+      const axis = chart && chart.scales ? chart.scales.y : null;
+      const top = area && Number.isFinite(area.top)
+        ? area.top
+        : (axis && Number.isFinite(axis.top) ? axis.top : 0);
+      return top - 40 - datasetIndex * 6 - (dataIndex % 6) * 3;
     }
 
     function getScatterQuadrantInfo(hrv, rhr, baseHrv, baseRhr) {

@@ -1606,6 +1606,49 @@ class FitnessAgeOwnerTests(unittest.TestCase):
         )
 
 
+class MotionDirectionTests(unittest.TestCase):
+    """A bar fills from its own edge, and never stays empty waiting for a frame.
+
+    The bars once animated with a scale spring that started at 92% of their width,
+    which reads as a wobble in place rather than a fill, and a primed bar whose
+    reveal never came rendered at zero width -- a measurement shown as nothing.
+    """
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+
+    def test_a_bar_fills_from_zero_from_its_own_edge(self):
+        page = self._page()
+        for keyframes in ("bar-spring", "bar-spring-y"):
+            with self.subTest(keyframes=keyframes):
+                body = page.split(f"@keyframes {keyframes} {{", 1)[1].split("}", 1)[0]
+                self.assertIn("scaleX(0)" if keyframes == "bar-spring" else "scaleY(0)", body)
+        self.assertIn("transform-origin: left center", page)
+        self.assertIn("transform-origin: bottom center", page)
+
+    def test_the_five_pillar_bars_are_primed_by_class_and_have_a_failsafe(self):
+        page = self._page()
+        self.assertIn("pillar-fill", page)
+        self.assertIn("document.querySelectorAll('.pillar-fill')", page)
+        # A reveal that never arrives must still leave the bar at its measured width.
+        grow = page.split("function primeGrow", 1)[1].split("\n    function ", 1)[0]
+        self.assertIn("setTimeout", grow)
+        self.assertIn("el.style[prop] = target;", grow)
+
+    def test_the_scatter_animation_starts_every_point_above_the_plot(self):
+        page = self._page()
+        start = page.split("function scatterDropStart", 1)[1].split("\n    function ", 1)[0]
+
+        self.assertIn("chartArea", start)
+        self.assertIn("return top - ", start)
+        # The drop is pixel-space, which is why it reads the chart area and not the data.
+        self.assertIn("from: (ctx) => scatterDropStart(", page)
+        self.assertIn("easing: 'easeOutQuad'", page)
+
+
 class ThemeDefaultTests(unittest.TestCase):
     """Night mode is the default; day mode is a choice the reader makes.
 
