@@ -182,8 +182,9 @@ These are not style preferences. Each one closed a real, user-visible bug.
    than `value || 54`: a plausible default is how a KPI card read `0.2` while the dial
    beside it said it had nothing to point at. In Python it means `_nullish` /
    `_truthy` / `_as_float`, never a bare `.get(key, default)` (see §6.8).
-   (Two known exceptions remain: the quadrant scatter's point data and the
-   in-engine `intel.recovery_score || 76` fallback — see §8.)
+   (The quadrant scatter's point data left this list in #30; what remains is the
+   in-engine `intel.recovery_score || 76` fallback, the briefing's own
+   `hrv_last_night || 60`, and the snapshot's remaining record defaults — see §8.)
 3. **No static claim beside a live number.** A header pill that always says
    `LIVE`, a tier badge baked to `ATHLETIC`, a colour hardcoded next to a
    word — all three shipped once. Derive both from the payload.
@@ -271,6 +272,7 @@ These are not style preferences. Each one closed a real, user-visible bug.
 | #19 | The movement card becomes a week-and-month trend, built from the same daily channels the correlation lab uses, with the heart reading beside it and today's still-running day left out of the average |
 | #20 | Bars fill from their own edge (`scaleX(0)` from the left, `scaleY(0)` from the bottom) instead of springing at 92% of their width; the five-pillar bars are primed by class with a failsafe that fills them if the reveal never comes; the quadrant chart rains its points in from above the plot |
 | #21 | Every coaching card leads with its own reading drawn: seven finished days as bars (muted for a measured zero, dashed target line where policy has one) or a readiness level bar, empty stubs for a domain with no history. The coach's walking week moves to finished days so it quotes the same average as the movement trend card |
+| #30 | Tonight's point on the quadrant scatter is plotted only from readings the payload actually measured, and the two fields behind it stop being invented at the source: `build_today_snapshot` publishes `None` for an unmeasured overnight HRV and resting heart rate (it used to substitute 60 ms and 51.0 bpm) and publishes no population tier for an absent pulse. When there is no measured night the point is withheld and the chart says so -- no key in the legend, `--` and `NOT MEASURED` in the inspector on the neutral tone, and a sentence under the chart naming both measurements in plain English beside their scientific names. Proved by running the engine with the records present and absent, and by serving the page a vault with tonight's readings removed and then restored |
 | #29 | The quadrant scatter's newest night is drawn in front of every earlier night (`order: -1` -- Chart.js paints the lowest order last, so without it tonight's diamond was painted first and buried under the cluster) and every night arrives from **depth** instead of falling in from above: the chart is built with every point at a far radius and each dataset's measured size is promoted on its own turn (322/529/742/1095/1264 ms apart, measured on the running page) with the shared overshoot bounce. The size is promoted rather than animated from a `from` value because Chart.js re-uses an animation config for every later transition -- measured: a `from` depth collapsed a hovered point from 4 px back to 0.55 px under the cursor. The arrival has one owner (`chart.arriveFromDepth`) played from two places: at the render, so every night reaches its measured size even if the reveal never comes (a chart caught at depth would draw readings as pinpricks), and by the reveal sweep when the reader scrolls to the chart -- resetting this chart is a no-op, measured as a single frame with every position and size unchanged, so the sweep now asks a chart for its own arrival first. Its point data also stops carrying the `hrv_status || 'BALANCED'` word nobody read |
 | #28 | The heat map's tone moves off the focus view and onto the map itself: it sounds as the map loads while scrolling, the cue is renamed `reveal` to match when it plays, and opening or closing the enlarged view is silent |
 | #27 | A re-render replays the motion of the panel it rebuilt: `primeMotion(scope)` becomes the single owner every pass applies, a rebuilt panel replays itself (`replayMotion`) instead of being replaced by plain nodes, and a second `renderDashboard` forgets the played marks so the readings it rewrote (bars, gauges, counters, charts) replay too. Primitives stand down from a second prime in the same pass rather than reading back their own zero, every animation finishes on the newest published value, and `replayAnimation` restarts an existing spring for a bar the render rewrites in place. Found and fixed on the real page: a reveal captured a Chart instance at prime time, and a render that destroyed it made `reset()` throw out of the sweep, leaving every primable behind that canvas unrevealed |
@@ -288,18 +290,18 @@ its data, and the published page loads the fresh vault.
 
 ## 8. Known open items (honest list)
 
-* **The quadrant scatter still invents tonight's coordinates.** Its point data falls
-  back to `data.today.rhr || 51` and `data.today.hrv_last_night || 60`, so a night the
-  payload did not publish is drawn as a plausible point instead of not being drawn. The
-  word it used to fabricate is gone as of #29 -- `hrv_status || 'BALANCED'` was never
-  read, so deleting it closed that fallback rather than renaming it. The remaining fix
-  is to skip the point and say so, the way the other cards do.
-* **The engine's own fallbacks are still fallbacks.** `intel.recovery_score || 76`
-  and `today.hrv_last_night || 60` feed gauges and chart coordinates when a field is
-  missing, and the sleep-stage seconds still default inside the doughnut's own
-  dataset. The published payload carries all of them today, so nothing on screen is
-  fabricated — but they are the same shape of trap, and PR #14 only closed the ones
-  the render pass publishes as readings.
+* **The quadrant scatter no longer invents tonight.** #30 closed both its word (#29)
+  and its coordinates: the point is built only from finite readings, and the snapshot
+  that feeds it publishes `None` instead of 60 ms and 51.0 bpm. Serving the page a vault
+  with tonight's two readings removed leaves tonight unplotted and says so.
+* **The briefing still defaults the same field it now receives as `None`.**
+  `index.html` computes `const hrv = today.hrv_last_night || 60` (and
+  `baselines.hrv_30d || 55.3`) for the readiness delta and the AI briefing, so a payload
+  without an overnight HRV still hands the briefing a plausible 60. The same shape sits
+  in the snapshot's other record defaults (`sleep_score 78`, `steps 47`,
+  `hrv_weekly_avg 57`, `hrv_status 'BALANCED'`) and in `intel.recovery_score || 76`.
+  None of them reaches the quadrant chart any more; each is the next candidate for the
+  same treatment.
 * **Population advice still exists in a few info panels** ("Elite endurance:
   60–100+ ms"). It is labelled as context, but the page's own rule is
   compare-to-your-own-baseline.

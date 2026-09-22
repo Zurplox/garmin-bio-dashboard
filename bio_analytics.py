@@ -333,8 +333,14 @@ def build_today_snapshot(today_str, sleep_record, hrv_record, recent_rhr, body_b
     sleep_record = sleep_record or {}
     hrv_record = hrv_record or {}
     latest_rhr_record = max(recent_rhr, key=lambda r: r.get("calendarDate") or "") if recent_rhr else None
-    rhr_today = latest_rhr_record["value"] if latest_rhr_record is not None else 51.0
-    rhr_tier = policy.rhr_tier(rhr_today)
+    # An unmeasured reading is published as unmeasured. A plausible resting heart rate
+    # (51.0) and overnight HRV (60 ms) used to stand in for a device that reported
+    # neither, which is how the quadrant chart came to plot a night nobody measured.
+    # Every reader of these two fields already carries its own documented fallback for
+    # arithmetic, so `None` here changes what the page shows, never what the engine
+    # computes. The tier is published with it: an absent pulse gets no population band.
+    rhr_today = latest_rhr_record["value"] if latest_rhr_record is not None else None
+    rhr_tier = policy.rhr_tier(rhr_today) if rhr_today is not None else None
     # Garmin's own status word. It is context for the HRV panel only: the band it
     # sits in against the 30-day baseline is the single meaning the page renders.
     hrv_watch_status = hrv_record.get("status", "BALANCED")
@@ -354,7 +360,7 @@ def build_today_snapshot(today_str, sleep_record, hrv_record, recent_rhr, body_b
         "sleep_stress": sleep_record.get("avg_stress", 16.0),
         "respiration_rate": sleep_record.get("avg_respiration", 13.0),
         "lowest_respiration": sleep_record.get("lowest_respiration", 9.0),
-        "hrv_last_night": hrv_record.get("lastNightAvg", 60),
+        "hrv_last_night": hrv_record.get("lastNightAvg"),
         "hrv_weekly_avg": hrv_record.get("weeklyAvg", 57),
         "hrv_status": hrv_watch_status,
         "hrv_baseline_low": hrv_record.get("baseline", {}).get("balancedLow", 54),
@@ -363,8 +369,8 @@ def build_today_snapshot(today_str, sleep_record, hrv_record, recent_rhr, body_b
         # The tier arrives resolved so the badge beside the number cannot drift
         # from the measurement the way a fixed label did.
         "rhr_tier": rhr_tier,
-        "rhr_tier_label": policy.RHR_TIERS[rhr_tier]["badge"],
-        "rhr_tier_tone": policy.RHR_TIERS[rhr_tier]["tone"],
+        "rhr_tier_label": policy.RHR_TIERS[rhr_tier]["badge"] if rhr_tier else None,
+        "rhr_tier_tone": policy.RHR_TIERS[rhr_tier]["tone"] if rhr_tier else None,
         "body_battery_charged": body_battery.get("charged", 38),
         "body_battery_drained": body_battery.get("drained", 0),
         "stress_avg": stress_avg,

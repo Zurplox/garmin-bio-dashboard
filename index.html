@@ -1895,13 +1895,13 @@
         <div id="scatterCalloutHud" class="p-3.5 rounded-xl bg-slate-900/90 border border-cyan-500/30 mb-4 transition-all flex flex-wrap items-center justify-between gap-3 text-xs">
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse-dot"></span>
-            <span id="scatterHudDate" class="font-bold text-white mono text-sm">Today (Latest Session)</span>
-            <span id="scatterHudQuadrant" class="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono font-bold">QUADRANT 1 // PEAK RECOVERY</span>
+            <span id="scatterHudDate" class="font-bold text-white mono text-sm">--</span>
+            <span id="scatterHudQuadrant" class="px-2 py-0.5 rounded bg-slate-500/10 border border-slate-500/30 text-slate-400 font-mono font-bold">NOT MEASURED</span>
           </div>
           <div class="flex items-center gap-4 flex-wrap text-slate-300 mono text-[11px]">
-            <span>Overnight HRV: <strong id="scatterHudHrv" class="text-emerald-400 font-bold text-sm">60 ms</strong></span>
-            <span>Resting HR: <strong id="scatterHudRhr" class="text-amber-400 font-bold text-sm">51 bpm</strong></span>
-            <span id="scatterHudInterpretation" class="text-slate-400 font-medium">Your nervous system has recovered and your heart is working easily.</span>
+            <span>Overnight HRV: <strong id="scatterHudHrv" class="text-slate-400 font-bold text-sm">--</strong></span>
+            <span>Resting HR: <strong id="scatterHudRhr" class="text-slate-400 font-bold text-sm">--</strong></span>
+            <span id="scatterHudInterpretation" class="text-slate-400 font-medium">Nothing measured for tonight yet.</span>
           </div>
         </div>
 
@@ -4744,16 +4744,18 @@
       const matchedNights = q1.length + q2.length + q3.length + q4.length;
       document.getElementById("scatterNightCount").textContent = `${matchedNights} Matched Nights`;
 
-      if (!todayPoint && data.today) {
-        // Tonight's point used to carry the device's own overnight HRV word with a
-        // reassuring default behind it -- a verdict for a field the payload may simply not
-        // have published. Nothing ever read it: the quadrant is decided by the two
-        // coordinates and their baselines, so the word is gone rather than defaulted.
-        todayPoint = {
-          x: data.today.rhr || 51,
-          y: data.today.hrv_last_night || 60,
-          date: todayDate
-        };
+      // Tonight is plotted only from values this payload actually measured. An absent
+      // resting heart rate or overnight HRV (heart rate variability) used to be filled in
+      // with a plausible one (51 bpm and 60 ms), which drew a night nobody measured as a
+      // reassuring point on the map. Absence is tested before the cast, because
+      // `Number(null)` is 0 and a zero would look like a measurement.
+      const tonight = data.today || {};
+      const tonightReading = value => (value === null || value === undefined || value === '' ? null : Number(value));
+      const tonightRhr = tonightReading(tonight.rhr);
+      const tonightHrv = tonightReading(tonight.hrv_last_night);
+      const tonightMeasured = Number.isFinite(tonightRhr) && Number.isFinite(tonightHrv);
+      if (!todayPoint && tonightMeasured) {
+        todayPoint = { x: tonightRhr, y: tonightHrv, date: todayDate || 'Tonight' };
       }
 
       // Today leads the sentence, then each axis in words: this is the most
@@ -4763,7 +4765,9 @@
         ? (point.x <= baseRhr ? 'Q1 (peak recovery)' : 'Q2 (cardio arousal)')
         : (point.x <= baseRhr ? 'Q3 (parasympathetic fatigue)' : 'Q4 (systemic strain)');
       document.getElementById("scatterAxisNote").textContent = [
-        todayPoint ? `Today sits at ${todayPoint.x} bpm resting heart rate and ${todayPoint.y} ms HRV — ${quadrantOf(todayPoint)}.` : '',
+        todayPoint
+          ? `Today sits at ${todayPoint.x} bpm resting heart rate and ${todayPoint.y} ms HRV — ${quadrantOf(todayPoint)}.`
+          : 'Tonight is not plotted: this payload carries no overnight heart rate variability (HRV — how much the gap between heartbeats varies) and no resting heart rate (RHR — your pulse at rest) for it, and a night that was not measured is not drawn.',
         `Side to side is resting heart rate (RHR), your own 30-day baseline ${baseRhr} bpm.`,
         `Up and down is overnight heart rate variability (HRV), your own 30-day baseline ${baseHrv} ms.`,
         `${q1.length} of ${matchedNights} nights sit in Q1, the top-left corner.`
@@ -4865,7 +4869,10 @@
                 usePointStyle: true,
                 // Tonight is the reading the reader came for, so its key sits first
                 // in the legend instead of trailing the four historical quadrants.
-                sort: (a, b) => (a.text.startsWith('Today') ? -1 : b.text.startsWith('Today') ? 1 : 0)
+                sort: (a, b) => (a.text.startsWith('Today') ? -1 : b.text.startsWith('Today') ? 1 : 0),
+                // A key for a night that was never measured would promise a point the
+                // payload does not have, so it leaves the legend with the point.
+                filter: item => item.text !== 'Today (Latest)' || !!todayPoint
               }
             },
             tooltip: {
@@ -4940,6 +4947,8 @@
 
       if (todayPoint) {
         scrubScatterCallout(todayPoint, baseHrv, baseRhr);
+      } else {
+        paintScatterHudAbsent();
       }
     }
 
@@ -4986,6 +4995,13 @@
       }
     }
 
+    // The inspector has exactly two states -- tonight's measured reading, or nothing --
+    // and each one writes the whole row, so a value can never sit beside a tone or a word
+    // that belongs to the other.
+    const SCATTER_HUD_RHR_TONE = 'text-amber-400';
+    const SCATTER_HUD_HRV_TONE = 'text-emerald-400';
+    const SCATTER_HUD_ABSENT_TONE = 'bg-slate-500/10 border-slate-500/30 text-slate-400';
+
     function scrubScatterCallout(pt, baseHrv, baseRhr) {
       if (!pt) return;
       const info = getScatterQuadrantInfo(pt.y, pt.x, baseHrv, baseRhr);
@@ -4993,9 +5009,31 @@
       const badge = document.getElementById("scatterHudQuadrant");
       badge.className = `px-2 py-0.5 rounded border font-mono font-bold ${info.badgeClass}`;
       badge.textContent = info.quadrant;
-      document.getElementById("scatterHudHrv").textContent = `${pt.y} ms`;
-      document.getElementById("scatterHudRhr").textContent = `${pt.x} bpm`;
+      const hrvEl = document.getElementById("scatterHudHrv");
+      hrvEl.className = `${SCATTER_HUD_HRV_TONE} font-bold text-sm`;
+      hrvEl.textContent = `${pt.y} ms`;
+      const rhrEl = document.getElementById("scatterHudRhr");
+      rhrEl.className = `${SCATTER_HUD_RHR_TONE} font-bold text-sm`;
+      rhrEl.textContent = `${pt.x} bpm`;
       document.getElementById("scatterHudInterpretation").textContent = info.plain;
+    }
+
+    // Tonight before it has been measured: the row states what is missing, in the same
+    // words the sentence under the chart uses, rather than showing resting values from
+    // markup beside a quadrant badge nobody read.
+    function paintScatterHudAbsent() {
+      document.getElementById("scatterHudDate").textContent = '--';
+      const badge = document.getElementById("scatterHudQuadrant");
+      badge.className = `px-2 py-0.5 rounded border font-mono font-bold ${SCATTER_HUD_ABSENT_TONE}`;
+      badge.textContent = 'NOT MEASURED';
+      const hrvEl = document.getElementById("scatterHudHrv");
+      hrvEl.className = 'text-slate-400 font-bold text-sm';
+      hrvEl.textContent = '--';
+      const rhrEl = document.getElementById("scatterHudRhr");
+      rhrEl.className = 'text-slate-400 font-bold text-sm';
+      rhrEl.textContent = '--';
+      document.getElementById("scatterHudInterpretation").textContent =
+        "Nothing measured for tonight yet: no overnight heart rate variability (HRV) and no resting heart rate (RHR) have been published, so tonight is not on the map. Point at any night to read it.";
     }
 
     function getScatterCalloutHtml(pt, baseHrv, baseRhr) {

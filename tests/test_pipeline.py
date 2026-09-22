@@ -542,6 +542,35 @@ class TodaySnapshotTests(unittest.TestCase):
         self.assertEqual(snapshot["stress_avg"], 30.0)
         self.assertEqual(snapshot["stress_distribution"]["samples"], 60)
 
+    def test_an_unmeasured_pair_publishes_as_unmeasured(self):
+        """A device that reported neither reading gets no tonight, and no tier.
+
+        The snapshot used to substitute a plausible 51.0 bpm and 60 ms, which is the
+        pair the quadrant chart then plotted as a night nobody had measured.
+        """
+        snapshot = source.fetch_today_snapshot(
+            FakeClient(summary={"totalSteps": 8000, "averageStressLevel": 20}),
+            "2026-09-20", make_sleep("2026-09-20"), None, [],
+        )
+        self.assertIsNone(snapshot["hrv_last_night"])
+        self.assertIsNone(snapshot["rhr"])
+        self.assertIsNone(snapshot["rhr_tier"])
+        self.assertIsNone(snapshot["rhr_tier_label"])
+        self.assertIsNone(snapshot["rhr_tier_tone"])
+
+    def test_a_measured_pair_still_publishes_its_own_values(self):
+        snapshot = source.fetch_today_snapshot(
+            FakeClient(summary={"totalSteps": 8000, "averageStressLevel": 20}),
+            "2026-09-20", make_sleep("2026-09-20"),
+            {"lastNightAvg": 54}, make_rhr("2026-09-20", 3, value=48.0),
+        )
+        self.assertEqual(snapshot["hrv_last_night"], 54)
+        self.assertEqual(snapshot["rhr"], 50.0)          # the latest reading, not a default
+        tier = policy.rhr_tier(50.0)
+        self.assertEqual(snapshot["rhr_tier"], tier)
+        self.assertEqual(snapshot["rhr_tier_label"], policy.RHR_TIERS[tier]["badge"])
+        self.assertEqual(snapshot["rhr_tier_tone"], policy.RHR_TIERS[tier]["tone"])
+
 
 class RhrTierTests(unittest.TestCase):
     """The RHR badge follows the number; the markup used to hard-code ATHLETIC.
@@ -2209,6 +2238,55 @@ class NoInventedMeasurementTests(unittest.TestCase):
         self.assertIn('measured(today.hrv_last_night)', page)
         self.assertIn('measured(fitness.acwr)', page)
 
+    def test_tonight_is_plotted_only_from_readings_that_were_measured(self):
+        page = self._page()
+        scatter = page.split("function renderScatterMatrix", 1)[1].split(
+            "function getScatterQuadrantInfo", 1
+        )[0]
+        # A plausible pair (51 bpm, 60 ms) stood in for a device that reported neither.
+        self.assertNotIn("rhr || 51", scatter)
+        self.assertNotIn("hrv_last_night || 60", scatter)
+        self.assertIn("Number.isFinite(tonightRhr) && Number.isFinite(tonightHrv)", scatter)
+        self.assertIn("todayPoint = { x: tonightRhr, y: tonightHrv", scatter)
+        # Absence is tested before the cast, because Number(null) is 0 and a zero would
+        # read as a measurement of nothing.
+        cast = scatter.split("const tonightReading = value =>", 1)[1].split(";", 1)[0]
+        self.assertIn("value === null", cast)
+        self.assertIn("value === ''", cast)
+        self.assertIn("Number(value)", cast)
+
+    def test_a_withheld_night_leaves_no_key_row_or_reading_behind(self):
+        page = self._page()
+        scatter = page.split("function renderScatterMatrix", 1)[1].split(
+            "function getScatterQuadrantInfo", 1
+        )[0]
+        absent = page.split("function paintScatterHudAbsent()", 1)[1].split("\n    }\n", 1)[0]
+        # The point, its legend key, the inspector row and the sentence all agree.
+        self.assertIn("filter: item => item.text !== 'Today (Latest)' || !!todayPoint", page)
+        self.assertIn("paintScatterHudAbsent();", page)
+        self.assertIn("Tonight is not plotted:", scatter)
+        self.assertIn("overnight heart rate variability (HRV", scatter)
+        self.assertIn("resting heart rate (RHR", scatter)
+        self.assertIn("badge.textContent = 'NOT MEASURED';", absent)
+        self.assertIn("SCATTER_HUD_ABSENT_TONE", absent)
+        self.assertIn("hrvEl.textContent = '--';", absent)
+        self.assertIn("rhrEl.textContent = '--';", absent)
+        self.assertIn("hrvEl.className = 'text-slate-400 font-bold text-sm';", absent)
+        self.assertIn("rhrEl.className = 'text-slate-400 font-bold text-sm';", absent)
+        # Plain English beside the scientific term, neither one alone.
+        self.assertIn("overnight heart rate variability (HRV) and no resting heart rate (RHR)", absent)
+        # The measured state owns its own colours, so the two states cannot be blended.
+        self.assertIn("SCATTER_HUD_HRV_TONE", page)
+        self.assertIn("SCATTER_HUD_RHR_TONE", page)
+        # The markup starts in the same absent state rather than carrying a reading.
+        hud = page.split('id="scatterCalloutHud"', 1)[1].split("</div>\n        </div>", 1)[0]
+        self.assertNotIn("60 ms", hud)
+        self.assertNotIn("51 bpm", hud)
+        self.assertNotIn("QUADRANT", hud)
+        self.assertIn(">--<", hud)
+        self.assertIn("NOT MEASURED", hud)
+        self.assertIn("text-slate-400 font-bold text-sm", hud)
+
     def test_the_quadrant_chart_publishes_no_word_nobody_measured(self):
         page = self._page()
         scatter = page.split("function renderScatterMatrix", 1)[1].split(
@@ -2217,8 +2295,8 @@ class NoInventedMeasurementTests(unittest.TestCase):
         # Tonight's point used to carry `hrv_status || 'BALANCED'` -- a reassuring verdict
         # for a field the payload may not have published. Nothing read it: the quadrant is
         # decided by the two coordinates and their baselines, so the word is gone rather
-        # than defaulted. (The coordinates themselves still carry fallbacks of their own;
-        # that remaining debt is named in HANDOFF section 8.)
+        # than defaulted, and its coordinates are now measured-or-withheld too (pinned
+        # above). What remains of this class of debt is named in HANDOFF section 8.
         self.assertNotIn("hrv_status", scatter)
         self.assertNotIn("'BALANCED'", scatter)
         self.assertNotIn("status:", scatter)
