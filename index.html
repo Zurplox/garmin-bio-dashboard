@@ -1582,16 +1582,18 @@
             </div>
           </div>
 
-          <!-- B. Today's movement, as a ring you can read at a glance. -->
+          <!-- B. Movement over a week and a month, with the heart beside it. Today's own
+               step count sits on the strip at the top of the page, so this card reads the
+               longer window: one day cannot show a habit. -->
           <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
             <div class="flex items-center justify-between mb-1.5">
-              <span class="text-[10px] font-bold tracking-wider text-cyan-400 uppercase">Today's movement</span>
-              <span class="text-[10px] text-slate-500 mono">STEPS &amp; INTENSITY</span>
+              <span class="text-[10px] font-bold tracking-wider text-cyan-400 uppercase">Movement trend</span>
+              <span id="movementWindow" class="text-[10px] text-slate-500 mono">--</span>
             </div>
             <div class="flex items-center gap-4">
               <div class="relative w-28 h-28 shrink-0">
                 <svg id="movementRing" viewBox="0 0 120 120" class="w-full h-full" role="img" aria-labelledby="movementRingLabel">
-                  <title id="movementRingLabel">Steps against today's step goal</title>
+                  <title id="movementRingLabel">Average steps over the last seven measured days against the step goal</title>
                   <defs>
                     <linearGradient id="movementRingGradient" x1="0" y1="0" x2="1" y2="1">
                       <stop offset="0%" stop-color="#06b6d4" />
@@ -1603,14 +1605,17 @@
                 </svg>
                 <div class="absolute inset-0 flex flex-col items-center justify-center">
                   <span id="movementRingPct" class="mono text-lg font-extrabold text-white">--</span>
-                  <span class="text-[9px] uppercase tracking-wider text-slate-400">of goal</span>
+                  <span class="text-[9px] uppercase tracking-wider text-slate-400">7-day avg</span>
                 </div>
               </div>
               <div class="min-w-0 space-y-1 text-[11px] text-slate-400">
-                <p>Steps <strong id="movementSteps" class="text-slate-200 mono" data-quality-key="steps_history">--</strong> of <strong id="movementGoal" class="text-slate-300 mono">--</strong></p>
-                <p>Floors <strong id="movementFloors" class="text-slate-200 mono">--</strong> · Active kcal <strong id="movementKcal" class="text-slate-200 mono">--</strong></p>
+                <p>Week average <strong id="movementWeekAvg" class="text-slate-200 mono" data-quality-key="steps_history">--</strong> steps</p>
+                <p>Month average <strong id="movementMonthAvg" class="text-slate-200 mono">--</strong> steps</p>
+                <p>Goal met <strong id="movementDaysMet" class="text-slate-200 mono">--</strong> of <strong id="movementDaysMeasured" class="text-slate-300 mono">--</strong> measured days</p>
+                <p id="movementVsWeek" class="hidden text-[10px] text-slate-400 mono"></p>
                 <p>Intensity this week <strong id="movementIntensity" class="text-slate-200 mono">--</strong></p>
                 <span id="movementIntensityBand" class="inline-block text-[10px] px-2 py-0.5 rounded bg-slate-500/10 text-slate-400 font-semibold">--</span>
+                <p id="movementHeart" class="text-slate-300 leading-snug">--</p>
               </div>
             </div>
             <p id="movementReadout" class="mt-3 text-[11px] text-slate-300 leading-relaxed" aria-live="polite"></p>
@@ -1618,8 +1623,9 @@
               <span>ⓘ Where these numbers come from</span>
             </button>
             <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
-              <p>The ring is today's step count against the goal your own device set, not a target invented here. The floors and active-calorie figures are the same movement totals the coaching cards read, and the intensity line is this week's moderate-intensity minutes against the 150-minute floor the health guidance sets.</p>
-              <p>A day with no step count yet reads as <span class="mono">--</span> rather than as zero, because "not measured" and "measured nothing" are different claims.</p>
+              <p>The ring is your <strong class="text-slate-300">average</strong> steps over the last seven <em>finished</em> days the device actually recorded, against the goal your own watch set — not a target invented here. The window it covers is printed in the corner, and today's own count is on the strip at the top of the page. Today is left out of the average because it is still accumulating, so the number does not shrink all morning.</p>
+              <p>The month line is the same average over the last 30 measured days, and "goal met" counts the measured days that reached the goal. Days with no step record are left out of every average rather than counted as zero, because "not measured" and "measured nothing" are different claims.</p>
+              <p>The heart line splits those days at <em>your own</em> median step count and reports what resting heart rate and overnight HRV actually averaged on each side, with the number of days behind each figure. It describes how your heart behaved beside your movement; it is not a claim that the steps caused the difference.</p>
             </div>
           </div>
         </div>
@@ -4986,45 +4992,89 @@
       badge.className = `inline-block mt-1 text-xs px-2 py-0.5 rounded bg-${tone}-500/10 text-${tone}-400 font-semibold`;
     }
 
-    function renderMovementRing(data) {
+    // The movement card reads a week and a month, and the heart beside them. Today's own
+    // step count is published on the strip at the top of the page, so nothing here reports
+    // a single day: every figure is a published weekly or monthly average, or `--`.
+    function renderMovementTrend(data) {
       const capacity = data.capacity || {};
-      const day = capacity.day || {};
+      const trend = capacity.trend || {};
+      const week = trend.week || null;
+      const month = trend.month || null;
+      const heart = trend.heart || null;
       const intensity = capacity.intensity || {};
-      const steps = day.steps;
-      const goal = day.step_goal;
-      const hasSteps = steps !== null && steps !== undefined && goal;
       const hasIntensity = intensity.weekly_total !== null && intensity.weekly_total !== undefined && intensity.goal;
 
       const arc = document.getElementById('movementRingArc');
       if (arc) {
         const circumference = 2 * Math.PI * 52;
-        const fraction = hasSteps ? Math.max(0, Math.min(1, steps / goal)) : 0;
+        const share = week && week.pct_of_goal != null ? week.pct_of_goal / 100 : 0;
+        const fraction = Math.max(0, Math.min(1, share));
         arc.setAttribute('stroke-dashoffset', (circumference * (1 - fraction)).toFixed(2));
       }
 
-      document.getElementById('movementRingPct').textContent = hasSteps ? `${Math.round(steps / goal * 100)}%` : '--';
-      document.getElementById('movementSteps').textContent =
-        steps === null || steps === undefined ? '--' : Number(steps).toLocaleString('en-SG');
-      document.getElementById('movementGoal').textContent = goal ? Number(goal).toLocaleString('en-SG') : '--';
-      document.getElementById('movementFloors').textContent = day.floors === null || day.floors === undefined ? '--' : day.floors;
-      document.getElementById('movementKcal').textContent = day.active_kcal === null || day.active_kcal === undefined ? '--' : day.active_kcal;
+      const windowEl = document.getElementById('movementWindow');
+      if (windowEl) {
+        const covered = trend.window && trend.window.days_measured === 1 ? 'day' : 'days';
+        windowEl.textContent = trend.window && trend.window.label
+          ? `${trend.window.days_measured} ${covered} to ${trend.window.end_label || trend.window.end}`
+          : '--';
+      }
+
+      document.getElementById('movementRingPct').textContent =
+        week && week.pct_of_goal != null ? `${week.pct_of_goal}%` : '--';
+      document.getElementById('movementWeekAvg').textContent =
+        week ? Number(week.mean_steps).toLocaleString('en-SG') : '--';
+      document.getElementById('movementMonthAvg').textContent =
+        month ? Number(month.mean_steps).toLocaleString('en-SG') : '--';
+      document.getElementById('movementDaysMet').textContent =
+        week && week.days_met_goal != null ? week.days_met_goal : '--';
+      document.getElementById('movementDaysMeasured').textContent =
+        week ? week.days_measured : '--';
+
+      // The week-over-week change, stated with its sign and no invented verdict.
+      const vs = document.getElementById('movementVsWeek');
+      if (week && week.change_pct != null && week.prior_mean_steps != null) {
+        const sign = week.change_pct > 0 ? '+' : '';
+        vs.textContent = `${sign}${week.change_pct}% versus the week before (${Number(week.prior_mean_steps).toLocaleString('en-SG')} steps)`;
+        vs.classList.remove('hidden');
+      } else {
+        vs.textContent = '';
+        vs.classList.add('hidden');
+      }
+
       document.getElementById('movementIntensity').textContent =
         hasIntensity ? `${intensity.weekly_total} of ${intensity.goal} min` : '--';
-
       const bandEl = document.getElementById('movementIntensityBand');
       const tone = hasIntensity ? (intensity.tone || 'slate') : 'slate';
       bandEl.textContent = hasIntensity ? (intensity.label || '--') : '--';
       bandEl.className = `inline-block text-[10px] px-2 py-0.5 rounded bg-${tone}-500/10 text-${tone}-400 font-semibold`;
 
+      // The heart reading beside the movement: both sides of the athlete's own median
+      // step count, each with the same day count, and no verdict on the difference.
+      const heartEl = document.getElementById('movementHeart');
+      if (!heart || (heart.rhr_high == null && heart.hrv_high == null)) {
+        heartEl.textContent = '--';
+        heartEl.className = 'text-slate-500 leading-snug';
+      } else {
+        const side = (rhr, hrv) => [
+          rhr == null ? null : `${rhr} bpm resting HR`,
+          hrv == null ? null : `${hrv} ms HRV`,
+        ].filter(Boolean).join(', ');
+        heartEl.innerHTML =
+          `<span class="text-slate-500">Busier days</span> (above ${Number(heart.median_steps).toLocaleString('en-SG')} steps) `
+          + `<span class="mono text-slate-200">${side(heart.rhr_high, heart.hrv_high)}</span>`
+          + ` · <span class="text-slate-500">quieter days</span> `
+          + `<span class="mono text-slate-200">${side(heart.rhr_low, heart.hrv_low)}</span>`
+          + `<span class="text-slate-500"> — ${heart.high_days} and ${heart.low_days} days</span>`;
+        heartEl.className = 'leading-snug';
+      }
+
       const readout = document.getElementById('movementReadout');
-      if (!hasSteps) {
-        readout.textContent = 'No step count has arrived for today yet, so the ring stays empty rather than reading as zero.';
+      if (!trend.available || !trend.plain) {
+        readout.textContent = 'No finished day has a step record yet, so this card stays empty rather than averaging a day that is still running.';
         return;
       }
-      const parts = [`Today the device logged ${Number(steps).toLocaleString('en-SG')} steps — ${Math.round(steps / goal * 100)}% of your own ${Number(goal).toLocaleString('en-SG')}-step goal`];
-      if (day.floors !== null && day.floors !== undefined) parts.push(`${day.floors} floors`);
-      if (day.active_kcal !== null && day.active_kcal !== undefined) parts.push(`${day.active_kcal} active kcal`);
-      let sentence = `${parts.join(', ')}.`;
+      let sentence = trend.plain;
       if (hasIntensity && intensity.plain) sentence += ` ${asSentence(intensity.plain)}`;
       readout.textContent = sentence;
     }
@@ -5149,7 +5199,7 @@
 
     function renderInstruments(data) {
       renderAcwrDial(data);
-      renderMovementRing(data);
+      renderMovementTrend(data);
       renderConsistencyGrid(data);
     }
 

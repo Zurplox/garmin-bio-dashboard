@@ -800,7 +800,7 @@ class InstrumentTests(unittest.TestCase):
                 self.assertTrue(tag.rstrip().endswith("--"), tag)
         # Each instrument has an explicit absent path rather than a zero reading.
         for name, marker in (
-            ("renderMovementRing", "No step count has arrived for today"),
+            ("renderMovementTrend", "No finished day has a step record yet"),
             ("renderConsistencyGrid", "No session has been logged in this window"),
             ("renderAcwrDial", "so the dial has nothing to point at"),
         ):
@@ -1107,6 +1107,22 @@ class PayloadAssemblyTests(unittest.TestCase):
         self.assertEqual(summary["movement"]["sessions"], 0)  # the fixture logs no activity
         self.assertEqual(summary["sleep"]["baseline_hours"], payload["whoop"]["baseline_sleep_need_hours"])
         self.assertTrue(summary["window_label"].endswith("SGT"))
+
+    def test_the_payload_carries_the_movement_trend(self):
+        payload = sync.build_payload(self.client, self.fetched, self._dq())
+        trend = payload["capacity"]["trend"]
+
+        # Twenty measured days at 9,000 against a 10,000 goal: the card reads the week
+        # and the month, not the day, because the day is on the strip at the top.
+        self.assertTrue(trend["available"])
+        self.assertEqual(trend["week"]["mean_steps"], 9000)
+        self.assertEqual(trend["week"]["days_met_goal"], 0)
+        self.assertEqual(trend["month"]["mean_steps"], 9000)
+        self.assertIn("9,000 steps", trend["plain"])
+        # Every measured day in this fixture is identical, so there is no busier and
+        # quieter side to compare: the heart line stays absent rather than splitting
+        # one number into two.
+        self.assertIsNone(trend["heart"])
 
     def test_payload_ships_resolved_bands_and_computed_scores(self):
         payload = sync.build_payload(self.client, self.fetched, self._dq())
@@ -1905,6 +1921,110 @@ class ChannelSeriesTests(unittest.TestCase):
         series = analytics.daily_channel_series([], [], [{"calendarDate": "2026-09-20", "value": 49}], [], [])
 
         self.assertEqual(list(series), ["rhr"])
+
+
+# ---------------------------------------------------------------------------
+# The movement card reads a week and a month, with the heart beside it
+# ---------------------------------------------------------------------------
+
+class MovementTrendTests(unittest.TestCase):
+    """Every figure is a measured average, or absent. No day is invented as zero."""
+
+    def _channels(self, steps=None, rhr=None, hrv=None):
+        def dated(values):
+            return {f"2026-08-{day:02d}": value for day, value in (values or {}).items()}
+
+        return {"steps": dated(steps), "rhr": dated(rhr), "hrv": dated(hrv)}
+
+    def test_the_week_and_month_averages_come_from_the_measured_days_only(self):
+        steps = {day: 9000 for day in range(1, 32)}
+        steps[25] = 1000  # a quiet day inside the week
+        trend = analytics.build_movement_trend(self._channels(steps=steps), "2026-08-31", 9000)
+
+        # The week is the seven finished days ending 30 Aug, so days 24-30.
+        self.assertEqual(trend["window"]["label"], "24-30 Aug")
+        self.assertEqual(trend["week"]["days_measured"], 7)
+        self.assertEqual(trend["week"]["mean_steps"], int(round((9000 * 6 + 1000) / 7)))
+        self.assertEqual(trend["week"]["prior_mean_steps"], 9000)
+        self.assertEqual(trend["week"]["days_met_goal"], 6)  # every measured day but the quiet one
+        self.assertEqual(trend["week"]["pct_of_goal"], int(round(trend["week"]["mean_steps"] / 9000 * 100)))
+        self.assertEqual(trend["month"]["days_measured"], 30)
+
+    def test_a_gap_in_the_record_shrinks_the_week_rather_than_counting_zero(self):
+        steps = {day: 9000 for day in range(1, 31) if day not in (28, 29)}
+        trend = analytics.build_movement_trend(self._channels(steps=steps), "2026-08-31", 10000)
+
+        self.assertEqual(trend["week"]["days_measured"], 5)
+        self.assertEqual(trend["week"]["mean_steps"], 9000)
+
+    def test_a_month_that_repeats_the_week_is_not_printed_twice(self):
+        trend = analytics.build_movement_trend(
+            self._channels(steps={day: 8000 for day in range(24, 31)}), "2026-08-31", 10000
+        )
+
+        self.assertEqual(trend["plain"].count("8,000 steps"), 1)
+
+    def test_the_heart_split_uses_the_readers_own_median_and_both_sides(self):
+        steps = {day: 5000 + day * 400 for day in range(1, 30)}
+        rhr = {day: 60 - day // 4 for day in range(1, 30)}
+        hrv = {day: 40 + day // 3 for day in range(1, 30)}
+        trend = analytics.build_movement_trend(
+            self._channels(steps=steps, rhr=rhr, hrv=hrv), "2026-08-31", 20000
+        )
+
+        heart = trend["heart"]
+        self.assertIsNotNone(heart)
+        self.assertGreater(heart["rhr_low"], heart["rhr_high"])  # busier days sat lower
+        self.assertLess(heart["hrv_low"], heart["hrv_high"])
+        self.assertEqual(heart["high_days"] + heart["low_days"], 29)
+        # The comparison is published, not narrated: the card prints it once, beside the
+        # ring, so `plain` carries no second copy of the same figures.
+        self.assertNotIn("resting heart rate", trend["plain"])
+        self.assertNotIn(str(heart["median_steps"]), trend["plain"])
+
+    def test_a_short_history_publishes_no_comparison_rather_than_a_thin_one(self):
+        trend = analytics.build_movement_trend(
+            self._channels(steps={day: 8000 for day in range(1, 9)},
+                           rhr={day: 50 for day in range(1, 9)}), "2026-08-09", 10000
+        )
+
+        self.assertIsNone(trend["heart"])
+        self.assertNotIn("resting heart rate", trend["plain"])
+
+    def test_no_steps_at_all_reads_as_absent_everywhere(self):
+        trend = analytics.build_movement_trend({}, "2026-08-31", 10000)
+
+        self.assertFalse(trend["available"])
+        for key in ("week", "month", "heart", "plain"):
+            self.assertIsNone(trend[key])
+
+    def test_a_single_measured_day_reads_as_one_day(self):
+        trend = analytics.build_movement_trend(
+            self._channels(steps={30: 12000}), "2026-08-31", 10000
+        )
+
+        self.assertNotIn("1 measured days", trend["plain"])
+        self.assertIn("The last finished day (30 Aug)", trend["plain"])
+        self.assertIn("which reached your 10,000-step goal", trend["plain"])
+
+    def test_the_day_still_running_is_left_out_of_the_average(self):
+        """45 steps at 09:38 must not drag the week average down all morning."""
+        steps = {day: 10000 for day in range(15, 22)}  # 15-21 Aug, finished days
+        steps[22] = 45  # today, still accumulating
+        trend = analytics.build_movement_trend(self._channels(steps=steps), "2026-08-22", 10000)
+
+        self.assertEqual(trend["window"]["end"], "2026-08-21")
+        self.assertEqual(trend["week"]["days_measured"], 7)
+        self.assertEqual(trend["week"]["mean_steps"], 10000)
+        self.assertEqual(trend["week"]["days_met_goal"], 7)
+
+    def test_a_day_that_is_only_running_publishes_nothing(self):
+        trend = analytics.build_movement_trend(
+            self._channels(steps={22: 45}), "2026-08-22", 10000
+        )
+
+        self.assertFalse(trend["available"])
+        self.assertIsNone(trend["plain"])
 
 
 # ---------------------------------------------------------------------------
