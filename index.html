@@ -3763,7 +3763,7 @@
               <div class="mt-0.5">${esc(pattern.finding)}</div>
               <div class="text-[11px] text-slate-400 mt-0.5">${esc(pattern.plain)}</div>
             </li>`).join('')
-        : '<li class="text-slate-500">Not enough paired days yet for a pattern to be published. Nothing is shown rather than something plausible.</li>';
+        : '<li class="text-slate-500">No pattern has enough paired days yet, so none is published.</li>';
       document.getElementById('coachPatternCaveat').textContent = coach.pattern_caveat || '';
     }
 
@@ -3868,7 +3868,7 @@
               </span>
             </li>
           `).join('')
-        : '<li class="text-slate-500">Not enough paired days yet to publish a pattern honestly. A reading with a decimal point and no sample size is a guess, so nothing is shown until it has both.</li>';
+        : '<li class="text-slate-500">No pair has enough paired days yet, so no pattern is published. A pairing appears once it has both a sufficient sample size and a coefficient at or above the threshold shown above.</li>';
       const travel = corr.location || null;
       const travelEl = document.getElementById('corrTravel');
       travelEl.textContent = travel
@@ -3877,10 +3877,9 @@
           travel.comparisons.map(c =>
             `${c.label} ${c.away_mean} versus ${c.home_mean}`
           ).join(' · ') +
-          `. "Away" means the device logged a session somewhere else, which is not the same as where you slept.`
+          `. "Away" denotes a session the device recorded away from ${travel.home_location}; it does not indicate where you slept.`
         : '';
-      document.getElementById('corrCaveat').textContent =
-        'Each pattern is computed from your own paired days, so it describes how your signals have moved — not why.';
+      document.getElementById('corrCaveat').textContent = corr.caveat || '';
     }
 
     // 5-PILLAR VITALS MATRIX GENERATOR

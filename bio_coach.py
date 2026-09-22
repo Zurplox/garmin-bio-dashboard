@@ -972,9 +972,6 @@ def build_coaching(
             "sleep_hours_7d": sleep["mean_hours_7d"],
             "lightest_day": lightest,
         },
-        # The same caveat the correlation lab publishes, for the same reason.
-        "pattern_caveat": (
-            "Each pattern is computed from your own paired days, so it describes how your signals have moved "
-            "-- not why."
-        ),
+        # The same caveat the correlation lab publishes, from the same owner.
+        "pattern_caveat": policy.CORRELATION_CAVEAT,
     }

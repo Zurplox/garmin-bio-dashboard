@@ -105,6 +105,7 @@ def build_correlations(series, max_findings=None):
         "window_days": policy.CORRELATION_WINDOW_DAYS,
         "min_days": policy.CORRELATION_MIN_DAYS,
         "min_r": policy.CORRELATION_MIN_R,
+        "caveat": policy.CORRELATION_CAVEAT,
         "skipped": skipped,
     }
 

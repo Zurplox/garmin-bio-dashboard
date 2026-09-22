@@ -225,6 +225,8 @@ These are not style preferences. Each one closed a real, user-visible bug.
 | #14 | Every card renders `--` for an absent measurement instead of a plausible number; the fitness-age advantage badge gets a policy owner |
 | #15 | Night mode is the default for a first visit; the operating system no longer picks the theme |
 | #16 | **Today at a glance** strip: steps vs goal, the last 24 hours of training, and last night vs sleep need, all resolved by `build_today_summary` |
+| #17 | Thinner wording on that strip: `under 1% of goal` and `2 sessions` instead of `0%` and `session(s)` |
+| #18 | The pattern caveat gets one owner (`policy.CORRELATION_CAVEAT`), publishes with the correlation payload, and reads as a neutral statement — the `— not why` aside and the `is a guess` empty state are gone |
 
 Since the last merge, `daily_sync.yml` has been dispatch-verified on `main`: the
 runner fetches with the real key, publishes from the deterministic engine, commits
