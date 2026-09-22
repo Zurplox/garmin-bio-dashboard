@@ -2526,8 +2526,13 @@
           const live = window.Chart && Chart.getChart ? Chart.getChart(canvas) : null;
           if (!live) return;
           replayAnimation(canvas.parentElement, 'motion-chart-settle');
-          live.reset();
-          live.update();
+          // A chart may own how it arrives -- the quadrant matrix brings its nights forward
+          // out of the screen -- and resetting the rest is the generic arrival.
+          if (typeof live.arriveFromDepth === 'function') live.arriveFromDepth();
+          else {
+            live.reset();
+            live.update();
+          }
         });
       });
     }
@@ -4720,7 +4725,7 @@
         const hrvVal = h.lastNightAvg;
         const rhrVal = rhrMap[dt];
         if (dt && hrvVal && rhrVal) {
-          const pt = { x: rhrVal, y: hrvVal, date: dt, status: h.status };
+          const pt = { x: rhrVal, y: hrvVal, date: dt };
           if (dt === todayDate) {
             todayPoint = pt;
           }
@@ -4740,11 +4745,14 @@
       document.getElementById("scatterNightCount").textContent = `${matchedNights} Matched Nights`;
 
       if (!todayPoint && data.today) {
+        // Tonight's point used to carry the device's own overnight HRV word with a
+        // reassuring default behind it -- a verdict for a field the payload may simply not
+        // have published. Nothing ever read it: the quadrant is decided by the two
+        // coordinates and their baselines, so the word is gone rather than defaulted.
         todayPoint = {
           x: data.today.rhr || 51,
           y: data.today.hrv_last_night || 60,
-          date: todayDate,
-          status: data.today.hrv_status || 'BALANCED'
+          date: todayDate
         };
       }
 
@@ -4761,10 +4769,11 @@
         `${q1.length} of ${matchedNights} nights sit in Q1, the top-left corner.`
       ].filter(Boolean).join(' ');
 
-      scatterChartInstance = new Chart(ctx, {
-        type: 'scatter',
-        data: {
-          datasets: [
+      // What each night is drawn as, and the size it is drawn at. The newest night
+      // carries `order: -1` because Chart.js paints the lowest order last: without it
+      // tonight is drawn behind every earlier night, so a busy cluster can bury the
+      // reading the reader came for.
+      const scatterDatasets = [
             {
               label: 'Q1: Peak Recovery',
               data: q1,
@@ -4809,30 +4818,42 @@
               borderWidth: 3,
               pointRadius: 11,
               pointHoverRadius: 15,
-              pointStyle: 'rectRot'
+              pointStyle: 'rectRot',
+              order: -1
             }
-          ]
-        },
+      ];
+
+      // Tonight, and every night before it, travels forward out of the screen instead of
+      // falling in from above: the chart is built with every night at a far depth, and
+      // then each dataset's own size is promoted on its turn, so the quadrants come
+      // forward one after another and each overshoots slightly before it settles -- the
+      // same bounce the gauges and bars use. The size is promoted rather than animated
+      // from a `from` value on purpose: Chart.js re-uses an animation config for every
+      // later transition, so a `from` depth would replay on hover and collapse a point
+      // under the reader's cursor. Reduced motion never enters the depth at all.
+      const arriveFromDepth = motionAllows();
+      const measuredPointSizes = scatterDatasets.map(dataset => dataset.pointRadius);
+      if (arriveFromDepth) {
+        scatterDatasets.forEach(dataset => { dataset.pointRadius = SCATTER_DEPTH_POINT_RADIUS; });
+      }
+
+      scatterChartInstance = new Chart(ctx, {
+        type: 'scatter',
+        data: { datasets: scatterDatasets },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           baseHrv: baseHrv,
           baseRhr: baseRhr,
-          // Every night falls into the plot from above the visible area, so the chart
-          // reads as points raining onto a map seen from above rather than appearing
-          // already in place. Chart.js resolves `delay` to nothing in this version, so
-          // the stagger comes from each point starting at its own height instead: a
-          // later dataset starts higher and therefore lands later. Reduced motion
-          // skips the whole layer.
+          // A point's x and y are where the reading was measured, so they never travel.
+          // The only thing that moves is the depth the point comes forward from, staged
+          // after construction; what is set here is how that arrival feels, and it is
+          // also how the hover feels -- an overshoot that settles into place.
           animation: motionAllows() ? {
             x: { duration: 0 },
-            y: {
-              from: (ctx) => scatterDropStart(
-                ctx.chart, Number(ctx.datasetIndex) || 0, Number(ctx.dataIndex) || 0
-              ),
-              duration: 1700,
-              easing: 'easeOutQuad',
-            },
+            y: { duration: 0 },
+            duration: 900,
+            easing: 'easeOutBack',
           } : false,
           plugins: {
             legend: {
@@ -4891,24 +4912,43 @@
         }
       });
 
+      const scatterChart = scatterChartInstance;
+      if (arriveFromDepth) {
+        // One owner for the arrival, played from both places it can be seen. Here, so every
+        // night reaches the size it was measured at even if the reveal never comes -- a chart
+        // caught at depth would draw readings as pinpricks. And again from the reveal sweep,
+        // because the reader meets this chart by scrolling down after the first paint, and
+        // the nights coming forward is what there is to see. A replay restarts the wave, and
+        // a timer left over from a render the page has already replaced stands down rather
+        // than driving the chart that replaced it.
+        const arrivalTimers = [];
+        scatterChart.arriveFromDepth = () => {
+          arrivalTimers.forEach(window.clearTimeout);
+          arrivalTimers.length = 0;
+          scatterDatasets.forEach(dataset => { dataset.pointRadius = SCATTER_DEPTH_POINT_RADIUS; });
+          scatterChart.update('none');
+          scatterDatasets.forEach((dataset, index) => {
+            arrivalTimers.push(window.setTimeout(() => {
+              if (scatterChartInstance !== scatterChart) return;
+              dataset.pointRadius = measuredPointSizes[index];
+              scatterChart.update();
+            }, SCATTER_ARRIVAL_STAGGER_MS * index));
+          });
+        };
+        scatterChart.arriveFromDepth();
+      }
+
       if (todayPoint) {
         scrubScatterCallout(todayPoint, baseHrv, baseRhr);
       }
     }
 
-    // Where a falling point starts. Chart.js animates a point's `y` in pixels, and a
-    // point is only drawn inside the plot area, so a start above the chart area's top
-    // edge is what puts it off the canvas before it drops in. Each dataset starts a
-    // little higher than the last so the quadrants land in waves rather than together,
-    // and each point varies by a few pixels so the fall looks like rain, not a wall.
-    function scatterDropStart(chart, datasetIndex = 0, dataIndex = 0) {
-      const area = chart ? chart.chartArea : null;
-      const axis = chart && chart.scales ? chart.scales.y : null;
-      const top = area && Number.isFinite(area.top)
-        ? area.top
-        : (axis && Number.isFinite(axis.top) ? axis.top : 0);
-      return top - 40 - datasetIndex * 6 - (dataIndex % 6) * 3;
-    }
+    // How far inside the screen a night sits before it travels forward to the size it
+    // was measured at: far enough to read as depth, close enough to stay a point.
+    const SCATTER_DEPTH_POINT_RADIUS = 0.5;
+    // How long one night waits for the one drawn before it, so the arrival is a wave of
+    // points coming forward rather than all of them at once.
+    const SCATTER_ARRIVAL_STAGGER_MS = 180;
 
     function getScatterQuadrantInfo(hrv, rhr, baseHrv, baseRhr) {
       if (hrv >= baseHrv && rhr <= baseRhr) {
