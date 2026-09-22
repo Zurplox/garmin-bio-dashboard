@@ -1632,11 +1632,13 @@ class MotionDirectionTests(unittest.TestCase):
     def test_the_five_pillar_bars_are_primed_by_class_and_have_a_failsafe(self):
         page = self._page()
         self.assertIn("pillar-fill", page)
-        self.assertIn("document.querySelectorAll('.pillar-fill')", page)
-        # A reveal that never arrives must still leave the bar at its measured width.
+        self.assertIn("each('.pillar-fill', (el, index) => primeGrow(el, 'width', 80 * index));", page)
+        # A reveal that never arrives must still leave the bar at its measured width,
+        # and at the width the render published most recently rather than the one the
+        # animation that started first happened to capture.
         grow = page.split("function primeGrow", 1)[1].split("\n    function ", 1)[0]
         self.assertIn("setTimeout", grow)
-        self.assertIn("el.style[prop] = target;", grow)
+        self.assertIn("el.style[prop] = motionTargets.get(el) || target;", grow)
 
     def test_every_word_heavy_panel_staggers_its_own_children(self):
         page = self._page()
@@ -1658,8 +1660,11 @@ class MotionDirectionTests(unittest.TestCase):
         self.assertIn("Math.min(index, 8)", stagger)
         # A stagger host animates its children, so the outer pass must leave it alone
         # rather than fading the same block twice.
-        outer = page.split("document.querySelectorAll('section, .glass-card')", 1)[1].split("\n      // The panels", 1)[0]
+        outer = page.split("document.querySelectorAll('section, .glass-card')", 1)[1].split("// iOS-style press feedback", 1)[0]
         self.assertIn("if (el.hasAttribute('data-stagger')) return;", outer)
+        # The data-stagger pass itself now lives in the one owner that both the first
+        # paint and every later replay apply, because a render does rebuild those hosts.
+        self.assertIn("each('[data-stagger]', host => {", page)
 
     def test_a_missing_frame_never_leaves_a_count_on_a_wrong_number(self):
         page = self._page()
@@ -1667,7 +1672,8 @@ class MotionDirectionTests(unittest.TestCase):
         # The interpolation is a frame loop; if the frames stop, the published value
         # must be written back rather than an interpolated one left on screen.
         self.assertIn("window.setTimeout(() => {", count)
-        self.assertIn("el.textContent === lastFrame) el.textContent = target;", count)
+        self.assertIn("el.textContent === lastFrame)", count)
+        self.assertIn("el.textContent = motionTargets.get(el) || target;", count)
 
     def test_a_missing_frame_never_leaves_a_reveal_invisible(self):
         page = self._page()
@@ -1709,6 +1715,156 @@ class MotionDirectionTests(unittest.TestCase):
         self.assertIn("from: (ctx) => scatterDropStart(", page)
         self.assertIn("easing: 'easeOutQuad'", page)
 
+
+class ReRenderMotionTests(unittest.TestCase):
+    """A panel a re-render rebuilds animates again, and nothing is left stranded.
+
+    The first paint primed the document once, and every render after it replaced
+    those primed elements with plain ones -- the activity rows, the coaching cards,
+    the five pillar bars, the heat-map cells -- so the page went static exactly where
+    it should have felt alive. Each rebuild now replays its own panel through the
+    same primitives, and those primitives refuse to fight over one element or to read
+    back their own in-flight state as if it were a measurement.
+    """
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+
+    @staticmethod
+    def _fn(page, name):
+        return page.split(f"function {name}(", 1)[1].split("\n    function ", 1)[0]
+
+    def test_each_rebuilt_panel_replays_its_own_motion(self):
+        page = self._page()
+        for panel, replay in (
+            ("renderCoaching", "replayMotion(document.getElementById('coachCards'));"),
+            ("renderFitbitPillars", "replayMotion(container);"),
+            ("renderConsistencyGrid", "replayMotion(grid);"),
+            ("renderConsistencyGrid", "replayMotion(focusGrid);"),
+            ("toggleConsistencyFocus", "replayMotion(target);"),
+        ):
+            with self.subTest(panel=panel, replay=replay):
+                self.assertIn(replay, self._fn(page, panel))
+        # The table has two branches -- rows, and the empty message -- and the filter
+        # reaches it without going through a dashboard render, so both must replay.
+        table = self._fn(page, "renderActivityTable")
+        self.assertEqual(table.count("replayMotion(tbody);"), 2)
+
+    def test_the_replay_happens_where_the_panel_was_rebuilt(self):
+        page = self._page()
+        for panel in ("renderCoaching", "renderFitbitPillars", "renderConsistencyGrid", "renderActivityTable"):
+            with self.subTest(panel=panel):
+                body = self._fn(page, panel)
+                # Replaying is the render's own last word on the panel it just wrote.
+                self.assertIn("innerHTML", body)
+                self.assertLess(body.index("innerHTML"), body.index("replayMotion("))
+
+    def test_one_owner_applies_every_primitive(self):
+        page = self._page()
+        body = page.split("function primeMotion(scope) {", 1)[1].split("\n    function forgetPlayed", 1)[0]
+        rest = page.replace(body, "")
+        for call in ("primeGrow(", "primeGauge(", "primeScale(", "animateHeatmap(", "primeCount(", "staggerChildren("):
+            with self.subTest(call=call):
+                self.assertGreaterEqual(body.count(call), 1)
+                # Only the definition of each primitive is left outside the owner.
+                self.assertEqual(rest.count(call), 1)
+        # The first paint and every replay apply that same owner.
+        self.assertIn("primeMotion(document);", self._fn(page, "playVisuals"))
+        self.assertIn("primeMotion(scope);", self._fn(page, "replayMotion"))
+
+    def test_a_scoped_pass_covers_the_host_it_was_handed(self):
+        page = self._page()
+        body = page.split("function primeMotion(scope) {", 1)[1].split("\n    function forgetPlayed", 1)[0]
+        # The coaching cards and the table body hand over their own data-stagger host,
+        # so a scoped query that only looked at descendants would never see it.
+        self.assertIn("root.matches(selector)", body)
+        self.assertIn("(root === document || root === el || root.contains(el))", body)
+        # A grid behind the closed modal is skipped: its cells are copies nobody sees.
+        self.assertIn("grid.closest('.hidden')", body)
+
+    def test_forgetting_a_mark_can_never_hide_an_element(self):
+        page = self._page()
+        forget = self._fn(page, "forgetPlayed")
+        self.assertIn("vizPlayed.delete(root);", forget)
+        self.assertIn("root.querySelectorAll('*').forEach(el => vizPlayed.delete(el));", forget)
+        # Marks only. Removing a class is how a replay would hide a reading, so this
+        # must never touch one -- the primitives re-add their own.
+        self.assertNotIn("classList", forget)
+        self.assertNotIn("style.", forget)
+
+    def test_a_second_prime_stands_down_instead_of_reading_its_own_state(self):
+        page = self._page()
+        grow = self._fn(page, "primeGrow")
+        # The zero stamped on a bar while its fill is in flight is not a measurement:
+        # reading it back as one is exactly how a bar would drain to nothing.
+        self.assertIn("if (!target || target === '0%') return;", grow)
+        gauge = self._fn(page, "primeGauge")
+        self.assertIn("if (!empty || !target || target === empty) return;", gauge)
+        # And an animation that started earlier finishes on the value the newest render
+        # published, never on the one it captured.
+        for primitive in ("primeGrow", "primeGauge", "primeCount"):
+            with self.subTest(primitive=primitive):
+                self.assertIn("motionTargets.set(el, target);", self._fn(page, primitive))
+        self.assertIn("el.style[prop] = motionTargets.get(el) || target;", grow)
+
+    def test_a_second_render_replays_the_readings_it_rewrote(self):
+        page = self._page()
+        visuals = self._fn(page, "playVisuals")
+        self.assertIn("if (!motionPainted) {", visuals)
+        self.assertIn("forgetPlayed(document);", visuals)
+        self.assertIn("motionPainted = true;", visuals)
+        # The structural entrances belong to the document, which a re-render never
+        # replaces, so they run once while the readings are primed on every pass.
+        self.assertLess(visuals.index("if (!motionPainted) {"), visuals.index("forgetPlayed(document);"))
+        self.assertLess(visuals.index("forgetPlayed(document);"), visuals.index("primeMotion(document);"))
+
+    def test_the_replay_reuses_the_existing_failsafes(self):
+        page = self._page()
+        # A replay is carried by the same three timers every primable already relied on.
+        # None was replaced, and none was duplicated.
+        self.assertEqual(page.count("window.setTimeout(run, 250)"), 1)
+        self.assertEqual(page.count("4000 + delay"), 1)
+        self.assertEqual(page.count("duration + 1500"), 1)
+
+    def test_the_replay_does_not_invent_a_new_kind_of_motion(self):
+        page = self._page()
+        self.assertEqual(
+            re.findall(r"@keyframes ([\w-]+)", page),
+            ["gauge-spring", "chart-spring", "bar-spring", "bar-spring-y", "heat-cell-spring",
+             "pulse-dot", "meridian-spin", "spin", "lock-rise"],
+        )
+        # Replay re-runs the primitives; it never adds an effect of its own.
+        self.assertNotIn("replayMotion", self._fn(page, "primeGrow"))
+        self.assertNotIn("replayMotion", self._fn(page, "primeCount"))
+
+    def test_a_replay_restarts_the_same_animation_instead_of_adding_one(self):
+        page = self._page()
+        restart = self._fn(page, "replayAnimation")
+        # Removing the class, forcing a reflow and adding it back: the same keyframes,
+        # which is what a bar the render rewrites in place needs to play them again.
+        self.assertIn("el.classList.remove(className);", restart)
+        self.assertIn("void el.offsetWidth;", restart)
+        self.assertIn("el.classList.add(className);", restart)
+        for primitive in ("primeGrow", "primeGauge", "primeScale"):
+            with self.subTest(primitive=primitive):
+                self.assertIn("replayAnimation(", self._fn(page, primitive))
+        # It only ever restarts animations that already exist in the stylesheet.
+        for name in ("bar-spring", "bar-spring-y", "motion-gauge-bounce", "motion-chart-settle"):
+            self.assertIn(name, page)
+
+    def test_a_reveal_never_holds_a_chart_it_can_no_longer_use(self):
+        page = self._page()
+        body = page.split("each('canvas', canvas => {", 1)[1].split("      });", 1)[0]
+        # The instance is read inside the reveal rather than captured when it was
+        # primed: a render rebuilds the charts, and resetting a destroyed one threw
+        # straight out of the sweep, leaving every primable behind it unrevealed.
+        self.assertIn("const live = window.Chart && Chart.getChart ? Chart.getChart(canvas) : null;", body)
+        self.assertIn("if (!live) return;", body)
+        self.assertIn("live.reset();", body)
+        self.assertNotIn("chart.reset();", body)
 
 class ThemeDefaultTests(unittest.TestCase):
     """Night mode is the default; day mode is a choice the reader makes.
