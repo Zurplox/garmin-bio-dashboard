@@ -371,6 +371,14 @@ CORRELATION_MIN_DAYS = 14
 CORRELATION_MIN_R = 0.35
 CORRELATION_MAX_FINDINGS = 4
 
+# The caveat published with every pattern and correlation. It is wording, so it
+# lives here: one sentence with one owner, so the coach panel and the correlation
+# lab cannot drift into telling the reader two different things.
+CORRELATION_CAVEAT = (
+    "Each pattern is calculated from your own paired days. It shows how two readings moved "
+    "together over the window; it does not establish that one caused the other."
+)
+
 # The daily channels a correlation may be computed over, named the way the
 # sentence around them reads. A pair is only tested when both sides are measured.
 CORRELATION_METRICS = {

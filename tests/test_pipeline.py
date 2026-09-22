@@ -2339,7 +2339,32 @@ class CoachPatternTests(unittest.TestCase):
             {}, {"hrv_last_night": 54}, [],
         )
 
-        self.assertIn("not why", result["pattern_caveat"])
+        self.assertIn("does not establish that one caused the other", result["pattern_caveat"])
+
+    def test_the_caveat_has_one_owner_and_carries_no_editorial_aside(self):
+        """The coach panel and the correlation lab publish the same sentence.
+
+        They used to hold their own copies, one of them in the browser, so the
+        two could drift. Both now read `policy.CORRELATION_CAVEAT`, and the
+        wording stays a neutral statement of what a pattern can and cannot say.
+        """
+        coached = bio_coach.build_coaching(
+            self.TODAY, [], [], [], {}, {},
+            {"acwr": 1.0, "acwr_band": "sweet", "acwr_band_label": "Sweet Spot"},
+            {"score": 80, "band": "PRIME", "tone": "green", "hrv_baseline": 55.0},
+            {}, {"hrv_last_night": 54}, [],
+        )
+        correlations = bio_correlate.build_correlations({})
+
+        self.assertEqual(coached["pattern_caveat"], policy.CORRELATION_CAVEAT)
+        self.assertEqual(correlations["caveat"], policy.CORRELATION_CAVEAT)
+        for aside in ("not why", "is a guess", "honestly"):
+            self.assertNotIn(aside, policy.CORRELATION_CAVEAT)
+
+        page = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding="utf-8")
+        self.assertIn("corr.caveat", page)
+        self.assertNotIn("not why", page)
+        self.assertNotIn("is a guess", page)
 
     def test_classification_routes_climbing_to_strength_and_running_to_endurance(self):
         self.assertEqual(bio_coach._classify({"activityType": "bouldering"}), "strength")
