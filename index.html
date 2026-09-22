@@ -263,6 +263,14 @@
     .interactive-canvas-container {
       touch-action: none;
       cursor: crosshair;
+      /* The chart is the whole of this box, and nothing that lives in it is meant to be seen
+         outside it, so the box clips. Chart.js paints on the canvas, which cannot spill; what
+         needs containing is the beacon's rings, which are scaled to 3.6x and would otherwise
+         widen the document by a hundred pixels on a phone -- a page that scrolls sideways
+         while a ring fades, with the ring's own box sitting off the edge of the card long
+         after it has gone. A ring is placed from the pixel the chart measured for tonight, so
+         clipping changes where the ring is seen and never where it lands. */
+      overflow: hidden;
     }
     /* The callout is a popover, so it is the size of what it says rather than the width of
        the page: as a plain block in <body> it stretched to the document's width and read as
@@ -2763,6 +2771,37 @@
       })[ch]);
     }
 
+    // The payload is the only text in this page that nobody here wrote: the briefing, the
+    // analysis paragraphs and the coaching copy are written by the pipeline and, some of
+    // them, by a language model. A pictogram in that prose is exactly what the interface was
+    // asked not to have -- and one emoji from the model would land in the explanation panels
+    // the reader is meant to trust -- so it is removed where the payload enters the page
+    // rather than at each of the dozen writers that might print a string. The page's own
+    // marks are outside this by construction: the coloured dots, the information glyph and
+    // the filled and hollow state marks are drawn from `&#9679;` and their styles in the
+    // markup, never carried in a payload string.
+    const EMOJI_MARKS = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{20E3}]/gu;
+    function stripEmoji(value) {
+      if (typeof value !== 'string' || !value) return value;
+      // `match` rather than `test`: a global pattern's `lastIndex` is not left behind, and a
+      // string that carries no pictogram comes back as the identical string, untouched.
+      if (!value.match(EMOJI_MARKS)) return value;
+      // The gap an emoji leaves behind is closed, so a stripped sentence does not read with a
+      // hole in it. Only for the strings that actually lost something.
+      return value.replace(EMOJI_MARKS, '').replace(/\s{2,}/g, ' ').trim();
+    }
+
+    function payloadWithoutEmoji(node) {
+      if (typeof node === 'string') return stripEmoji(node);
+      if (Array.isArray(node)) return node.map(payloadWithoutEmoji);
+      if (node && typeof node === 'object') {
+        const clean = {};
+        for (const key of Object.keys(node)) clean[key] = payloadWithoutEmoji(node[key]);
+        return clean;
+      }
+      return node;
+    }
+
     // Tone vocabulary shared with the engine: the payload resolves every band to
     // a tone, so these are the only places the UI decides on a colour.
     const TONE_STROKE = { green: '#10b981', amber: '#f59e0b', rose: '#f43f5e', cyan: '#22d3ee' };
@@ -3475,6 +3514,14 @@
       return JSON.parse(new TextDecoder().decode(decrypted));
     }
 
+    // One owner for the boundary. Decryption stays about cryptography and the page's text
+    // rule stays about text: whatever the vault decrypts to enters the page through here, so
+    // a payload string nobody in this file wrote is sanitised once, whatever surface ends up
+    // printing it -- including the ones nobody has written yet.
+    async function payloadFromVault(encPayload, password) {
+      return payloadWithoutEmoji(await decryptPayload(encPayload, password));
+    }
+
     async function handleUnlock(event) {
       event.preventDefault();
       const input = document.getElementById("passInput").value.trim();
@@ -3520,7 +3567,7 @@
         document.getElementById("vaultCryptoNote").textContent =
           `AES-256-GCM // PBKDF2-HMAC-SHA256 (${rounds.toLocaleString()} rounds) // Zero-Knowledge Client Decrypt`;
 
-        globalBioData = await decryptPayload(encData, password);
+        globalBioData = await payloadFromVault(encData, password);
         sessionPassphrase = password;
 
         if (document.getElementById("rememberMe")?.checked) {
@@ -6467,7 +6514,7 @@
       const resp = await fetch("data/biometrics.enc.json?v=" + Date.now(), { cache: "no-store" });
       if (!resp.ok) throw new Error(`vault ${resp.status}`);
       const encData = await resp.json();
-      const data = await decryptPayload(encData, sessionPassphrase);
+      const data = await payloadFromVault(encData, sessionPassphrase);
       globalBioData = data;
       renderDashboard(data);
       requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
@@ -6678,6 +6725,14 @@
     // KEYBOARD NAVIGATION SHORTCUTS
     // ========================================================
     window.addEventListener('keydown', (e) => {
+      // A shortcut here is a bare key, never a browser chord: Ctrl+F is the reader looking
+      // for a word on the page, Ctrl+R is them reloading it, and Ctrl+P is the print dialog
+      // they actually asked for. Answering any of those would take the fullscreen, print a
+      // second time, or -- with a relay configured or a token stored -- start a real GitHub
+      // sync behind their back, so a chord is not this page's to answer. Alt and Meta are the
+      // browser's and the operating system's for the same reason. Shift alone is not:
+      // Shift+R is still the reader holding shift.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       // Ignore shortcut triggers when focused in text inputs
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 

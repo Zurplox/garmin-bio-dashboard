@@ -5,10 +5,10 @@ repository with no memory of the sessions that built it. Everything below is
 either a fact about the current tree or a rule the codebase already follows;
 nothing here is a plan that has not happened.
 
-*Last updated: 2026-09-22, after the final build pass (a fill plays when the reader
-reaches it, every animation names its own cue, tonight's diamond has a beacon, the
-feedback is felt as well as heard, and the interface types no emoji) — uncommitted at
-the time of writing, so check `git status` and `git log` for the true tip.*
+*Last updated: 2026-09-23, after the audit pass: a shortcut is a bare key, tonight's
+beacon is clipped to its chart, and the no-emoji rule covers the model's words as well
+as the page's own — each reproduced and measured on the running page before and after.
+Check `git status` and `git log` for the true tip.*
 
 ---
 
@@ -29,9 +29,10 @@ step, and no database.
 | Repository | https://github.com/Zurplox/garmin-bio-dashboard (public) |
 | Viewer passphrase | documented in `DASHBOARD_GUIDE.md` → *Dashboard Access & Security* (master-lock phrase is separate) |
 | Language | Python 3.14 pipeline + one static HTML page (Tailwind CDN + Chart.js CDN) |
-| Unit tests | `python -m unittest discover -s tests -t .` — 247 pass |
+| Unit tests | `python -m unittest discover -s tests -t .` — 251 pass |
 | Scheduler | `.github/workflows/daily_sync.yml` — `Daily Biometrics Sync & AI Analysis`, 00:00 UTC (08:00 SGT) |
 | CI | `.github/workflows/tests.yml` — `Tests`, runs on push/PR |
+| Rollback backup | `.github/workflows/backup_build.yml` — `Backup Build`, attaches a zip of the build to the persistent `build-backups` release on every push to main: release assets live on GitHub's release storage, so a build is still downloadable after a force-push or a lost history, and unlike a committed zip it never grows the repository |
 | Plaintext vault | `data/biometrics.json` is **gitignored**; only ciphertext ships |
 
 ---
@@ -310,6 +311,7 @@ These are not style preferences. Each one closed a real, user-visible bug.
 | #25 | The token field and its gear leave the header — a token now enters a browser through a one-time `#token=` link that stores it and strips itself (read on load and on `hashchange`), and `#token=` alone forgets it. The Refresh tooltip follows whichever trigger exists |
 | #24 | The sync relay (`relay/`): a worker secret holds the token, so Refresh can start a sync with nothing pasted, nothing committed and no gear in the header. Worker logic executed in CI against a stubbed GitHub (`tests/check_relay.mjs`, 13 checks) and proven in a browser |
 | #23 | Tactile audio is on for a first visit instead of off — the chirps are how a press reports back, and only an explicit `false` (the `M` toggle, or the header button) silences them |
+| #37 | An independent audit's three defects, each reproduced on the running page before the fix and measured again after it. **A shortcut is a bare key.** The one `keydown` listener answered any key it recognised whatever was held with it, so `Ctrl+F` (the reader looking for a word on the page) took the full screen, `Ctrl+P` printed a second time and `Ctrl+R` — a reload — called `refreshVault`, which dispatches a real GitHub run in a browser holding a relay URL or a token. Ctrl, Meta and Alt now return before the key is read; Shift deliberately does not, because `Shift+R` is still a reader holding shift. Measured with every branch instrumented so nothing could fire: before, all six chords reached one (`Ctrl+f`, `Meta+f` and `Alt+f` each reached `toggleFullscreen`, `Ctrl+r` reached `refreshVault`, `Ctrl+p` reached `printClinicalReport`, `Ctrl+t` reached `toggleTheme`); after, all six are recorded with their modifiers and **zero** branches run, bare `f`/`t`/`r` still work, and typing into the real passphrase field reaches nothing. **Tonight's beacon is clipped to its chart.** The rings scale to 3.6x and the container did not clip them, so a ring left at a wide landing hung off the edge of the card and dragged the document sideways — a phone page scrolling horizontally because of a mark never meant to be seen outside its chart. Measured on the pre-fix build at a 320 px viewport: rings attached gave `scrollWidth` 561 against `clientWidth` 277, and 348 with the rings detached. `.interactive-canvas-container` now carries `overflow: hidden`, which changes where a ring is *seen* and never where it *lands* — its position is still the pixel `getDatasetMeta(last).data[0]` reports for tonight, equal at 320/380/768/1280 — and never when it plays (the arrival beat and the `today` cue are untouched). After: the identical state reads 352, the same as with the rings detached and the same with the rings deliberately held at 504 px on a 292 px viewport. **The no-emoji rule covers the model's words too.** It was enforced by a regex over `index.html`, which cannot see the briefing and analysis prose the payload carries, so a payload emoji reached the explanation panels (measured: 🚀 💤 ⚠️ rendered straight through). Every vault payload now enters through one boundary, `payloadFromVault(encPayload, password)` = `payloadWithoutEmoji(await decryptPayload(...))`, which walks the whole payload and strips only the pictogram ranges, so the page's own marks (U+25CF, U+24D8) pass by construction and a string with no emoji comes back byte for byte — and `decryptPayload` stays about cryptography. Measured: the same emoji payload rendered through the page's own writer shows 6 emoji in the panel before the boundary and 0 after it |
 | #22 | No panel is a wall of words any more: a container marked `data-stagger` hands its children to the same reveal sweep (tiles, table rows, coaching cards, dossier blocks, briefing blocks), the glance strip tips in (`motion-tilt`), the lock screen rises in CSS, and the illness/glance numbers roll through their own sign. Two frame-dependency holes closed: the reveal sweep's rAF latch now has a timer, and a stalled count-up writes the published value back |
 
 Since the last merge, `daily_sync.yml` has been dispatch-verified on `main`: the

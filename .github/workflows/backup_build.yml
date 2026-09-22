@@ -1,0 +1,75 @@
+name: Backup Build
+
+# A rollback copy of the shipped build that survives independently of the git
+# history. The zip is attached to a persistent release rather than committed,
+# because a release asset lives on GitHub's release storage: it is still
+# downloadable if the branch is force-pushed, rewritten or lost, and it never
+# grows the repository (a committed zip is a blob git keeps for ever).
+#
+# The asset named `meridian-build-latest.zip` is always the newest build; a
+# timestamped copy beside it is a point-in-time rollback target. The git history
+# remains the source of truth -- these assets exist only so a build can be
+# recovered when the history cannot be trusted.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: backup-build
+  cancel-in-progress: true
+
+# Least privilege: this job publishes release assets and touches nothing else.
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Package the build
+        run: |
+          SHORT=$(git rev-parse --short HEAD)
+          STAMP=$(date -u +'%Y%m%d-%H%M%S')
+          LATEST=meridian-build-latest.zip
+          POINT=meridian-build-${STAMP}-${SHORT}.zip
+          # `git archive` writes exactly what the repository publishes: every tracked
+          # file at this commit and nothing untracked or ignored -- so the plaintext
+          # vault, which is gitignored, cannot end up in a backup.
+          git archive --format=zip -o "$POINT" HEAD
+          cp "$POINT" "$LATEST"
+          echo "LATEST=$LATEST" >> "$GITHUB_ENV"
+          echo "POINT=$POINT" >> "$GITHUB_ENV"
+          echo "Packaged $POINT ($(du -h "$POINT" | cut -f1))"
+
+      - name: Publish to the persistent backup release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view build-backups >/dev/null 2>&1 || \
+            gh release create build-backups \
+              --title "Build backups" \
+              --notes "Rollback copies of the shipped build, refreshed on every push to main. The git history remains the source of truth; these assets exist so a build can be recovered even when the history cannot be."
+          gh release upload build-backups "$LATEST" --clobber
+          gh release upload build-backups "$POINT" --clobber
+          echo "Assets now on the build-backups release:"
+          gh release view build-backups --json assets --jq '.assets[].name'
+
+      - name: Prune old point-in-time copies
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Ten point-in-time zips plus the stable newest one. A release with
+          # hundreds of assets is unreadable, and a backup nobody can find is
+          # not a backup.
+          KEEP=10
+          OLD=$(gh release view build-backups --json assets \
+            --jq '[.assets[].name | select(startswith("meridian-build-2"))] | sort | reverse | .['"$KEEP"':] | .[]')
+          for asset in $OLD; do
+            echo "Pruning $asset"
+            gh release delete-asset build-backups "$asset" --yes
+          done
+          gh release view build-backups --json assets --jq '"\(.assets | length) asset(s) retained"'

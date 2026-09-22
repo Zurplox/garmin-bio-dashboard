@@ -176,6 +176,8 @@ This is not cosmetic. Publishing the model's number meant the same physiology pr
 
 `tests.yml` runs on every push and pull request: the offline unit suite, a frontend syntax check, and a Web Crypto decryption of the vault.
 
+`backup_build.yml` runs on every push to `main` and attaches a zip of the build to the persistent **[build-backups](../../releases/tag/build-backups)** release — `meridian-build-latest.zip` always the newest, a timestamped copy beside it kept as a point-in-time rollback (the newest ten are retained). It is a release asset rather than a committed file on purpose: release storage survives a force-pushed or lost branch, which is exactly the failure a rollback copy exists to cover, and a committed zip would grow the repository for ever.
+
 ---
 
 ## 🔄 Manual refresh
@@ -220,7 +222,7 @@ Every attempt ends with a notification: what it did, or exactly why it did nothi
 No network, no credentials required.
 
 ```bash
-python -m unittest discover -s tests -t . -v      # 236 tests
+python -m unittest discover -s tests -t . -v      # 251 tests
 node tests/check_frontend_syntax.mjs index.html   # single-file frontend has no build step
 node tests/verify_vault_webcrypto.mjs             # decrypts the vault through the browser crypto path
 ```
@@ -370,6 +372,42 @@ python -m http.server 8971 --bind 127.0.0.1   # then open http://127.0.0.1:8971
   instead of a fixed 230 × 175 (measured: the quadrant callout draws 340 × 186, so one opened near
   the top of the window used to be placed as if it were smaller than it is). It is a popover now
   too, not a block stretched to the width of the document.
+
+---
+
+## 🔍 Audit fixes — 2026-09-22
+
+An independent audit of the shipped build measured three defects. Each was reproduced on the
+running page before the fix and measured again after it, and each is now pinned by a test.
+
+* **A shortcut is a bare key, never a browser chord.** The keyboard handler answered any key it
+  recognised whatever was held with it, so `Ctrl+F` (the reader looking for a word on the page)
+  opened the full screen, `Ctrl+P` printed a second time, and `Ctrl+R` — the reader reloading the
+  page — called `refreshVault`, which starts a real GitHub sync in a browser that holds a relay URL
+  or a token. Ctrl, Meta and Alt now return before the key is even read; Shift deliberately does
+  not, because `Shift+R` is still a reader holding shift. Measured with every branch instrumented so
+  nothing could fire: before, all six chords reached a branch (`Ctrl+f`, `Meta+f` and `Alt+f` each
+  reached `toggleFullscreen`, `Ctrl+r` reached `refreshVault`); after, all six are recorded and
+  **zero** branches run, bare `f`/`t`/`r` still work, and typing into the real passphrase field
+  reaches nothing at all.
+* **Tonight's beacon cannot widen the page.** The rings are scaled 3.6× and the chart's container
+  did not clip them, so a ring left at a wide landing sat off the edge of the card and dragged the
+  whole document sideways — a phone page that scrolls horizontally because of a mark that was never
+  meant to be seen outside its chart. Measured on the pre-fix build at a 320 px viewport: rings
+  attached gave `scrollWidth` 561 against `clientWidth` 277, and 348 with the rings detached. The
+  container now clips (`overflow: hidden`), which changes where a ring is *seen* and never where it
+  *lands* — the ring's position is still the pixel the chart measured for tonight's reading, checked
+  equal at 320, 380, 768 and 1280 px — and never when it plays. After: the identical state reads
+  352 px, the same as with the rings detached, and the same with the rings deliberately held at
+  504 px on a 292 px viewport.
+* **The no-emoji rule covers the model's words too.** It was enforced by a regex over `index.html`,
+  which cannot see the briefing and coaching prose the payload carries, so one emoji from the model
+  would have reached the explanation panels. Every vault payload now enters the page through one
+  boundary — `payloadFromVault` decrypts and strips in that order — which walks the whole payload
+  and removes only the pictogram ranges, so the page's own marks (the coloured dot, the information
+  mark) are untouched by construction and a string carrying no emoji comes back byte for byte.
+  Measured: a payload written with emoji in its analysis prose rendered through the page's own
+  writer shows 6 emoji in the explanation panel before the boundary and **0** after it.
 
 ---
 

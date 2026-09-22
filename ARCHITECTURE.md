@@ -174,6 +174,33 @@ frontend: that is how the page once displayed a recovery score of 68 labelled
 
 Analysis prose is split on `PLAIN_PARAGRAPH_SEPARATOR` into the clinical paragraph and the explanation beneath it; `asSentence()` stands policy's lowercase clauses alone on the lines that no longer carry an "In plain English:" label.
 
+## Guards a chord, a ring and a model cannot break
+
+Three rules, each with one owner, so a later change has an obvious home:
+
+* **A shortcut is a bare key.** The one `keydown` listener returns before it reads the key at
+  all when Ctrl, Meta or Alt is held (Shift is deliberately not a modifier: `Shift+R` is still a
+  reader holding shift), and returns when the event's target is an `INPUT` or `TEXTAREA`. No
+  chord therefore reaches a branch: `Ctrl+F` stays the browser's find and `Ctrl+R` stays the
+  reader's reload, and neither takes the fullscreen nor calls `refreshVault` — which can dispatch
+  a real GitHub run in a browser that holds a relay URL or a token. Anything added to this
+  listener sits behind both guards by construction.
+* **A chart's own box clips what lives inside it.** `.interactive-canvas-container` carries
+  `overflow: hidden`, because the beacon's rings scale to 3.6x and a ring left at a wide landing
+  used to hang off the edge of the card and widen the document — a phone page that scrolled
+  sideways because of a mark that was never meant to be seen outside its chart. Clipping changes
+  where a ring is *seen*, never where it *lands* (its position is still the pixel
+  `getDatasetMeta(last).data[0]` reports for tonight's reading) and never when it plays. The
+  callouts are siblings of the container and the popover is fixed to the body, so no panel is
+  clipped by this.
+* **Model-written text is stripped where it enters, not at each writer.** `payloadFromVault()` is
+  the single way a vault payload reaches the page — `payloadWithoutEmoji(await decryptPayload(...))`
+  — and `stripEmoji` removes only the pictogram ranges, so the page's own marks (the coloured dot
+  U+25CF, the information mark U+24D8) pass through by construction and a string carrying no emoji
+  comes back byte for byte. Every explanation and dropdown surface prints a string that already
+  came through here, including surfaces not written yet, which is why the boundary sits at the
+  intake rather than at the dozen places that print a payload string.
+
 ## Tests
 
 `tests/test_pipeline.py` mirrors this structure: one test class per owner

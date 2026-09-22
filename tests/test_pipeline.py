@@ -2209,6 +2209,21 @@ class MotionReachesTheReaderTests(unittest.TestCase):
         self.assertIn("opacity: 0;", ring_css)
         self.assertIn("const arriveFromDepth = motionAllows();", page)
         self.assertIn(".scatter-beacon.is-live { animation: beacon-out", page)
+        # A ring is drawn outside the dot it marks, so the chart's own box clips it. Without
+        # the clip the ring's scaled box sat off the edge of the card for good -- measured at a
+        # 320 px viewport, scrollWidth 458 against a 303 px viewport with the rings attached and
+        # 349 with them detached -- a page that could be scrolled sideways by a mark that was
+        # never meant to be seen outside the chart. The landing and the timing are untouched:
+        # the assertions above still hold, because the ring is clipped, not moved.
+        container = page.split(".interactive-canvas-container {", 1)[1].split("}", 1)[0]
+        self.assertIn("overflow: hidden;", container)
+        self.assertIn("touch-action: none;", container)
+        self.assertIn("cursor: crosshair;", container)
+        # Only the container's own children are clipped, and a chart container holds its canvas
+        # and, on the quadrant map, the rings -- the callouts are siblings of the container, and
+        # the popover is fixed to the body, so neither is affected.
+        self.assertIn('el.id = "floatingChartCallout";', page)
+        self.assertIn("document.body.appendChild(el);", page)
 
 
 class ThemeDefaultTests(unittest.TestCase):
@@ -2627,9 +2642,43 @@ class InterfaceGlyphTests(unittest.TestCase):
             encoding="utf-8", errors="ignore"
         )
 
+    @staticmethod
+    def _fn(page, name):
+        return page.split(f"function {name}(", 1)[1].split("\n    function ", 1)[0]
+
     def test_no_emoji_anywhere_in_the_interface(self):
         found = sorted(set(self.EMOJI.findall(self._page())))
         self.assertEqual(found, [], [f"U+{ord(c):04X}" for c in found])
+
+    def test_model_written_prose_is_stripped_where_the_payload_enters(self):
+        page = self._page()
+        # The rule is enforced on the text this file does not own, which is the payload: the
+        # briefing, the analysis paragraphs and the coaching copy. Both ways in -- the first
+        # unlock and a refresh -- go through one boundary, so a surface nobody has written yet
+        # is covered too, and `decryptPayload` stays about cryptography.
+        self.assertIn("async function payloadFromVault(encPayload, password) {", page)
+        self.assertIn("return payloadWithoutEmoji(await decryptPayload(encPayload, password));", page)
+        self.assertEqual(page.count("await payloadFromVault("), 2)
+        self.assertEqual(page.count("await decryptPayload("), 1)
+        # The walk covers every string in the payload, however deeply it is nested.
+        walk = self._fn(page, "payloadWithoutEmoji")
+        self.assertIn("if (typeof node === 'string') return stripEmoji(node);", walk)
+        self.assertIn("if (Array.isArray(node)) return node.map(payloadWithoutEmoji);", walk)
+        self.assertIn("for (const key of Object.keys(node)) clean[key] = payloadWithoutEmoji(node[key]);", walk)
+        # The strip is the pictogram ranges and nothing else, so the page's own marks survive
+        # it: the coloured dot (U+25CF) and the information glyph (U+24D8) sit outside them by
+        # design, and so does the typographic arrow the prose uses.
+        marks = page.split("const EMOJI_MARKS = ", 1)[1].split(";", 1)[0]
+        self.assertIn("\\u{1F000}-\\u{1FAFF}", marks)
+        self.assertIn("\\u{2600}-\\u{27BF}", marks)
+        self.assertNotIn("\\u{25CF}", marks)
+        self.assertNotIn("\\u{24D8}", marks)
+        self.assertNotIn("\\u{2190}", marks)
+        strip = self._fn(page, "stripEmoji")
+        # A string with no pictogram in it comes back untouched, byte for byte: this runs over
+        # every string a payload carries, including the ones that are readings.
+        self.assertIn("if (!value.match(EMOJI_MARKS)) return value;", strip)
+        self.assertIn("return value.replace(EMOJI_MARKS, '').replace(/\\s{2,}/g, ' ').trim();", strip)
 
     def test_every_band_in_a_dropdown_keeps_its_own_colour(self):
         page = self._page()
@@ -2647,6 +2696,60 @@ class InterfaceGlyphTests(unittest.TestCase):
         # An icon in a section header is a stroked SVG like every other control.
         self.assertIn("const FEEDBACK_ICONS = {", page)
         self.assertIn("id=\"fullscreenIconPath\"", page)
+
+
+class KeyboardShortcutTests(unittest.TestCase):
+    """A dashboard shortcut is a bare key, and never a browser chord.
+
+    The handler answered any key it recognised whatever was held with it, so Ctrl+F -- the
+    reader looking for a word on the page -- asked the fullscreen, Ctrl+P printed a second
+    time, and Ctrl+R called `refreshVault`, which dispatches a real GitHub run in a browser
+    that holds a relay URL or a token. Measured before the guard, with the handlers
+    instrumented: Ctrl+f, Meta+f and Alt+f all reached `toggleFullscreen`, and Ctrl+r reached
+    `refreshVault`. The guard is the first thing the handler does, so no chord can reach any
+    branch, and a text field still swallows every key.
+    """
+
+    BRANCHES = ("toggleAudioSound();", "printClinicalReport();", "logout();", "toggleTheme();",
+                "toggleFullscreen();", "toggleRhrOverlay();", "refreshVault();")
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+
+    @classmethod
+    def _handler(cls, page):
+        return page.split("window.addEventListener('keydown', (e) => {", 1)[1].split("\n    });", 1)[0]
+
+    def test_no_chord_reaches_a_shortcut(self):
+        handler = self._handler(self._page())
+        guard = "if (e.ctrlKey || e.metaKey || e.altKey) return;"
+        self.assertIn(guard, handler)
+        # Before the first branch, not merely present: a branch that runs first still answers
+        # the chord, and the key is read before it would be tested.
+        self.assertLess(handler.index(guard), handler.index("const key = e.key.toUpperCase();"))
+        for branch in self.BRANCHES:
+            with self.subTest(branch=branch):
+                self.assertGreater(handler.index(branch), handler.index(guard))
+                self.assertGreater(handler.index(branch), handler.index("const key = e.key.toUpperCase();"))
+
+    def test_a_text_field_still_swallows_the_keys(self):
+        handler = self._handler(self._page())
+        field_guard = "if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;"
+        self.assertIn(field_guard, handler)
+        for branch in self.BRANCHES:
+            with self.subTest(branch=branch):
+                self.assertGreater(handler.index(branch), handler.index(field_guard))
+
+    def test_a_chord_is_not_printed_twice(self):
+        page = self._page()
+        # Ctrl+P is the browser's print dialog, and the page's own shortcut is a bare P. The
+        # handler may not preventDefault a chord it has already stood down from.
+        handler = self._handler(page)
+        self.assertLess(handler.index("if (e.ctrlKey || e.metaKey || e.altKey) return;"),
+                        handler.index("e.preventDefault();"))
 
 
 class SoundDefaultTests(unittest.TestCase):
