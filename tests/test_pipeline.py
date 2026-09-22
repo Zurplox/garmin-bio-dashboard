@@ -2752,6 +2752,63 @@ class KeyboardShortcutTests(unittest.TestCase):
                         handler.index("e.preventDefault();"))
 
 
+class HeaderProvenanceTests(unittest.TestCase):
+    """Provenance is disclosed in one voice, and only when there is something to disclose.
+
+    The header carried a pill beside the wordmark (`headerDataStatePill`) saying what the
+    provenance chip says -- `LIVE`, `N ESTIMATED`, `STALE`, `UNVERIFIED` -- and it existed
+    only because the chip hid itself in two of those states: measured-and-fresh, and a vault
+    carrying no provenance block at all. Measured through `renderDashboard` with the pill in
+    place: the nominal header read `LIVE`, the estimated header said `1 ESTIMATED` twice over,
+    and a vault with no quality block said `UNVERIFIED` on the pill while the chip -- the one
+    element a reader can open -- stayed hidden. Without it: the nominal header carries no
+    badge, one estimated group is stated once on the chip, the stale header is marked by its
+    own flag plus the chip, and the no-quality vault is stated and openable on the chip.
+    """
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+
+    def test_the_header_pill_is_gone_from_the_markup_and_from_the_script(self):
+        page = self._page()
+        # Markup and writer both, so no half of it can be revived on its own.
+        for dead in ("headerDataStatePill", "headerDataStateDot", "headerDataStateText"):
+            with self.subTest(dead=dead):
+                self.assertNotIn(dead, page)
+        # The wordmark row holds the name and no element claiming a state.
+        row = page.split('class="flex items-center gap-2">', 1)[1].split("</div>", 1)[0]
+        self.assertIn("Meridian", row)
+        self.assertNotIn("LIVE", row)
+
+    def test_the_chip_owns_every_state_that_is_not_nominal(self):
+        page = self._page()
+        # It hides only when the data is measured, fresh *and* verifiable -- the one case
+        # with nothing to disclose. It used to hide with no quality block too, which is
+        # exactly the state that then went unmarked.
+        self.assertIn("if (quality && allLive && !isStale) {", page)
+        self.assertNotIn("if (!quality || (allLive && !isStale)) {", page)
+        fn = page.split("function renderDataProvenance(", 1)[1].split("\n    }", 1)[0]
+        # The vault-with-no-provenance case is stated on the chip, before the measured path
+        # can write it, and in its own tone rather than the measured colour.
+        self.assertIn('document.getElementById("dataQualityText").textContent = "UNVERIFIED";', fn)
+        self.assertIn('= "This vault carries no provenance block";', fn)
+        self.assertLess(fn.index('= "UNVERIFIED";'), fn.index("chip.className = allLive"))
+        unverified = fn[fn.index("if (!quality) {"):fn.index('= "UNVERIFIED";')]
+        self.assertIn("text-slate-300", unverified)
+        self.assertNotIn("text-emerald-400", unverified)
+
+    def test_the_pill_left_no_dead_wiring_behind(self):
+        page = self._page()
+        # The dot's animation is shared with the live sections, so the class stays; what must
+        # not stay is anything that could put a state badge back in the header beside it.
+        self.assertIn(".animate-pulse-dot {", page)
+        self.assertNotIn("animate-pulse-dot\" : \"\"", page)
+        self.assertEqual(page.count('id="headerDataState'), 0)
+
+
 class SoundDefaultTests(unittest.TestCase):
     """The dashboard is audible on a first visit, and a refusal is remembered.
 

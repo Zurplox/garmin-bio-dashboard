@@ -628,12 +628,6 @@
           <div>
             <div class="flex items-center gap-2">
               <span class="font-bold text-white text-base tracking-tight">Meridian</span>
-              <!-- State is derived from data provenance at render time; it used to be
-                   static markup that claimed LIVE even on a stale or estimated vault. -->
-              <span id="headerDataStatePill" class="px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
-                <span id="headerDataStateDot" class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-dot"></span>
-                <span id="headerDataStateText">LIVE</span>
-              </span>
             </div>
             <div class="text-[11px] text-slate-400 flex items-center gap-2 flex-wrap">
               <span>Athlete: <strong id="headerAthlete" class="text-slate-200 font-semibold">Harvin</strong></span>
@@ -3222,60 +3216,40 @@
       const live = quality ? quality.live_count : 0;
       const allLive = degraded.length === 0;
 
-      // The header pill is the always-visible half of this disclosure -- the chip
-      // below hides itself whenever the data is measured and fresh, so the pill
-      // has to carry the truth in every other case. Both read the same inputs, so
-      // the page can no longer claim LIVE beside a STALE DATA flag. It describes
-      // the displayed dataset only: re-reading live data is the button's state and
-      // never makes this claim false.
-      const pill = document.getElementById("headerDataStatePill");
-      if (pill) {
-        const state = isStale
-          ? {
-              text: "STALE",
-              tone: "bg-amber-500/10 border-amber-500/40 text-amber-400",
-              dot: "bg-amber-400",
-              title: staleHours === null
-                ? "This vault carries no readable sync time."
-                : `Last successful sync was ${staleHours.toFixed(1)} hours ago.`,
-            }
-          : !quality
-            ? {
-                text: "UNVERIFIED",
-                tone: "bg-slate-700/40 border-slate-600 text-slate-300",
-                dot: "bg-slate-400",
-                title: "This vault carries no data-quality information.",
-              }
-            : !allLive
-              ? {
-                  text: `${degraded.length} ESTIMATED`,
-                  tone: "bg-amber-500/10 border-amber-500/40 text-amber-400",
-                  dot: "bg-amber-400",
-                  title: `${degraded.length} of ${total} metric groups are estimates.`,
-                }
-              : {
-                  text: "LIVE",
-                  tone: "bg-emerald-500/10 border-emerald-500/20 text-emerald-400",
-                  dot: "bg-emerald-400",
-                  title: `All ${total} metric groups were measured.`,
-                };
-        pill.className = `px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${state.tone}`;
-        pill.title = state.title;
-        const dot = document.getElementById("headerDataStateDot");
-        if (dot) {
-          dot.className = `w-1.5 h-1.5 rounded-full ${state.dot}${state.text === "LIVE" ? " animate-pulse-dot" : ""}`;
-        }
-        const label = document.getElementById("headerDataStateText");
-        if (label) label.textContent = state.text;
-      }
+      // This disclosure has one voice, and it is the chip below. The nominal header --
+      // every group measured on a fresh sync -- carries no badge at all, and every other
+      // state, including a vault that published no provenance block to check, is stated
+      // on the chip, which is the one a reader can open. A pill used to sit beside the
+      // wordmark saying the same thing; it existed only because the chip hid itself in
+      // two of those states, and now that the chip owns them all the pill says nothing
+      // the chip does not. It described the displayed dataset only: re-reading live data
+      // is the button's state and never made this claim false.
 
       const chip = document.getElementById("dataQualityChip");
       const panel = document.getElementById("dataQualityPanel");
       if (!chip || !panel) return;
 
-      if (!quality || (allLive && !isStale)) {
+      // The chip owns every state that is not nominal. It hides only when the data is
+      // measured, fresh *and* verifiable, which is the one case with nothing to disclose.
+      if (quality && allLive && !isStale) {
         chip.classList.add("hidden");
         panel.classList.add("hidden");
+        return;
+      }
+
+      if (!quality) {
+        // A vault that carries no provenance block is its own state and it says so, rather
+        // than borrowing the measured colour: nothing below can be confirmed as measured.
+        // The nominal colour is the one thing it must not wear.
+        chip.classList.remove("hidden");
+        chip.classList.add("flex");
+        chip.className = "px-2.5 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition cursor-pointer bg-slate-700/40 border-slate-600 text-slate-300";
+        document.getElementById("dataQualityIcon").innerHTML = '&#9675;';
+        document.getElementById("dataQualityText").textContent = "UNVERIFIED";
+        document.getElementById("dataQualityHeadline").textContent = "This vault carries no provenance block";
+        document.getElementById("dataQualitySummary").textContent =
+          "None of the numbers below can be confirmed as measured.";
+        document.getElementById("dataQualityList").innerHTML = "";
         return;
       }
 
