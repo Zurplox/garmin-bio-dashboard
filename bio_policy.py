@@ -363,6 +363,15 @@ BMI_BANDS = {
     "obese": {"label": "High", "tone": "rose"},
 }
 
+# --- movement trend --------------------------------------------------------
+# The movement card reads a week and a month, not the day: the day is already
+# published at the top of the page, and one day cannot show a habit. The heart
+# comparison needs enough days on both sides of the athlete's own median before
+# it is worth printing.
+MOVEMENT_WEEK_DAYS = 7
+MOVEMENT_MONTH_DAYS = 30
+MOVEMENT_HEART_MIN_DAYS = 7
+
 # --- correlations ----------------------------------------------------------
 # A correlation is only published when it has enough paired days and a strong
 # enough coefficient; below that it is noise wearing a decimal point.

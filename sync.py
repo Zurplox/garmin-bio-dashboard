@@ -148,6 +148,11 @@ def build_payload(client, fetched, dq):
     channels = analytics.daily_channel_series(
         sleep_history, all_hrv, all_rhr, fetched["steps"], fetched["spo2"]
     )
+    # The movement card reads a week and a month, so it is built from the same daily
+    # channels the correlation lab uses rather than from today's single reading.
+    capacity["trend"] = analytics.build_movement_trend(
+        channels, today_str, (fetched["daily_activity"] or {}).get("step_goal")
+    )
     correlations = {
         **bio_correlate.build_correlations(channels),
         "location": bio_correlate.location_breakdown(

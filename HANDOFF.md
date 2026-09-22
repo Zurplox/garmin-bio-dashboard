@@ -149,8 +149,13 @@ Top-level keys emitted by `sync.build_payload()`:
   analyses. Never contains a bare `plain_english` field; it is inside the string.
 * `coaching` — `focus`, `cards` (one per training domain), `patterns`,
   `week`, `window_days`, `pattern_caveat`, `available`.
-* `correlations` — `findings`, `tested_pairs`, `skipped`, the floors
+* `correlations` — `findings`, `tested_pairs`, `skipped`, `caveat`, the floors
   (`min_days`, `min_r`), the window, and `location` (home/away from device logs).
+* `capacity.trend` — the movement card's owner: the seven **finished** days' average
+  steps against the device's goal, the 30-day average, days that reached the goal,
+  the change against the week before, the window it covers (`window.label`), the heart
+  comparison on busier against quieter days (`heart`, with both day counts), and
+  `plain`. Today is excluded on purpose, so the average does not shrink all morning.
 * `data_quality` — per-metric `live`/`fallback` origin plus `publishable()`.
 
 Some groups are deliberately thin in practice: blood oxygen is an on-demand
@@ -227,6 +232,7 @@ These are not style preferences. Each one closed a real, user-visible bug.
 | #16 | **Today at a glance** strip: steps vs goal, the last 24 hours of training, and last night vs sleep need, all resolved by `build_today_summary` |
 | #17 | Thinner wording on that strip: `under 1% of goal` and `2 sessions` instead of `0%` and `session(s)` |
 | #18 | The pattern caveat gets one owner (`policy.CORRELATION_CAVEAT`), publishes with the correlation payload, and reads as a neutral statement — the `— not why` aside and the `is a guess` empty state are gone |
+| #19 | The movement card becomes a week-and-month trend, built from the same daily channels the correlation lab uses, with the heart reading beside it and today's still-running day left out of the average |
 
 Since the last merge, `daily_sync.yml` has been dispatch-verified on `main`: the
 runner fetches with the real key, publishes from the deterministic engine, commits

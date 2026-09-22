@@ -920,6 +920,194 @@ def build_today_summary(today, activities, capacity, step_days, whoop, published
     }
 
 
+def build_movement_trend(channels, today_str, step_goal=None):
+    """How movement has gone over a week and a month, and what the heart did beside it.
+
+    The day itself already sits at the top of the page, so this card reads the longer
+    window: a step count is health-relevant as a habit and a single day cannot show a
+    habit. Only finished days the device actually recorded are counted, and the heart
+    comparison splits those days at the athlete's own median step count, so it reports a
+    measured difference with its day count instead of a mechanism. The heart figures
+    travel in `heart` for the line beside the ring; `plain` covers movement only, so the
+    same comparison is never printed twice on one card.
+    """
+    steps = {
+        date: value
+        for date, value in ((channels or {}).get("steps") or {}).items()
+        if date and value is not None
+    }
+    empty = {
+        "available": False,
+        "window": None,
+        "week": None,
+        "month": None,
+        "heart": None,
+        "plain": None,
+    }
+    if not steps:
+        return empty
+
+    # Averages cover finished days only. Today is still accumulating -- 45 steps at
+    # 09:38 reads as a collapsed week average if it is averaged in -- and today's own
+    # count is already on the strip at the top of the page. The window is published
+    # with its dates so the card can say which days it covers.
+    end_date = None
+    if today_str:
+        try:
+            end_date = datetime.date.fromisoformat(str(today_str)[:10]) - datetime.timedelta(days=1)
+        except ValueError:
+            end_date = None
+    if end_date is None:
+        end_date = datetime.date.fromisoformat(max(steps))
+    steps = {date: value for date, value in steps.items() if date <= end_date.isoformat()}
+    end = end_date.isoformat()
+    if not steps:
+        return empty
+
+    def within(days, offset):
+        """Steps measured in the `days`-long window ending `offset` windows back."""
+        start = end_date - datetime.timedelta(days=days * (offset + 1) - 1)
+        finish = end_date - datetime.timedelta(days=days * offset)
+        return {date: value for date, value in steps.items() if start.isoformat() <= date <= finish.isoformat()}
+
+    week = within(policy.MOVEMENT_WEEK_DAYS, 0)
+    prior_week = within(policy.MOVEMENT_WEEK_DAYS, 1)
+    month = within(policy.MOVEMENT_MONTH_DAYS, 0)
+    if not week:
+        return empty
+
+    week_mean = sum(week.values()) / len(week)
+    prior_mean = sum(prior_week.values()) / len(prior_week) if prior_week else None
+    month_mean = sum(month.values()) / len(month) if month else None
+    change_pct = (
+        int(round((week_mean - prior_mean) / prior_mean * 100)) if prior_mean else None
+    )
+    days_met = sum(1 for value in week.values() if step_goal and value >= step_goal)
+    heart = _movement_heart(channels, month)
+    month_summary = (
+        {"mean_steps": int(round(month_mean)), "days_measured": len(month)}
+        if month_mean is not None
+        else None
+    )
+
+    return {
+        "available": True,
+        "window": {
+            "start": min(week),
+            "end": end,
+            "days_measured": len(week),
+            "label": _window_label(min(week), end),
+            "end_label": _short_date(end),
+        },
+        "week": {
+            "mean_steps": int(round(week_mean)),
+            "days_measured": len(week),
+            "days_met_goal": days_met if step_goal else None,
+            "goal": step_goal,
+            "pct_of_goal": int(round(week_mean / step_goal * 100)) if step_goal else None,
+            "prior_mean_steps": int(round(prior_mean)) if prior_mean else None,
+            "change_pct": change_pct,
+        },
+        "month": month_summary,
+        "heart": heart,
+        "plain": _movement_plain(
+            week_mean, len(week), prior_mean, change_pct, days_met, step_goal, month_summary, end
+        ),
+    }
+
+
+def _short_date(value):
+    """An ISO date as a reader says it ("21 Sep"), or the input unchanged."""
+    try:
+        moment = datetime.date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return value
+    return f"{moment.day} {moment.strftime('%b')}"
+
+
+def _window_label(start, end):
+    """The days an average covers, as a reader says them ("15-21 Sep")."""
+    try:
+        first, last = datetime.date.fromisoformat(start), datetime.date.fromisoformat(end)
+    except ValueError:
+        return None
+    if first == last:
+        return _short_date(end)
+    if first.month == last.month:
+        return f"{first.day}-{last.day} {last.strftime('%b')}"
+    return f"{first.day} {first.strftime('%b')} - {last.day} {last.strftime('%b')}"
+
+
+def _movement_heart(channels, month):
+    """Resting heart rate and HRV on the busiest days against the quietest.
+
+    The split is the athlete's own median step count over the published window, so it
+    describes their days rather than a published activity threshold, and both sides
+    must have enough paired days before anything is printed.
+    """
+    steps = (channels or {}).get("steps") or {}
+    paired = [(steps[date], date) for date in (month or {}) if steps.get(date) is not None]
+    if len(paired) < policy.MOVEMENT_HEART_MIN_DAYS * 2:
+        return None
+    median_steps = median([value for value, _ in paired])
+    high = [date for value, date in paired if value > median_steps]
+    low = [date for value, date in paired if value <= median_steps]
+    if len(high) < policy.MOVEMENT_HEART_MIN_DAYS or len(low) < policy.MOVEMENT_HEART_MIN_DAYS:
+        return None
+
+    def side(dates, key):
+        series = ((channels or {}).get(key) or {})
+        values = [series[date] for date in dates if series.get(date) is not None]
+        return round(sum(values) / len(values), 1) if values else None
+
+    return {
+        "median_steps": int(round(median_steps)),
+        "high_days": len(high),
+        "low_days": len(low),
+        "rhr_high": side(high, "rhr"),
+        "rhr_low": side(low, "rhr"),
+        "hrv_high": side(high, "hrv"),
+        "hrv_low": side(low, "hrv"),
+    }
+
+
+def _movement_plain(week_mean, week_days, prior_mean, change_pct, days_met, goal, month, window_end):
+    """The week, the month and the heart beside them, in one factual paragraph."""
+    end_label = _short_date(window_end)
+    if week_days == 1:
+        text = f"The last finished day ({end_label}): {week_mean:,.0f} steps"
+        if goal and days_met is not None:
+            text += (
+                f", which reached your {goal:,}-step goal"
+                if days_met
+                else f", below your {goal:,}-step goal"
+            )
+        text += "."
+    else:
+        text = (
+            f"Over the {week_days} measured days to {end_label} you averaged {week_mean:,.0f} steps a day"
+        )
+        if prior_mean and change_pct is not None:
+            if change_pct == 0:
+                text += ", the same as the week before"
+            else:
+                text += f", {abs(change_pct)}% {'above' if change_pct > 0 else 'below'} the week before"
+        if goal and days_met is not None:
+            if days_met == 0:
+                text += f", and did not reach your {goal:,}-step goal on any of them"
+            else:
+                text += f", and reached your {goal:,}-step goal on {days_met} of them"
+        text += "."
+    # A month figure that repeats the week adds nothing, so it is only printed when
+    # it covers more days than the week does.
+    if month and month.get("mean_steps") is not None and month["days_measured"] > week_days:
+        text += (
+            f" Across the last {month['days_measured']} measured days the average is "
+            f"{month['mean_steps']:,.0f} steps."
+        )
+    return text
+
+
 def _step_share_display(steps, goal):
     """Today's step count as a share of the goal, in words a reader can trust."""
     if steps is None or not goal:

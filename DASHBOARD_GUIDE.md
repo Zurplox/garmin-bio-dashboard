@@ -181,7 +181,7 @@ A comprehensive, plain-English reference manual for Harvin's personal bio-intell
   * **Threshold HR (166 bpm):** the heart rate at which your body starts accumulating lactate faster than it clears it — the ceiling for a hard but sustainable effort.
   * **Race forecast (5K 25:53 · 10K 54:55 · Half 2h03 · Marathon 4h29):** the device's own projection from your recent running, which assumes you keep training the way you have been. It is a fair estimate of current fitness rather than a promise.
   * **Intensity minutes (20 of 150 this week, Below Target):** moderate-equivalent minutes of movement; vigorous minutes count double. The 150-minute weekly figure is the widely used guideline, and most of this week has been easy walking rather than moderate exercise.
-  * **Today:** steps against your own goal, floors climbed and active calories.
+  * **Movement trend:** the average steps a day over the last seven *finished* days, the 30-day average, how many of those measured days reached your own step goal, the change against the week before, and what your resting heart rate and HRV averaged on your busier days against your quieter ones. Today's own step count is not here — it sits on the **Today at a glance** strip at the top of the page, so this card can read the longer window instead.
 
 ### 19. 🔬 Correlation Lab (How Your Own Signals Move Together)
 * **What it is:** Patterns computed from your own paired days — for example, whether nights with a higher sleep score are also nights with a higher HRV. Each published pattern carries its coefficient (`r`), the number of paired days behind it, and a plain-English note explaining why that pairing is physiologically plausible.
@@ -216,10 +216,14 @@ nothing animates, cards are never briefly invisible, and every value is simply t
   you its range and what it means for training, in plain English, from the same
   policy the badge and the coach use. If no ratio was published, the dial draws no
   bands and says so instead of pointing at a guess.
-* **Today's movement ring** — today's steps against the goal your device set, with
-  floors, active calories and this week's moderate-intensity minutes against the
-  150-minute floor. The ring stays empty and the centre reads `--` when no step count
-  has arrived yet: "not measured" is not the same as zero.
+* **Movement trend ring** — your average steps over the last seven finished days
+  against the goal your device set, with the 30-day average, the days that reached the
+  goal, the change against the week before, this week's moderate-intensity minutes
+  against the 150-minute floor, and the heart readings beside it. Today is deliberately
+  left out of the average, because it is still accumulating and would make the number
+  shrink all morning; the window the ring covers is printed in the card's corner. The
+  ring stays empty and the centre reads `--` when no finished day has a step record
+  yet: "not measured" is not the same as zero.
 * **Training consistency grid** — one cell per day for the last 120 days, shaded by
   how many minutes the device logged that day. Read a day by hovering or tabbing to
   it: date, number of sessions, total minutes and the activity types. A blank cell is
