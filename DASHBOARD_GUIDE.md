@@ -261,7 +261,8 @@ looking. Nothing is louder than a tap, and turning sound off silences all of it.
 
 | You hear | Meaning | Where |
 |:---|:---|:---|
-| Rising note | something opened | an ⓘ panel, the provenance chip, the heat map enlarged, day theme |
+| Rising note | something opened | an ⓘ panel, the provenance chip, day theme |
+| Two rising notes | something arrived | the heat map loading as you scroll down to it |
 | Falling note | something closed | the same controls, closing; night theme |
 | Two rising notes | accepted | RHR overlay switched on |
 | Three rising notes | work started | **Refresh** pressed, before the sync finishes |

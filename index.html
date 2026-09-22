@@ -2361,6 +2361,13 @@
     function animateHeatmap(grid, delayStep = 24) {
       if (!grid || !motionAllows() || vizPlayed.has(grid)) return;
       playWhenSeen(grid, () => {
+        // The map arriving is worth hearing, and it arrives as the reader scrolls to
+        // it rather than needing the enlarged view opened first. One grid can be armed
+        // twice in a single pass -- the panel replays itself and the document pass
+        // covers it too -- so only the cascade that actually starts the map sounds, and
+        // the enlarged view, which is a copy of that same map, stays silent.
+        const arriving = !grid.querySelector('.motion-heat-cell');
+        if (arriving && grid.id === 'consistencyGrid') playCue('reveal');
         grid.querySelectorAll('.consistency-day').forEach((cell, index) => {
           cell.classList.add('motion-heat-cell');
           window.setTimeout(() => {
@@ -2728,7 +2735,7 @@
       warn: [[240, 0.06, 'triangle', 0.02], [200, 0.06, 'triangle', 0.018, 90]],
       step: [[700, 0.03]],
       start: [[560, 0.03], [660, 0.03, 'sine', 0.018, 60], [780, 0.04, 'sine', 0.02, 120]],
-      enlarge: [[660, 0.03], [990, 0.05, 'sine', 0.02, 60]],
+      reveal: [[660, 0.03], [990, 0.05, 'sine', 0.02, 60]],
       print: [[1200, 0.06]],
     };
 
@@ -5380,9 +5387,6 @@
       const open = force === undefined ? modal.classList.contains('hidden') : force;
       modal.classList.toggle('hidden', !open);
       document.querySelector('[aria-controls="consistencyFocusModal"]')?.setAttribute('aria-expanded', String(open));
-      // Enlarging the heat map used to happen in silence; the tiles are the one visual
-      // worth hearing arrive.
-      playCue(open ? 'enlarge' : 'close');
       if (open) {
         target.innerHTML = source.innerHTML;
         target.style.gridTemplateColumns = source.style.gridTemplateColumns;
