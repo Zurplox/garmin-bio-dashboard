@@ -1774,8 +1774,11 @@ class SyncRelayTests(unittest.TestCase):
         # A relay wins over a stored token; no token and no relay means re-read only.
         self.assertIn('if (relayConfigured()) return "relay";', mode)
         self.assertIn('return githubToken() ? "token" : null;', mode)
-        # The gear belongs to the token, so it goes away when the token is not needed.
-        self.assertIn('classList.toggle("hidden", relayConfigured())', page)
+        # The tooltip is the button's only account of itself, and it follows the mode.
+        button = page.split("function updateRefreshButton()", 1)[1].split("\n    function ", 1)[0]
+        self.assertIn("const mode = syncTriggerMode();", button)
+        self.assertIn('? "Re-read the published vault, and trigger a fresh sync (Shortcut: R)"', button)
+        self.assertIn(': "Re-read the published vault (Shortcut: R)";', button)
 
     def test_the_relay_route_sends_no_authorization_header(self):
         page = self._page()
@@ -2369,11 +2372,30 @@ class SecretGuardTests(unittest.TestCase):
 
     def test_the_token_flow_stays_in_browser_storage(self):
         page = (Path(__file__).resolve().parent.parent / "index.html").read_text(encoding="utf-8", errors="ignore")
-        # The only place the token may live is localStorage, and the page must say
-        # so where the viewer supplies it.
-        self.assertIn("localStorage.setItem(GITHUB_TOKEN_KEY, token)", page)
-        self.assertIn("never committed", page)
+        # The only place the token may live is localStorage. It is written by the
+        # one-time link, not by a field in the page.
+        self.assertIn("localStorage.setItem(GITHUB_TOKEN_KEY, supplied)", page)
+        self.assertIn("const GITHUB_TOKEN_KEY = \"garmin_github_token\";", page)
         self.assertNotIn("GITHUB_TOKEN =\u0009", page)
+
+    def test_there_is_no_token_field_in_the_page(self):
+        page = (Path(__file__).resolve().parent.parent / "index.html").read_text(encoding="utf-8", errors="ignore")
+        # A settings dialog is a place a credential can be typed, screenshotted and
+        # pasted; the header carries none, and the onboarding path is a link whose
+        # fragment never reaches a server.
+        for gone in ("refreshSettingsModal", "ghTokenInput", "saveRefreshSettings", "clearGitHubToken", "refreshSettingsBtn"):
+            with self.subTest(gone=gone):
+                self.assertNotIn(gone, page)
+        self.assertIn("function applyTokenFromFragment()", page)
+        self.assertIn("history.replaceState(null, \"\", location.pathname + location.search)", page)
+        self.assertIn("#token=", page)
+        # Pasting the link onto an open dashboard changes only the fragment, so the
+        # reader must not have to reload the page for it to take effect.
+        self.assertIn("window.addEventListener('hashchange', applyTokenFromFragment)", page)
+        # An empty value forgets; a value that is not a token is refused rather than
+        # stored as if it were one.
+        self.assertIn("looksLikeToken", page)
+        self.assertIn("localStorage.removeItem(GITHUB_TOKEN_KEY)", page)
 
 
 class CoachCardTests(unittest.TestCase):
