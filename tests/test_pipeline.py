@@ -1746,6 +1746,80 @@ class ThemeDefaultTests(unittest.TestCase):
         self.assertIn("dataset.theme === 'light' ? 'dark' : 'light'", toggle)
 
 
+class SyncRelayTests(unittest.TestCase):
+    """A sync can be started without a token in the page, and never from one.
+
+    The dashboard is public, so the token that starts a sync lives in a relay's own
+    secret rather than in `index.html`. These guards keep the two routes distinct:
+    the relay pins the workflow and refuses a burst, and the page falls back to the
+    browser token only when no relay is configured.
+    """
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+
+    @staticmethod
+    def _worker():
+        return (Path(__file__).resolve().parent.parent / "relay" / "worker.js").read_text(
+            encoding="utf-8"
+        )
+
+    def test_the_page_prefers_a_relay_and_says_so_in_one_place(self):
+        page = self._page()
+        self.assertIn('const SYNC_RELAY_URL = "";', page)
+        mode = page.split("function syncTriggerMode()", 1)[1].split("\n    function ", 1)[0]
+        # A relay wins over a stored token; no token and no relay means re-read only.
+        self.assertIn('if (relayConfigured()) return "relay";', mode)
+        self.assertIn('return githubToken() ? "token" : null;', mode)
+        # The gear belongs to the token, so it goes away when the token is not needed.
+        self.assertIn('classList.toggle("hidden", relayConfigured())', page)
+
+    def test_the_relay_route_sends_no_authorization_header(self):
+        page = self._page()
+        dispatch = page.split("async function dispatchSyncWorkflow()", 1)[1].split("\n    // Poll", 1)[0]
+        relay_branch = dispatch.split("if (relayConfigured())", 1)[1].split("const resp = await fetch(", 1)[0]
+        self.assertIn("SYNC_RELAY_URL", relay_branch)
+        self.assertNotIn("Authorization", relay_branch)
+        self.assertNotIn("githubToken()", relay_branch)
+        # A refused burst is reported as its own outcome, not as a generic failure.
+        self.assertIn("resp.status === 429", relay_branch)
+
+    def test_the_worker_pins_the_target_and_needs_a_secret(self):
+        worker = self._worker()
+        self.assertIn('const WORKFLOW_FILE = "daily_sync.yml";', worker)
+        self.assertIn('const REF = "main";', worker)
+        # The request body must not be able to redirect the dispatch.
+        self.assertNotIn("request.json()", worker)
+        self.assertIn("env.GITHUB_TOKEN", worker)
+        self.assertIn("if (!env.GITHUB_TOKEN)", worker)
+        # A public page must not be able to spend the owner's Actions minutes.
+        self.assertIn("MIN_INTERVAL_SECONDS", worker)
+        self.assertIn("429", worker)
+        # The origin is the only caller allowed.
+        self.assertIn("if (origin !== allowed)", worker)
+
+    def test_the_worker_never_returns_the_token(self):
+        worker = self._worker()
+        # GitHub's own error body can carry token detail, so only a hint goes back.
+        self.assertIn("return json({ error: hint, status: resp.status }, 502", worker)
+        # The dispatch response is inspected by status alone; only the runs lookup,
+        # which is a plain list, is parsed.
+        dispatch = worker.split("/dispatches`, out", 1)[1] if "/dispatches`, out" in worker else worker.split("body: JSON.stringify({ ref: REF }),\n      }\n    );", 1)[1]
+        self.assertNotIn("resp.json()", dispatch)
+        self.assertNotIn("resp.text()", dispatch)
+
+    def test_the_relay_does_not_ship_a_credential(self):
+        # SecretGuardTests scans the tree; this is the local sanity check that the
+        # relay's secret is read from the environment and nowhere else.
+        worker = self._worker()
+        self.assertIn("wrangler secret put GITHUB_TOKEN", (Path(__file__).resolve().parent.parent / "relay" / "README.md").read_text(encoding="utf-8"))
+        self.assertNotRegex(worker, r"github_pat_[A-Za-z0-9_]{16,}")
+        self.assertNotRegex(worker, r"ghp_[A-Za-z0-9]{16,}")
+
+
 class SoundDefaultTests(unittest.TestCase):
     """The dashboard is audible on a first visit, and a refusal is remembered.
 
