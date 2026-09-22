@@ -148,7 +148,11 @@ Top-level keys emitted by `sync.build_payload()`:
 * `clinical_intelligence` — score, band, tone, zone, briefing and the three
   analyses. Never contains a bare `plain_english` field; it is inside the string.
 * `coaching` — `focus`, `cards` (one per training domain), `patterns`,
-  `week`, `window_days`, `pattern_caveat`, `available`.
+  `week`, `window_days`, `pattern_caveat`, `available`. Each card also carries the
+  `visual` its words are about: seven finished days as bars (with `pct` already
+  computed, an optional target line, and `null` for a day the device never recorded)
+  or one `level` reading against its ceiling, and `null` when the domain has no
+  history, which the page draws as empty stubs.
 * `correlations` — `findings`, `tested_pairs`, `skipped`, `caveat`, the floors
   (`min_days`, `min_r`), the window, and `location` (home/away from device logs).
 * `capacity.trend` — the movement card's owner: the seven **finished** days' average
@@ -234,6 +238,7 @@ These are not style preferences. Each one closed a real, user-visible bug.
 | #18 | The pattern caveat gets one owner (`policy.CORRELATION_CAVEAT`), publishes with the correlation payload, and reads as a neutral statement — the `— not why` aside and the `is a guess` empty state are gone |
 | #19 | The movement card becomes a week-and-month trend, built from the same daily channels the correlation lab uses, with the heart reading beside it and today's still-running day left out of the average |
 | #20 | Bars fill from their own edge (`scaleX(0)` from the left, `scaleY(0)` from the bottom) instead of springing at 92% of their width; the five-pillar bars are primed by class with a failsafe that fills them if the reveal never comes; the quadrant chart rains its points in from above the plot |
+| #21 | Every coaching card leads with its own reading drawn: seven finished days as bars (muted for a measured zero, dashed target line where policy has one) or a readiness level bar, empty stubs for a domain with no history. The coach's walking week moves to finished days so it quotes the same average as the movement trend card |
 
 Since the last merge, `daily_sync.yml` has been dispatch-verified on `main`: the
 runner fetches with the real key, publishes from the deterministic engine, commits
