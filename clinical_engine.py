@@ -439,15 +439,28 @@ def deterministic_engine(today, baselines, fitness, context=None):
     chrono_age = fitness.get("chronological_age", 29)
     fitness_age = fitness.get("fitness_age", 24.7)
     age_advantage = round(chrono_age - fitness_age, 1)
-    acwr = fitness.get("acwr", 0.2)
+    # A failed training-status endpoint publishes None rather than dropping the
+    # key, and an unmeasured ratio is not a band. The paragraph names no band it
+    # cannot measure -- the loads read "--" like every other absent number -- so it
+    # can never describe a workload the device never reported.
+    acwr = _as_float(fitness.get("acwr"))
+    if acwr is None:
+        acwr_key = None
+        load_verdict = (
+            "No workload ratio was published today -- the device returned no training-load "
+            "reading -- so this brief claims no load band."
+        )
+    else:
+        acwr_key = policy.acwr_band(acwr)
+        load_verdict = (
+            f"Acute-to-Chronic Workload Ratio (ACWR) is {_trim(acwr)} with an Acute Load of "
+            f"{_trim(fitness.get('acute_load'))} against a Chronic Load of "
+            f"{_trim(fitness.get('chronic_load'))}, a {policy.acwr_workload_band(acwr).lower()} workload band."
+        )
     workload_verdict = (
         f"Biological Fitness Age stands at {fitness_age} years -- {'operating' if age_advantage > 0 else 'trailing by'} "
-        f"{abs(age_advantage):.1f} years versus your chronological age of {chrono_age}. "
-        f"Acute-to-Chronic Workload Ratio (ACWR) is {acwr} with an Acute Load of "
-        f"{fitness.get('acute_load', 44)} against a Chronic Load of {fitness.get('chronic_load', 219)}, "
-        f"a {policy.acwr_workload_band(_as_float(acwr, 0.2)).lower()} workload band."
+        f"{abs(age_advantage):.1f} years versus your chronological age of {chrono_age}. {load_verdict}"
     )
-    acwr_key = policy.acwr_band(_as_float(acwr, 0.2))
     if age_advantage > 0:
         age_phrase = f"{_trim(age_advantage)} years younger than"
     elif age_advantage < 0:
@@ -457,6 +470,9 @@ def deterministic_engine(today, baselines, fitness, context=None):
     workload_plain = (
         f"Your recent training load sits in the "
         f"{policy.ACWR_BANDS[acwr_key]['label']} band: {policy.ACWR_BANDS[acwr_key]['plain']}. "
+        f"Your measured fitness age is {age_phrase} your real age of {chrono_age}."
+        if acwr_key else
+        f"No training-load ratio was measured today, so no load band is named here. "
         f"Your measured fitness age is {age_phrase} your real age of {chrono_age}."
     )
 

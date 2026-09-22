@@ -172,6 +172,16 @@ These are not style preferences. Each one closed a real, user-visible bug.
 7. **Motion computes nothing.** `playVisuals()` reads what the render pass already
    wrote and re-applies it. Reduced-motion readers get final values, no hidden
    cards, no animation.
+8. **A failed endpoint returns `None`, not a missing key.** `garmin_source` fills
+   the fitness block with `None` when an endpoint answers with nothing, so every
+   consumer must go through `_nullish` / `_truthy` / `_as_float`: a bare
+   `.get(key, default)` sees the `None` and the default never applies. This took
+   the whole sync down on 2026-09-22 — `calculate_fitbit_metrics` compared
+   `acute_load` (`None`) against `80` and the run died before publishing — so
+   `UnmeasuredWorkloadTests` now drives the readiness pillar and the narrative
+   with that exact shape. It is also why the workload paragraph claims no ACWR
+   band when the ratio is unmeasured: naming a band there was the same fabricated
+   verdict in prose.
 
 ---
 
@@ -191,6 +201,7 @@ These are not style preferences. Each one closed a real, user-visible bug.
 | #10 | Every reading explained in everyday words; the page animates as each visual reaches the fold |
 | #11 | Gemini model fallback chain (`gemini-3.8` → `3.5`, overridable with `GEMINI_MODELS`) |
 | #12 | Slower spring-eased motion with physics overshoot: staggered bars, night-by-night sleep chart, cascading heat map, square enlarged heat map, dial bounce, counting headline numbers |
+| #13 | `None` from a failed endpoint no longer crashes the pipeline; an unmeasured workload ratio is reported as unmeasured instead of assumed |
 
 Since the last merge, `daily_sync.yml` has been dispatch-verified on `main`: the
 runner fetches with the real key, publishes from the deterministic engine, commits
