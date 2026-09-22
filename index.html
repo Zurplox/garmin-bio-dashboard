@@ -10,15 +10,16 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Resolve the theme before first paint: a saved choice wins, otherwise the
-       operating system's preference decides, so neither theme flashes on load. -->
+  <!-- Resolve the theme before first paint: a saved choice wins, otherwise night
+       mode, which is the one this terminal is drawn for -- the instrument colours,
+       the glow behind a gauge and the glass cards are authored on the dark surface,
+       and day mode is the remap for when it is wanted rather than the other way
+       round. Resolved inline so neither theme flashes on load. -->
   <script>
     (function () {
       try {
         var saved = localStorage.getItem('meridian_theme');
-        var theme = saved === 'light' || saved === 'dark'
-          ? saved
-          : (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        var theme = saved === 'light' || saved === 'dark' ? saved : 'dark';
         document.documentElement.dataset.theme = theme;
         document.documentElement.classList.toggle('dark', theme === 'dark');
       } catch (e) { /* private mode: stay on the default */ }

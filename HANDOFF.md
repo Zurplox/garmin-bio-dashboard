@@ -90,6 +90,15 @@ restructuring anything.
 
 ## 4. Run and verify locally
 
+Theme: the dashboard opens in **night mode** for a first visit, because the palette
+is authored on the dark surface (gauge glows, glass cards, instrument tones); day
+mode is the remap for when it is asked for. A saved choice in
+`localStorage['meridian_theme']` wins, and the operating system preference is
+deliberately not consulted — `ThemeDefaultTests` fails if `matchMedia` or
+`prefers-color-scheme` reappears in the resolver. Both themes must be checked
+after any visual change, and the toggle rebuilds the charts because Chart.js bakes
+its colours in at construction.
+
 ```bash
 # pipeline (writes data/biometrics.json, then encrypts to the vault)
 python sync.py                 # needs watch credentials in .env / env vars
@@ -207,6 +216,7 @@ These are not style preferences. Each one closed a real, user-visible bug.
 | #12 | Slower spring-eased motion with physics overshoot: staggered bars, night-by-night sleep chart, cascading heat map, square enlarged heat map, dial bounce, counting headline numbers |
 | #13 | `None` from a failed endpoint no longer crashes the pipeline; an unmeasured workload ratio is reported as unmeasured instead of assumed |
 | #14 | Every card renders `--` for an absent measurement instead of a plausible number; the fitness-age advantage badge gets a policy owner |
+| #15 | Night mode is the default for a first visit; the operating system no longer picks the theme |
 
 Since the last merge, `daily_sync.yml` has been dispatch-verified on `main`: the
 runner fetches with the real key, publishes from the deterministic engine, commits
