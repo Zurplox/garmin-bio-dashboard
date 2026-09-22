@@ -1469,6 +1469,42 @@ class FitnessAgeOwnerTests(unittest.TestCase):
         )
 
 
+class ThemeDefaultTests(unittest.TestCase):
+    """Night mode is the default; day mode is a choice the reader makes.
+
+    The palette is authored on the dark surface -- the gauge glows, the glass
+    cards and the instrument tones -- so a first visit opens in the theme the
+    terminal was drawn for. A saved choice still wins, and the theme is resolved
+    inline so neither theme flashes while the page loads.
+    """
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+
+    def test_a_first_visit_opens_in_night_mode(self):
+        page = self._page()
+        resolver = page.split("var saved = localStorage.getItem('meridian_theme')", 1)[1].split("</script>", 1)[0]
+
+        self.assertIn("saved === 'light' || saved === 'dark' ? saved : 'dark'", resolver)
+        # No preference lookup: the operating system must not pick the theme.
+        self.assertNotIn("prefers-color-scheme", resolver)
+        self.assertNotIn("matchMedia", resolver)
+
+    def test_the_document_starts_dark(self):
+        page = self._page()
+        self.assertIn('<html lang="en" data-theme="dark" class="dark">', page)
+
+    def test_the_reader_choice_is_remembered_and_reversible(self):
+        page = self._page()
+        toggle = page.split("function toggleTheme()", 1)[1].split("\n    function ", 1)[0]
+
+        self.assertIn("localStorage.setItem(THEME_KEY, next)", toggle)
+        self.assertIn("dataset.theme === 'light' ? 'dark' : 'light'", toggle)
+
+
 class NoInventedMeasurementTests(unittest.TestCase):
     """Absent stays absent on the dashboard, exactly as policy already renders it.
 
