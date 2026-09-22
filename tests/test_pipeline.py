@@ -1754,7 +1754,16 @@ class MotionDirectionTests(unittest.TestCase):
         depth = page.split("const arriveFromDepth = motionAllows();", 1)[1].split(
             "scatterChartInstance = new Chart", 1
         )[0]
-        self.assertIn("dataset.pointRadius = SCATTER_DEPTH_POINT_RADIUS;", depth)
+        # The depth belongs to the dot rather than to the quadrant: one per-night map read
+        # through a single accessor, so a night with no beat of its own yet still draws at
+        # the size this render measured.
+        self.assertIn("const scatterNightDepth = new WeakMap();", depth)
+        self.assertIn("const measuredSize = measuredPointSizes[datasetIndex];", depth)
+        self.assertIn("dataset.pointRadius = context => {", depth)
+        self.assertIn("const depth = scatterNightDepth.get(context.raw);", depth)
+        self.assertIn("return typeof depth === 'number' ? depth : measuredSize;", depth)
+        self.assertNotIn("dataset.pointRadius = SCATTER_DEPTH_POINT_RADIUS;", page)
+        self.assertNotIn("dataset.pointRadius = measuredPointSizes", page)
         self.assertIn("const SCATTER_DEPTH_POINT_RADIUS = 0.5;", page)
         # A point's x and y are where the reading was measured, so neither travels: the
         # only thing that moves is the depth it comes forward from, and it arrives with
@@ -1771,26 +1780,40 @@ class MotionDirectionTests(unittest.TestCase):
         self.assertNotIn("scatterDropStart", page)
         self.assertNotIn("easeOutQuad", page)
 
-    def test_each_night_comes_forward_on_its_own_turn_and_a_stale_timer_stands_down(self):
+    def test_each_night_comes_forward_on_its_own_beat_and_a_stale_timer_stands_down(self):
         page = self._page()
-        staged = page.split("      if (arriveFromDepth) {", 2)[2].split("if (todayPoint)", 1)[0]
+        staged = page.split("      if (arriveFromDepth) {", 1)[1].split("if (todayPoint)", 1)[0]
         # One owner for the arrival, played from the render and again from the reveal sweep.
         self.assertIn("scatterChart.arriveFromDepth = () => {", staged)
         self.assertIn("scatterChart.arriveFromDepth();", staged)
         self.assertIn("const arrivalTimers = [];", staged)
-        # A replay restarts the wave instead of racing the one already in flight, and it
+        # A beat per dot rather than per quadrant: the arrival walks every night the chart
+        # drew, in the order it draws them, so the map comes forward dot by dot instead of
+        # in one lump per quadrant. Tonight is in the last dataset, so it is the last home.
+        self.assertIn("const arrivalOrder = [];", staged)
+        self.assertIn(
+            "scatterDatasets.forEach(dataset => dataset.data.forEach(raw => arrivalOrder.push(raw)));",
+            staged,
+        )
+        self.assertIn(
+            "arrivalOrder.forEach(raw => scatterNightDepth.set(raw, SCATTER_DEPTH_POINT_RADIUS));",
+            staged,
+        )
+        # A replay restarts the arrival instead of racing the one already in flight, and it
         # starts every night back at its far depth rather than growing it twice the size.
         self.assertIn("arrivalTimers.forEach(window.clearTimeout);", staged)
         self.assertIn("arrivalTimers.length = 0;", staged)
-        self.assertIn("dataset.pointRadius = SCATTER_DEPTH_POINT_RADIUS;", staged)
         self.assertIn("scatterChart.update('none');", staged)
         # A timer left over from a render the page has already replaced must not drive
         # the chart that replaced it.
         self.assertIn("if (scatterChartInstance !== scatterChart) return;", staged)
-        self.assertIn("dataset.pointRadius = measuredPointSizes[index];", staged)
+        self.assertIn("arrivalOrder.forEach((raw, beat) => {", staged)
+        self.assertIn("scatterNightDepth.delete(raw);", staged)
         self.assertIn("scatterChart.update();", staged)
-        self.assertIn("}, SCATTER_ARRIVAL_STAGGER_MS * index));", staged)
-        self.assertIn("const SCATTER_ARRIVAL_STAGGER_MS = 180;", page)
+        self.assertIn("}, SCATTER_ARRIVAL_BEAT_MS * beat));", staged)
+        self.assertIn("const SCATTER_ARRIVAL_BEAT_MS = 22;", page)
+        # The quadrant-wide stagger is gone: no two nights wait on the same beat.
+        self.assertNotIn("SCATTER_ARRIVAL_STAGGER_MS", page)
 
     def test_the_arrival_plays_when_the_reader_reaches_the_chart(self):
         page = self._page()

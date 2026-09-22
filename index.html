@@ -4829,17 +4829,27 @@
 
       // Tonight, and every night before it, travels forward out of the screen instead of
       // falling in from above: the chart is built with every night at a far depth, and
-      // then each dataset's own size is promoted on its turn, so the quadrants come
-      // forward one after another and each overshoots slightly before it settles -- the
-      // same bounce the gauges and bars use. The size is promoted rather than animated
-      // from a `from` value on purpose: Chart.js re-uses an animation config for every
-      // later transition, so a `from` depth would replay on hover and collapse a point
-      // under the reader's cursor. Reduced motion never enters the depth at all.
+      // then each night's own size is promoted on its own beat, so the dots come forward
+      // one at a time -- dot by dot, in the order they are drawn -- and each overshoots
+      // slightly before it settles, the same bounce the gauges and bars use. The size is
+      // promoted rather than animated from a `from` value on purpose: Chart.js re-uses an
+      // animation config for every later transition, so a `from` depth would replay on
+      // hover and collapse a point under the reader's cursor. Reduced motion never enters
+      // the depth at all.
       const arriveFromDepth = motionAllows();
       const measuredPointSizes = scatterDatasets.map(dataset => dataset.pointRadius);
-      if (arriveFromDepth) {
-        scatterDatasets.forEach(dataset => { dataset.pointRadius = SCATTER_DEPTH_POINT_RADIUS; });
-      }
+      // A night's depth belongs to the dot, and it lives beside the payload rather than on
+      // it: the accessor below is the only reader, so a point can never carry a size it was
+      // not measured at, and a dot that has not been given a beat yet still draws at the
+      // size this render measured.
+      const scatterNightDepth = new WeakMap();
+      scatterDatasets.forEach((dataset, datasetIndex) => {
+        const measuredSize = measuredPointSizes[datasetIndex];
+        dataset.pointRadius = context => {
+          const depth = scatterNightDepth.get(context.raw);
+          return typeof depth === 'number' ? depth : measuredSize;
+        };
+      });
 
       scatterChartInstance = new Chart(ctx, {
         type: 'scatter',
@@ -4925,21 +4935,26 @@
         // night reaches the size it was measured at even if the reveal never comes -- a chart
         // caught at depth would draw readings as pinpricks. And again from the reveal sweep,
         // because the reader meets this chart by scrolling down after the first paint, and
-        // the nights coming forward is what there is to see. A replay restarts the wave, and
-        // a timer left over from a render the page has already replaced stands down rather
-        // than driving the chart that replaced it.
+        // the nights coming forward is what there is to see. A replay restarts the arrival,
+        // and a timer left over from a render the page has already replaced stands down
+        // rather than driving the chart that replaced it.
         const arrivalTimers = [];
+        // Every dot in the order it is drawn -- the four quadrants in turn, tonight last --
+        // so each night has a beat of its own and the night the reader came for is the last
+        // one home.
+        const arrivalOrder = [];
+        scatterDatasets.forEach(dataset => dataset.data.forEach(raw => arrivalOrder.push(raw)));
         scatterChart.arriveFromDepth = () => {
           arrivalTimers.forEach(window.clearTimeout);
           arrivalTimers.length = 0;
-          scatterDatasets.forEach(dataset => { dataset.pointRadius = SCATTER_DEPTH_POINT_RADIUS; });
+          arrivalOrder.forEach(raw => scatterNightDepth.set(raw, SCATTER_DEPTH_POINT_RADIUS));
           scatterChart.update('none');
-          scatterDatasets.forEach((dataset, index) => {
+          arrivalOrder.forEach((raw, beat) => {
             arrivalTimers.push(window.setTimeout(() => {
               if (scatterChartInstance !== scatterChart) return;
-              dataset.pointRadius = measuredPointSizes[index];
+              scatterNightDepth.delete(raw);
               scatterChart.update();
-            }, SCATTER_ARRIVAL_STAGGER_MS * index));
+            }, SCATTER_ARRIVAL_BEAT_MS * beat));
           });
         };
         scatterChart.arriveFromDepth();
@@ -4955,9 +4970,10 @@
     // How far inside the screen a night sits before it travels forward to the size it
     // was measured at: far enough to read as depth, close enough to stay a point.
     const SCATTER_DEPTH_POINT_RADIUS = 0.5;
-    // How long one night waits for the one drawn before it, so the arrival is a wave of
-    // points coming forward rather than all of them at once.
-    const SCATTER_ARRIVAL_STAGGER_MS = 180;
+    // How long one night waits for the night drawn before it. This is a beat per dot and
+    // not per quadrant, so the whole map -- every night on record -- comes forward one dot
+    // at a time rather than in five lumps.
+    const SCATTER_ARRIVAL_BEAT_MS = 22;
 
     function getScatterQuadrantInfo(hrv, rhr, baseHrv, baseRhr) {
       if (hrv >= baseHrv && rhr <= baseRhr) {
