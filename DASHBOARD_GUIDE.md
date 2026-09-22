@@ -205,11 +205,14 @@ Three readings you can point at. Hover an arc, a cell or a day — or reach it w
 Tab key — and the panel under it says what you are looking at in words.
 
 Everything that grows on this page — a dial closing, the movement ring drawing
-itself, the battery refuelling, a bar filling, a chart plotting its points — animates
-the first time it reaches your screen rather than finishing off-screen while the page
-loads. No value is recalculated to do that: each visual is already drawn at its real
-number and the motion simply replays it. If your device is set to reduce motion,
-nothing animates, cards are never briefly invisible, and every value is simply there.
+itself, the battery refuelling from the bottom, a bar filling **from its left edge
+towards the right**, the quadrant chart raining its nights in from above the plot —
+animates the first time it reaches your screen rather than finishing off-screen while
+the page loads. No value is recalculated to do that: each visual is already drawn at
+its real number and the motion simply replays it, and if a frame is ever withheld the
+bar still settles at its measured width rather than sitting empty. If your device is
+set to reduce motion, nothing animates, cards are never briefly invisible, and every
+value is simply there.
 
 * **Workload balance dial** — a half-dial showing the four ACWR bands on the exact
   ratios that separate them, with a needle on today's ratio. Pointing at a band tells
