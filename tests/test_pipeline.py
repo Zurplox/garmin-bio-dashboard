@@ -1823,6 +1823,91 @@ class SyncRelayTests(unittest.TestCase):
         self.assertNotRegex(worker, r"ghp_[A-Za-z0-9]{16,}")
 
 
+class TactileAudioTests(unittest.TestCase):
+    """Every cue is named once, and every press that does something says so.
+
+    The frequencies used to be chosen at each call site, which is how a dashboard
+    ends up with one panel that chirps at 900 and another that chirps at 560 for the
+    same kind of action. The vocabulary lives in `SOUND_CUES`; these guards keep it
+    the only source of a cue name and keep the quiet interactions quiet.
+    """
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+
+    @staticmethod
+    def _cue_table(page):
+        body = page.split("const SOUND_CUES = {", 1)[1].split("\n    };", 1)[0]
+        return body
+
+    def test_every_cue_name_is_in_the_vocabulary(self):
+        page = self._page()
+        vocabulary = self._cue_table(page)
+        # Both shapes the page uses: a plain cue, and the open/close ternary (whose
+        # condition can mention something that is not a cue at all, like a theme name).
+        names = set(re.findall(r"playCue\('([a-z]+)'\)", page))
+        for chosen, otherwise in re.findall(r"playCue\([^()]*\?\s*'([a-z]+)'\s*:\s*'([a-z]+)'\)", page):
+            names.update((chosen, otherwise))
+        self.assertGreaterEqual(len(names), 8, sorted(names))
+        for name in sorted(names):
+            with self.subTest(cue=name):
+                self.assertIn(f"{name}: [", vocabulary)
+
+    def test_the_vocabulary_is_one_table_and_stays_quiet(self):
+        page = self._page()
+        self.assertIn("function playCue(name)", page)
+        route = page.split("function playCue(name)", 1)[1].split("\n    }", 1)[0]
+        # Every cue is built from the one chirp primitive, so a single volume policy
+        # applies to all of them.
+        self.assertIn("playMicroChirp(freq, duration, type, volume)", route)
+        self.assertIn("if (!isAudioEnabled || !SOUND_CUES[name]) return;", route)
+        # Feedback, not notification: the volume is the fourth field of a cue's note,
+        # and nothing may exceed 0.025. (The second field is a duration, which is
+        # why this reads the position rather than every decimal in the table.)
+        for note in re.findall(r"\[([^\]]+)\]", self._cue_table(page)):
+            fields = [f.strip() for f in note.split(",")]
+            if len(fields) < 4:
+                continue
+            with self.subTest(note=note):
+                self.assertLessEqual(float(fields[3]), 0.025)
+
+    def test_a_refused_press_and_a_failed_refresh_speak(self):
+        page = self._page()
+        guard_section = page.split("async function refreshVault()", 1)[1].split("const previousAt", 1)[0]
+        # Three ways a press is declined, each answered aloud rather than with a toast
+        # over silence.
+        self.assertEqual(guard_section.count("playCue('refuse')"), 3)
+        started = page.split("refreshBusy = true;", 1)[1].split("const previousAt", 1)[0]
+        self.assertIn("playCue('start')", started)
+        failure = page.split("const passphraseMissing", 1)[1].split("finally", 1)[0]
+        self.assertIn("playCue('warn')", failure)
+        # A finished job keeps the melody; nothing new is a step, not a fanfare.
+        self.assertIn("if (changed) playSuccessMelody();", page)
+        self.assertIn("else playCue('step');", page)
+
+    def test_the_continuous_interactions_keep_their_own_pitch_ladders(self):
+        page = self._page()
+        # A scrub, a heat-map sweep and a section jump are continuous: they read as a
+        # ladder of pitches, so they must not be reduced to one discrete cue per frame.
+        self.assertIn("playMicroChirp(720 + (idx % 12) * 28, 0.018)", page)
+        self.assertIn("playMicroChirp(600 + sectionIndex * 50, 0.03)", page)
+        self.assertIn("lastChirpTime", page)
+
+    def test_the_consequential_controls_are_audible(self):
+        page = self._page()
+        # Locking the vault, arming the emergency lockout and enlarging the heat map
+        # were all silent; each now has a cue of its own.
+        self.assertIn("function logout()", page)
+        logout = page.split("function logout()", 1)[1].split("\n    function ", 1)[0]
+        self.assertIn("playCue('lock')", logout)
+        self.assertIn("playCue('warn')", page.split("function openMasterLockModal()", 1)[1].split("\n    }", 1)[0])
+        focus = page.split("function toggleConsistencyFocus", 1)[1].split("\n    function ", 1)[0]
+        self.assertIn("playCue(open ? 'enlarge' : 'close')", focus)
+
+
 class SoundDefaultTests(unittest.TestCase):
     """The dashboard is audible on a first visit, and a refusal is remembered.
 
