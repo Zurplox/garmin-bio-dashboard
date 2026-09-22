@@ -176,7 +176,7 @@ This is not cosmetic. Publishing the model's number meant the same physiology pr
 
 `tests.yml` runs on every push and pull request: the offline unit suite, a frontend syntax check, and a Web Crypto decryption of the vault.
 
-`backup_build.yml` runs on every push to `main` and attaches a zip of the build to the persistent **[build-backups](../../releases/tag/build-backups)** release — `meridian-build-latest.zip` always the newest, a timestamped copy beside it kept as a point-in-time rollback (the newest ten are retained). It is a release asset rather than a committed file on purpose: release storage survives a force-pushed or lost branch, which is exactly the failure a rollback copy exists to cover, and a committed zip would grow the repository for ever.
+`backup_build.yml` runs on every push to `main` — and again whenever the daily sync finishes, because GitHub does not start workflows from a push made with the default `GITHUB_TOKEN`, so the data commit would otherwise leave it behind — and attaches a zip of the build to the persistent **[build-backups](../../releases/tag/build-backups)** release — `meridian-build-latest.zip` always the newest, a timestamped copy beside it kept as a point-in-time rollback (the newest ten are retained). It is a release asset rather than a committed file on purpose: release storage survives a force-pushed or lost branch, which is exactly the failure a rollback copy exists to cover, and a committed zip would grow the repository for ever.
 
 ---
 

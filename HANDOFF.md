@@ -32,7 +32,7 @@ step, and no database.
 | Unit tests | `python -m unittest discover -s tests -t .` — 251 pass |
 | Scheduler | `.github/workflows/daily_sync.yml` — `Daily Biometrics Sync & AI Analysis`, 00:00 UTC (08:00 SGT) |
 | CI | `.github/workflows/tests.yml` — `Tests`, runs on push/PR |
-| Rollback backup | `.github/workflows/backup_build.yml` — `Backup Build`, attaches a zip of the build to the persistent `build-backups` release on every push to main: release assets live on GitHub's release storage, so a build is still downloadable after a force-push or a lost history, and unlike a committed zip it never grows the repository |
+| Rollback backup | `.github/workflows/backup_build.yml` — `Backup Build`, attaches a zip of the build to the persistent `build-backups` release on every push to main and whenever the daily sync finishes (GitHub starts no workflow from a push made with the default `GITHUB_TOKEN`, so the data commit needs the `workflow_run` trigger or the backup would lag). A release asset rather than a committed file, because release storage survives a force-push or a lost history and a committed zip would grow the repository for ever |
 | Plaintext vault | `data/biometrics.json` is **gitignored**; only ciphertext ships |
 
 ---

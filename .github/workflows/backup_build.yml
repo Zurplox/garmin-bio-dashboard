@@ -10,8 +10,21 @@ name: Backup Build
 # timestamped copy beside it is a point-in-time rollback target. The git history
 # remains the source of truth -- these assets exist only so a build can be
 # recovered when the history cannot be trusted.
+#
+# It runs on a push to main and again whenever the daily sync finishes, because a
+# data commit is a push too and the newest asset should be the build that is on
+# main right now.
 on:
   push:
+    branches: [main]
+  # A push made by the sync workflow uses the default GITHUB_TOKEN, and GitHub
+  # deliberately does not start other workflows from those, so the daily data
+  # commit would leave this backup behind. `workflow_run` fires when the sync
+  # finishes however it was started, which is what keeps the newest asset the
+  # build actually on main.
+  workflow_run:
+    workflows: ["Daily Biometrics Sync & AI Analysis"]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -25,6 +38,8 @@ permissions:
 
 jobs:
   backup:
+    # A failed sync published nothing, so there is nothing new to back up.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
