@@ -681,6 +681,45 @@ def rhr_tier(value):
     return "elevated"
 
 
+# How far the measured aerobic age sits below the calendar, with the wording and
+# tone the badge shows. One owner, so the number, its colour and the info panel
+# can never describe different things.
+FITNESS_AGE_ELITE_ADVANTAGE = 5.0
+FITNESS_AGE_ADVANTAGE_TONES = {
+    "elite": "cyan",
+    "younger": "emerald",
+    "matches": "slate",
+    "older": "amber",
+    "unmeasured": "slate",
+}
+
+
+def fitness_age_advantage(fitness_age, chronological_age):
+    """The aerobic-age advantage, or nothing when either age is unmeasured.
+
+    A missing reading returns the `unmeasured` entry so the badge reads `--` with
+    a neutral tone instead of an advantage nobody measured.
+    """
+    try:
+        years = round(float(chronological_age) - float(fitness_age), 1)
+    except (TypeError, ValueError):
+        return {"key": "unmeasured", "years": None, "label": "--",
+                "tone": FITNESS_AGE_ADVANTAGE_TONES["unmeasured"]}
+    if years > FITNESS_AGE_ELITE_ADVANTAGE:
+        key = "elite"
+    elif years > 0:
+        key = "younger"
+    elif years == 0:
+        key = "matches"
+    else:
+        key = "older"
+    if key == "matches":
+        label = "matches your age"
+    else:
+        label = f"{abs(years):.1f} yrs {'younger' if years > 0 else 'older'}"
+    return {"key": key, "years": years, "label": label, "tone": FITNESS_AGE_ADVANTAGE_TONES[key]}
+
+
 def hrv_band(hrv, baseline):
     if not baseline:
         return "above"

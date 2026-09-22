@@ -1417,6 +1417,102 @@ class FitnessFallbackTests(unittest.TestCase):
         self.assertEqual(result["device_name"], "fenix 6S ASIA Sapphire")
 
 
+class FitnessAgeOwnerTests(unittest.TestCase):
+    """The advantage badge reads the engine, and an unmeasured age reads absent."""
+
+    def test_the_tier_follows_the_two_ages(self):
+        elite = policy.fitness_age_advantage(20.0, 29.0)
+        younger = policy.fitness_age_advantage(24.7, 29.0)
+        same = policy.fitness_age_advantage(29.0, 29.0)
+        older = policy.fitness_age_advantage(31.0, 29.0)
+
+        self.assertEqual((elite["key"], elite["label"]), ("elite", "9.0 yrs younger"))
+        self.assertEqual((younger["key"], younger["label"]), ("younger", "4.3 yrs younger"))
+        self.assertEqual(same["label"], "matches your age")
+        self.assertEqual(older["label"], "2.0 yrs older")
+        for entry in (elite, younger, same, older):
+            with self.subTest(key=entry["key"]):
+                self.assertTrue(entry["tone"])
+
+    def test_an_unmeasured_age_is_never_an_advantage(self):
+        for fitness_age, chronological_age in ((None, 29.0), (24.7, None), (None, None), ("", 29.0)):
+            with self.subTest(fitness_age=fitness_age, chronological_age=chronological_age):
+                entry = policy.fitness_age_advantage(fitness_age, chronological_age)
+                self.assertEqual(entry["key"], "unmeasured")
+                self.assertEqual(entry["label"], "--")
+                self.assertIsNone(entry["years"])
+                self.assertEqual(entry["tone"], "slate")
+
+    def test_the_payload_carries_the_resolved_badge(self):
+        fields = sync.age_advantage_fields({"fitness_age": 24.7, "chronological_age": 29})
+
+        self.assertEqual(fields["age_advantage_label"], "4.3 yrs younger")
+        self.assertEqual(fields["age_advantage_tone"], "emerald")
+        self.assertEqual(fields["age_advantage_years"], 4.3)
+
+        absent = sync.age_advantage_fields({"fitness_age": None, "chronological_age": 29})
+        self.assertEqual(absent["age_advantage_label"], "--")
+        self.assertEqual(absent["age_advantage_tone"], "slate")
+
+    def test_the_page_holds_no_fitness_age_claim_of_its_own(self):
+        page = self._page()
+        for fragment in ("-4.3 yrs", "24.7</span>", "\u22124.3 years advantage"):
+            with self.subTest(fragment=fragment):
+                self.assertNotIn(fragment, page)
+        self.assertIn("fitness.age_advantage_label", page)
+        self.assertIn("fitness.age_advantage_tone", page)
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+
+
+class NoInventedMeasurementTests(unittest.TestCase):
+    """Absent stays absent on the dashboard, exactly as policy already renders it.
+
+    The KPI strip used to fall back to plausible numbers -- a 0.2 ratio beside a
+    dial that said it had nothing to point at, and an Acute Load of 44 that no
+    device ever reported -- so a reader saw two answers for one missing reading.
+    """
+
+    CARD_IDS = (
+        "kpiFitnessAge", "kpiChronologicalAge", "kpiAchievableAge", "kpiAcwrVal",
+        "kpiAcuteLoad", "kpiChronicLoad", "kpiHrvValue", "kpiRhrValue", "cardRhrVal",
+        "doughnutScoreVal", "fitbitReadinessScore", "metricEfficiency", "metric7dDebt",
+        "markerRespRate", "markerSleepStress",
+    )
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+
+    def test_no_card_substitutes_a_plausible_number_for_a_missing_one(self):
+        page = self._page()
+        for element_id in self.CARD_IDS:
+            with self.subTest(element=element_id):
+                window = page.split(f'("{element_id}")', 1)[1].split(";", 1)[0]
+                self.assertNotRegex(window, r'\|\|\s*[0-9"]', window)
+
+    def test_each_card_starts_as_absent(self):
+        page = self._page()
+        for element_id in ("kpiFitnessAge", "kpiChronologicalAge", "kpiAcwrVal", "kpiAcuteLoad",
+                           "kpiChronicLoad", "kpiFitnessAgeDelta", "kpiHrvValue", "kpiRhrValue"):
+            with self.subTest(element=element_id):
+                tag = page.split(f'id="{element_id}"', 1)[1].split("</", 1)[0]
+                self.assertTrue(tag.rstrip().endswith("--"), tag)
+
+    def test_the_absence_helper_is_what_renders_them(self):
+        page = self._page()
+
+        self.assertIn("function measured(", page)
+        self.assertIn('measured(today.hrv_last_night)', page)
+        self.assertIn('measured(fitness.acwr)', page)
+
+
 class UnmeasuredWorkloadTests(unittest.TestCase):
     """An endpoint that answers with nothing must not take the whole run down.
 

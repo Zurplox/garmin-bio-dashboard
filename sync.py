@@ -77,6 +77,19 @@ def collect(client, dq):
     }
 
 
+def age_advantage_fields(fitness_data):
+    """The resolved fitness-age advantage for the badge, absent when unmeasured."""
+    advantage = policy.fitness_age_advantage(
+        fitness_data.get("fitness_age"), fitness_data.get("chronological_age")
+    )
+    return {
+        "age_advantage": advantage["key"],
+        "age_advantage_years": advantage["years"],
+        "age_advantage_label": advantage["label"],
+        "age_advantage_tone": advantage["tone"],
+    }
+
+
 def acwr_band_fields(fitness_data):
     """The resolved ACWR band for the dashboard, or nothing when unmeasured."""
     acwr = fitness_data.get("acwr")
@@ -173,7 +186,7 @@ def build_payload(client, fetched, dq):
 
     # The ratio's band is resolved once here and read by both the dashboard and the
     # coach, so no prescription re-derives a band of its own.
-    fitness_data = {**fitness_data, **acwr_band_fields(fitness_data)}
+    fitness_data = {**fitness_data, **acwr_band_fields(fitness_data), **age_advantage_fields(fitness_data)}
     # HRV's per-night bands, resolved here for the same reason: the chart's scrub
     # HUD reads the night's own band instead of Garmin's status word.
     night_bands = analytics.hrv_night_bands(all_hrv)
