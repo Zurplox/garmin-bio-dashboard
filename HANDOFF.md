@@ -188,6 +188,9 @@ These are not style preferences. Each one closed a real, user-visible bug.
 | #7 | ACWR gets one vocabulary, taken from the user's own guide |
 | #8 | The coaching layer (`bio_coach.py`) plus 13 cited evidence panels |
 | #9 | The HRV scrub HUD takes the night's own band, tone and 30-night basis |
+| #10 | Every reading explained in everyday words; the page animates as each visual reaches the fold |
+| #11 | Gemini model fallback chain (`gemini-3.8` → `3.5`, overridable with `GEMINI_MODELS`) |
+| #12 | Slower spring-eased motion with physics overshoot: staggered bars, night-by-night sleep chart, cascading heat map, square enlarged heat map, dial bounce, counting headline numbers |
 
 Since the last merge, `daily_sync.yml` has been dispatch-verified on `main`: the
 runner fetches with the real key, publishes from the deterministic engine, commits
