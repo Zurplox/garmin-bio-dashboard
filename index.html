@@ -2243,6 +2243,14 @@
     const vizPlayed = new WeakSet();
     const vizPending = [];
     let vizSweepQueued = false;
+    // The first paint primes the document; every later render primes again through
+    // replayMotion, so this remembers which kind of pass is running.
+    let motionPainted = false;
+    // The value the render pass last published for a primable element. A single
+    // render can prime the same bar twice -- the panel replays itself and then a
+    // pass over the document covers it too -- and an animation that started earlier
+    // must still finish on the newer reading, never land the one it captured.
+    const motionTargets = new WeakMap();
 
     // A scroll-position sweep rather than an intersection threshold: a fast flick
     // or a scrollbar drag can skip an element entirely between frames, and a
@@ -2293,19 +2301,35 @@
       });
     }
 
+    // Adding a class an element already carries restarts nothing, so a bar that is
+    // never replaced -- a reading the render rewrites in place -- would fill without
+    // the spring the first paint gave it. Removing the class, forcing a reflow and
+    // adding it back restarts that same animation: no new keyframes, no new effect.
+    function replayAnimation(el, className) {
+      if (!el) return;
+      el.classList.remove(className);
+      void el.offsetWidth;
+      el.classList.add(className);
+    }
+
     // A bar or battery the render pass has already filled to its measured value.
     function primeGrow(el, prop, delay = 0) {
       if (!el || vizPlayed.has(el)) return;
       const target = el.style[prop];
-      if (!target) return;
+      // A zero here is this function's own state rather than a measurement: it is
+      // what the prime stamped on the element while its fill is still in flight, so
+      // a second prime would read it back and drain the bar to nothing. The first
+      // prime owns the element, its target and its failsafe; the second stands down.
+      if (!target || target === '0%') return;
+      motionTargets.set(el, target);
       // A width grows across the track; a height grows up it.
       const grow = prop === 'height' ? 'motion-bar-spring-y' : 'motion-bar-spring';
       let filled = false;
       const fill = () => {
         if (filled) return;
         filled = true;
-        el.style[prop] = target;
-        requestAnimationFrame(() => el.classList.add(grow));
+        el.style[prop] = motionTargets.get(el) || target;
+        requestAnimationFrame(() => replayAnimation(el, grow));
       };
       // Do not add the animation class until the visual reaches the fold. Adding
       // it here would spend the spring off-screen while the page is loading.
@@ -2323,10 +2347,13 @@
       if (!el || vizPlayed.has(el)) return;
       const empty = el.getAttribute('stroke-dasharray');
       const target = el.style.strokeDashoffset || el.getAttribute('stroke-dashoffset');
-      if (!empty || !target) return;
+      // The empty ring is this function's own state while the arc is in flight, so a
+      // second prime in the same pass stands down rather than closing it onto zero.
+      if (!empty || !target || target === empty) return;
+      motionTargets.set(el, target);
       playWhenSeen(el, () => {
-        el.style.strokeDashoffset = target;
-        requestAnimationFrame(() => el.parentElement?.classList.add('motion-gauge-bounce'));
+        el.style.strokeDashoffset = motionTargets.get(el) || target;
+        requestAnimationFrame(() => replayAnimation(el.parentElement, 'motion-gauge-bounce'));
       });
       el.style.strokeDashoffset = empty;
     }
@@ -2353,6 +2380,7 @@
       const sign = match[1];
       const value = Number(match[2].replace(/,/g, ''));
       if (!Number.isFinite(value)) return;
+      motionTargets.set(el, target);
       const grouped = match[2].includes(',');
       const suffix = match[3];
       const frameFor = n => {
@@ -2381,7 +2409,11 @@
         // the published value back, but only while our own last frame still holds the
         // element, so a fresher render is never overwritten.
         window.setTimeout(() => {
-          if (document.documentElement.contains(el) && el.textContent === lastFrame) el.textContent = target;
+          // A later pass may have published a newer reading for this element; that is
+          // the one to stand behind, never the value this prime captured.
+          if (document.documentElement.contains(el) && el.textContent === lastFrame) {
+            el.textContent = motionTargets.get(el) || target;
+          }
         }, duration + 1500);
       });
     }
@@ -2390,7 +2422,7 @@
     // same spring, applied to the dial itself.
     function primeScale(el) {
       if (!el || vizPlayed.has(el)) return;
-      playWhenSeen(el, () => requestAnimationFrame(() => el.classList.add('motion-gauge-bounce')));
+      playWhenSeen(el, () => requestAnimationFrame(() => replayAnimation(el, 'motion-gauge-bounce')));
     }
 
     // A string of numbers is not a picture. A panel whose children are tiles, rows
@@ -2408,56 +2440,59 @@
       });
     }
 
-    function playVisuals() {
-      if (!motionAllows()) return;
-      document.documentElement.classList.add('motion-live');
-
-      // Cards and sections rise into place as they arrive, staggered by position
-      // in their row so a grid reads left to right instead of all at once. A
-      // container carrying data-stagger animates its own children instead, so the
-      // two passes never fade the same block twice.
-      document.querySelectorAll('section, .glass-card').forEach(el => {
-        if (vizPlayed.has(el) || el.closest('#lockScreen, [data-no-motion]')) return;
-        if (el.hasAttribute('data-stagger')) return;
-        const siblings = el.parentElement ? Array.from(el.parentElement.children) : [];
-        el.style.setProperty('--motion-delay', `${Math.min(Math.max(siblings.indexOf(el), 0), 5) * 60}ms`);
-        el.classList.add('motion-reveal');
-        playWhenSeen(el, () => el.classList.add('is-revealed'));
-      });
+    // Everything the motion layer animates, applied to a scope. The first paint
+    // passes the document; a render that rebuilt a panel passes that panel. One list,
+    // so the two can never drift -- and a primitive is safe to apply more than once
+    // (see the guards above) because one render may well do exactly that.
+    function primeMotion(scope) {
+      const root = scope || document;
+      // A scoped query includes the scope itself: a panel hands over the host it
+      // rebuilt, which is usually the element the rule is about.
+      const inScope = el => !!el && (root === document || root === el || root.contains(el));
+      const each = (selector, run) => {
+        if (root !== document && root.matches(selector)) run(root, 0);
+        root.querySelectorAll(selector).forEach(run);
+      };
 
       // The panels that are mostly words and single readings: their tiles, rows and
-      // paragraphs assemble one after the next.
-      document.querySelectorAll('[data-stagger]').forEach(host => {
+      // paragraphs assemble one after the next, in a rebuilt panel as on first paint.
+      each('[data-stagger]', host => {
         if (host.closest('#lockScreen, [data-no-motion]')) return;
         staggerChildren(host, Number(host.dataset.stagger) || 60, host.hasAttribute('data-stagger-flip'));
       });
 
-      // iOS-style press feedback on anything tappable.
-      document.querySelectorAll('button').forEach(el => el.classList.add('tap-squish'));
-
       [['strainTargetBar', 'width', 0], ['barRest', 'width', 160], ['barLow', 'width', 320],
        ['barMed', 'width', 480], ['barHigh', 'width', 640], ['injuryRiskBar', 'width', 800],
        ['bbLevelBar', 'height', 180], ['glanceSleepBar', 'width', 120]]
-        .forEach(([id, prop, delay]) => primeGrow(document.getElementById(id), prop, delay));
+        .forEach(([id, prop, delay]) => {
+          const el = document.getElementById(id);
+          if (inScope(el)) primeGrow(el, prop, delay);
+        });
 
-      // The five-pillar matrix is rebuilt from the payload on every render, so its bars
-      // are primed here rather than by id, one after the next, and each fills left to
-      // right from zero width.
-      document.querySelectorAll('.pillar-fill').forEach((el, index) => primeGrow(el, 'width', 80 * index));
-
-      // Coach cards are rebuilt per render too: their week bars rise from the baseline
-      // and the readiness level fills across its track.
-      document.querySelectorAll('.coach-bar').forEach((el, index) => primeGrow(el, 'height', 35 * index));
-      document.querySelectorAll('.coach-level').forEach(el => primeGrow(el, 'width', 0));
+      // The five-pillar matrix and the coaching cards are rebuilt from the payload on
+      // every render, so their bars are primed by class rather than by id, one after
+      // the next, each filling from zero along its own axis.
+      each('.pillar-fill', (el, index) => primeGrow(el, 'width', 80 * index));
+      each('.coach-bar', (el, index) => primeGrow(el, 'height', 35 * index));
+      each('.coach-level', el => primeGrow(el, 'width', 0));
 
       ['recoveryGaugeCircle', 'strainGaugeCircle', 'readinessGauge', 'movementRingArc', 'glanceStepsRing']
-        .forEach(id => primeGauge(document.getElementById(id)));
+        .forEach(id => {
+          const el = document.getElementById(id);
+          if (inScope(el)) primeGauge(el);
+        });
 
-      primeScale(document.getElementById('acwrDial'));
+      if (inScope(document.getElementById('acwrDial'))) primeScale(document.getElementById('acwrDial'));
 
       // Heat-map cells arrive as a slow cascade rather than a single rectangle
-      // appearing all at once. The enlarged focus view calls the same helper.
-      animateHeatmap(document.getElementById('consistencyGrid'));
+      // appearing at once. Both the map and its enlarged twin live here, and a grid
+      // behind a closed modal is skipped: arming it would spend the cascade on cells
+      // nothing can see.
+      ['consistencyGrid', 'consistencyFocusGrid'].forEach(id => {
+        const grid = document.getElementById(id);
+        if (!inScope(grid) || grid.closest('.hidden')) return;
+        animateHeatmap(grid);
+      });
 
       // The headline readings count up only when their card enters view; their
       // final values remain in the DOM while off-screen, so the page never hides
@@ -2465,19 +2500,80 @@
       ['recoveryScoreVal', 'strainScoreVal', 'kpiHrvValue', 'kpiRhrValue', 'kpiFitnessAge',
        'kpiAcwrVal', 'movementRingPct', 'glanceSessions', 'glanceSteps',
        'markerDeltaRhr', 'markerDeltaHrv', 'markerRespRate', 'markerSleepStress']
-        .forEach(id => primeCount(document.getElementById(id)));
+        .forEach(id => {
+          const el = document.getElementById(id);
+          if (inScope(el)) primeCount(el);
+        });
 
       // Charts draw themselves the first time the reader scrolls to them rather
       // than finishing their animation off-screen while the page loads.
-      document.querySelectorAll('canvas').forEach(canvas => {
+      each('canvas', canvas => {
+        if (vizPlayed.has(canvas)) return;
         const chart = window.Chart && Chart.getChart ? Chart.getChart(canvas) : null;
-        if (!chart || vizPlayed.has(canvas)) return;
+        if (!chart) return;
         playWhenSeen(canvas, () => {
-          canvas.parentElement?.classList.add('motion-chart-settle');
-          chart.reset();
-          chart.update();
+          // The instance is read when the reveal runs rather than when it was primed:
+          // a render rebuilds the charts, and the one captured here may already have
+          // been destroyed -- which threw straight out of the sweep and left every
+          // primable behind this canvas unrevealed.
+          const live = window.Chart && Chart.getChart ? Chart.getChart(canvas) : null;
+          if (!live) return;
+          replayAnimation(canvas.parentElement, 'motion-chart-settle');
+          live.reset();
+          live.update();
         });
       });
+    }
+
+    // Forget that the primables inside a scope have already animated, so the same
+    // primitives can run over them again. Only marks are deleted -- no class is ever
+    // removed -- so an element that has already been revealed stays revealed and
+    // forgetting can never hide a reading.
+    function forgetPlayed(scope) {
+      const root = scope || document;
+      vizPlayed.delete(root);
+      root.querySelectorAll('*').forEach(el => vizPlayed.delete(el));
+    }
+
+    // A render that rebuilt a panel replays that panel's motion here: the same
+    // primitives, the same failsafes, the same order the first paint used.
+    function replayMotion(scope) {
+      if (!motionAllows()) return;
+      forgetPlayed(scope);
+      primeMotion(scope);
+    }
+
+    function playVisuals() {
+      if (!motionAllows()) return;
+      document.documentElement.classList.add('motion-live');
+
+      // Cards and sections rise into place as they arrive, staggered by position
+      // in their row so a grid reads left to right instead of all at once. They
+      // belong to the document, which a re-render never replaces, so they run once;
+      // a container carrying data-stagger animates its own children instead, and
+      // primeMotion below owns those because a render does rebuild them.
+      if (!motionPainted) {
+        document.querySelectorAll('section, .glass-card').forEach(el => {
+          if (vizPlayed.has(el) || el.closest('#lockScreen, [data-no-motion]')) return;
+          if (el.hasAttribute('data-stagger')) return;
+          const siblings = el.parentElement ? Array.from(el.parentElement.children) : [];
+          el.style.setProperty('--motion-delay', `${Math.min(Math.max(siblings.indexOf(el), 0), 5) * 60}ms`);
+          el.classList.add('motion-reveal');
+          playWhenSeen(el, () => el.classList.add('is-revealed'));
+        });
+
+        // iOS-style press feedback on anything tappable.
+        document.querySelectorAll('button').forEach(el => el.classList.add('tap-squish'));
+      } else {
+        // A second render is a re-render: every panel below was rebuilt with readings
+        // the first pass never saw, so the primables are forgotten and the same
+        // primitives run again. Pressing Refresh, or filtering the table, moves the
+        // page the way the first paint did instead of leaving it static.
+        forgetPlayed(document);
+      }
+      motionPainted = true;
+
+      primeMotion(document);
     }
 
     // Policy hands the explanation over as a lowercase clause meant to follow a
@@ -3906,6 +4002,10 @@
             </li>`).join('')
         : '<li class="text-slate-500">No pattern has enough paired days yet, so none is published.</li>';
       document.getElementById('coachPatternCaveat').textContent = coach.pattern_caveat || '';
+
+      // The cards and their week bars were rebuilt just now, so the panel assembles
+      // again instead of arriving as plain rows.
+      replayMotion(document.getElementById('coachCards'));
     }
 
     function renderMeasuredSignals(data) {
@@ -4066,6 +4166,9 @@
           </div>
         `;
       }).join('');
+
+      // Rebuilt from the payload: the five bars fill from their own edge again.
+      replayMotion(container);
     }
 
 
@@ -5287,7 +5390,10 @@
           cell.classList.remove('motion-heat-cell', 'is-revealed');
         });
         bindConsistencyCells(target);
-        animateHeatmap(target, 34);
+        // The copies arrive carrying whatever the compact map had already played, so
+        // the cascade is re-armed here through the same entry point every rebuilt
+        // panel uses -- otherwise the second time it is opened nothing moves.
+        replayMotion(target);
       }
     }
 
@@ -5331,6 +5437,8 @@
       }
       grid.style.gridTemplateColumns = `repeat(${weekCount}, minmax(0, 1fr))`;
       grid.innerHTML = cells;
+      // A fresh map, so its cells cascade again rather than appearing all at once.
+      replayMotion(grid);
       const focusGrid = document.getElementById('consistencyFocusGrid');
       if (focusGrid) {
         focusGrid.style.gridTemplateColumns = `repeat(${weekCount}, minmax(0, 1fr))`;
@@ -5361,7 +5469,7 @@
       // The compact map is immediately readable; the square focus view is
       // animated when opened so it does not replay invisibly behind the modal.
       if (focusGrid && !document.getElementById('consistencyFocusModal')?.classList.contains('hidden')) {
-        animateHeatmap(focusGrid, 34);
+        replayMotion(focusGrid);
       }
     }
 
@@ -5522,6 +5630,7 @@
       const tbody = document.getElementById("activityTableBody");
       if (!filtered || filtered.length === 0) {
         tbody.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-500">No ${currentActivityCat} activities logged.</td></tr>`;
+        replayMotion(tbody);
         return;
       }
 
@@ -5543,6 +5652,10 @@
           </td>
         </tr>
       `).join('');
+
+      // Filtering rebuilds every row, so the new ones assemble in the same order the
+      // table used on first paint.
+      replayMotion(tbody);
     }
 
     // ========================================================

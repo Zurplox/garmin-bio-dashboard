@@ -216,7 +216,9 @@ Everything that grows on this page — a dial closing, the movement ring drawing
 itself, the battery refuelling from the bottom, a bar filling **from its left edge
 towards the right**, the quadrant chart raining its nights in from above the plot —
 animates the first time it reaches your screen rather than finishing off-screen while
-the page loads. No value is recalculated to do that: each visual is already drawn at
+the page loads, and again whenever a panel is rebuilt under you: filtering the activity
+table, pressing Refresh, or re-opening the enlarged heat map assembles those parts the
+way they were assembled on load. No value is recalculated to do that: each visual is already drawn at
 its real number and the motion simply replays it, and if a frame is ever withheld the
 bar still settles at its measured width rather than sitting empty. If your device is
 set to reduce motion, nothing animates, cards are never briefly invisible, and every
