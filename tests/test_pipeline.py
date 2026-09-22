@@ -2054,14 +2054,19 @@ class TactileAudioTests(unittest.TestCase):
 
     def test_the_consequential_controls_are_audible(self):
         page = self._page()
-        # Locking the vault, arming the emergency lockout and enlarging the heat map
-        # were all silent; each now has a cue of its own.
+        # Locking the vault and arming the emergency lockout were silent; each now has a
+        # cue of its own.
         self.assertIn("function logout()", page)
         logout = page.split("function logout()", 1)[1].split("\n    function ", 1)[0]
         self.assertIn("playCue('lock')", logout)
         self.assertIn("playCue('warn')", page.split("function openMasterLockModal()", 1)[1].split("\n    }", 1)[0])
+        # The heat map's tone belongs to the map arriving as the reader scrolls to it,
+        # not to the enlarged view: opening and closing that view is silent.
         focus = page.split("function toggleConsistencyFocus", 1)[1].split("\n    function ", 1)[0]
-        self.assertIn("playCue(open ? 'enlarge' : 'close')", focus)
+        self.assertNotIn("playCue(", focus)
+        heat = page.split("function animateHeatmap", 1)[1].split("\n    function ", 1)[0]
+        self.assertIn("const arriving = !grid.querySelector('.motion-heat-cell');", heat)
+        self.assertIn("if (arriving && grid.id === 'consistencyGrid') playCue('reveal');", heat)
 
 
 class SoundDefaultTests(unittest.TestCase):
