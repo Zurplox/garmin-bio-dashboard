@@ -220,7 +220,7 @@ Every attempt ends with a notification: what it did, or exactly why it did nothi
 No network, no credentials required.
 
 ```bash
-python -m unittest discover -s tests -t . -v      # 60 tests
+python -m unittest discover -s tests -t . -v      # 236 tests
 node tests/check_frontend_syntax.mjs index.html   # single-file frontend has no build step
 node tests/verify_vault_webcrypto.mjs             # decrypts the vault through the browser crypto path
 ```
@@ -248,7 +248,8 @@ python -m http.server 8971 --bind 127.0.0.1   # then open http://127.0.0.1:8971
 |:---:|:---|
 | `1` – `9` | Jump to a dashboard section |
 | `O` | Toggle the RHR dual-axis overlay |
-| `M` | Toggle tactile audio feedback (on for a first visit; a refusal is remembered) |
+| `M` | Toggle tactile feedback — the chirps and the vibration (on for a first visit; a refusal is remembered) |
+| `F` | Fill the screen / leave it (hidden where the browser has no fullscreen API) |
 | `P` | Print / export clinical PDF |
 | `R` | Refresh: re-read the published vault (and trigger the sync if a GitHub token is stored) |
 | `L` | Lock the vault and purge decrypted data (destroys chart instances, not just the global) |
@@ -293,6 +294,82 @@ python -m http.server 8971 --bind 127.0.0.1   # then open http://127.0.0.1:8971
 * **The enlarged heat map is square.** The ⛶ focus view sizes itself from `vmin`, so the panel stays a square instead of a stretched strip and each day square stays square inside it — the compact timeline above it is unchanged.
 * **Nothing is recomputed for motion.** Each element is already drawn at its real value; the layer only re-applies it. `prefers-reduced-motion` skips the whole layer, cards are never briefly invisible, and the hidden start state only exists once the script has marked the page motion-live.
 * **iOS-style touch feedback.** Cards and sections rise into place with a staggered ease, and every button presses in and springs back.
+
+---
+
+## 📱 Final build items — 2026-09-22
+
+* **Fullscreen.** A draw-it-out / draw-it-in button in the header asks the browser for the whole
+  screen, and the icon, the spoken label (`aria-label`) and the tooltip all follow the browser's
+  own state. Where the API does not exist — an iPhone browser has none — the button is never
+  revealed, and `F` says so with a refusal cue rather than a control that can do nothing. Both
+  spellings are used (`requestFullscreen` and `webkitRequestFullscreen`, plus `fullscreenEnabled`,
+  because a frame can have the method and still not be allowed to use it).
+* **Haptics, with the sound as the fallback.** Every cue in the vocabulary now has a vibration
+  pattern beside it, so a cue is one event in two senses; a phone buzzes, a desktop and an iPhone
+  simply hear it and nothing stands in for the buzz. One switch controls both — the header button
+  reads **Feedback ON/OFF** — and a pattern is a tap or a tap-pause-tap, never over 160 ms, so a
+  cue is felt as feedback rather than as an alarm going off in a pocket.
+* **Feedback you can hear.** The first pass was quiet enough to miss on a laptop across the room, so
+  every chirp is lifted by one gain (`MICRO_AUDIO_GAIN = 1.6`) and held under one ceiling
+  (`MICRO_AUDIO_CEILING = 0.04`). The table keeps its relative volumes; the policy lives in the one
+  chirp primitive, so the pitch ladders are lifted with everything else.
+* **No emoji in the interface.** The explanation panels keyed their bands with coloured circles,
+  the status chip with a tick or a warning sign, the metric cards with a gene, a heart, a
+  stethoscope and a bolt, and the greeting with a waving hand. All of it is drawn now: the bands are
+  coloured dots in the page's own language, the status chip is a filled or hollow mark, the header
+  controls are stroked SVG icons, and the lock screen's messages are plain sentences. Two marks
+  remain on purpose and sit outside the emoji ranges — the information mark that opens a dropdown,
+  and the filled circle that stands for a band, a state or a quadrant. A test keeps it that way.
+* **Every target line states its own number.** The coach cards' dashed goal line (8,000 steps in the
+  walking card) was only explained in the caption underneath it; the number now sits on the line
+  itself, at its right-hand end, on whichever side of the line has room.
+
+---
+
+## 🎚️ Motion reaches the reader — 2026-09-22
+
+* **A fill plays when you reach it, not four seconds after the paint.** The filler used to
+  publish a bar's value *and* play its spring on the same four-second failsafe, so every
+  bar, gauge and battery below the fold had already filled and settled while the reader was
+  still at the top of a 16,000-pixel page. The two are separate promises now: the value is
+  published on the timer either way, because a measured bar drawn as nothing is the one
+  outcome that is never allowed, and the spring is played only by the reveal. Measured on
+  the running page: at 6.5 s the battery carries no spring at all, and scrolling to it plays
+  the fill (scale 0.70 → 1.05 → 1.0) while its label rolls 0 → 53%.
+* **The battery visibly refuels.** The height transition that raced the spring is gone, a
+  highlight sweeps up the cell on the fill's own beat, and the level reads as a number that
+  climbs with it — instead of a card fading in around a bar that was already full.
+* **A hover never moves the page.** Every chart inspector reserves the tallest state it can be
+  in at the current width (`reserveHoverPanel`), so a longer quadrant label and sentence — or a
+  reading that carries its overlaid resting heart rate, or a month whose deviation string is
+  wider — cannot wrap to another line and shift the chart out from under the cursor, which used
+  to land the cursor on a different reading and move the chart again. The sentence-len panels
+  measure each state they can be in; the readings panels reserve the one state where every field
+  is at its widest, which bounds every reading they can be pointed at. Measured: 45 pointer
+  steps across each of the four charts held one canvas position, one panel height, one scroll
+  position and an unchanged document height (the scatter's reservation follows the window both
+  ways — 380 px reserves 218 px, 1000 px reserves 131 px).
+* **Every animation has its own voice.** `grow` for a bar or the battery filling, `ring` for
+  a gauge or ring closing, `count` for a headline number, `chart` for a canvas settling,
+  `stagger` for a panel assembling, `tick` for the inspector moving to another night, and
+  `reveal` for the heat-map cascade. Repeats of a *motion* cue inside its own window merge
+  into the first, because one panel filling is one movement rather than a drum roll; a press
+  still answers every time it is made.
+* **The map and its legend agree.** The legend chip for the corner the inspected night sits in
+  lights up in that band's own colour, and the inspector's readings settle onto each new night
+  instead of swapping between frames.
+* **Tonight's diamond announces itself.** When the quadrant map finishes coming forward, two rings
+  leave the newest night and fade, with a cue of its own (`today`). They are placed at the pixel
+  the chart measured for that reading and read out of the chart that drew it, so on a map of 187
+  nights "where am I tonight" is answered at a glance and the rings sit on the dot rather than
+  near it, at any window size.
+* **The inspector arrives, and is the size of what it says.** A callout that is not already on
+  screen rises into place and settles onto the node it describes rather than appearing — once,
+  with one `hover` cue for all four charts — and it is placed from the box it actually renders
+  instead of a fixed 230 × 175 (measured: the quadrant callout draws 340 × 186, so one opened near
+  the top of the window used to be placed as if it were smaller than it is). It is a popover now
+  too, not a block stretched to the width of the document.
 
 ---
 

@@ -155,6 +155,78 @@
       65% { opacity: 1; transform: scale(1.08) rotate(1deg); }
       100% { opacity: 1; transform: scale(1) rotate(0); }
     }
+    /* A fill can play over a surface: the battery's cell carries a highlight that
+       travels up it while the level climbs. */
+    @keyframes fill-sheen {
+      0% { opacity: 0; transform: translateY(115%); }
+      22% { opacity: 1; }
+      100% { opacity: 0; transform: translateY(-115%); }
+    }
+    /* A reading an inspector rewrites in place -- the value a scrub moves on to when
+       the cursor reaches another night -- settles onto the new number instead of
+       swapping between frames. */
+    @keyframes hud-swap {
+      0% { opacity: 0; transform: translateY(-5px); }
+      100% { opacity: 1; transform: none; }
+    }
+    /* The legend chip for the quadrant the inspected night sits in lights up, so the
+       callout is tied to the corner of the map it describes rather than floating
+       free of it. */
+    @keyframes chip-pop {
+      0% { transform: scale(0.94); }
+      55% { transform: scale(1.06); }
+      100% { transform: scale(1); }
+    }
+    /* The inspector a chart opens under the cursor: it rises and settles onto the node
+       rather than appearing. No fill mode, because the element is hidden by its own
+       `opacity-0` class and would keep the finished frame's opacity for good. */
+    @keyframes callout-in {
+      0% { opacity: 0; transform: translateY(6px) scale(0.97); }
+      62% { opacity: 1; transform: translateY(-1.5px) scale(1.004); }
+      100% { opacity: 1; transform: none; }
+    }
+    /* The ring starts on the diamond, at the size the diamond is drawn, and leaves it
+       quickly then away slowly -- the same shape as the arrivals it follows. */
+    @keyframes beacon-out {
+      0% { opacity: 0.85; transform: scale(0.7); }
+      18% { opacity: 0.85; }
+      100% { opacity: 0; transform: scale(3.6); }
+    }
+    /* Tonight's beacon: rings that leave the diamond and fade, so the one night the
+       reader came for can be found in a map of nearly two hundred. They are placed at
+       the pixel the chart measured for the reading and are invisible unless their
+       animation is running, which is what reduced motion and a JavaScript-less load
+       get -- the diamond is already the largest mark on the chart. */
+    .scatter-beacon {
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      margin-left: -11px;
+      margin-top: -11px;
+      border: 2px solid #06b6d4;
+      border-radius: 9999px;
+      opacity: 0;
+      pointer-events: none;
+    }
+    /* The battery's highlight is a real element rather than a pseudo-element, because
+       the same beat that fills the level has to be able to start it. It is invisible
+       unless its animation is running, which is what reduced motion and a
+       JavaScript-less load get. */
+    .battery-shell { position: relative; overflow: hidden; }
+    .fill-sheen {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      pointer-events: none;
+      background: linear-gradient(to top, rgba(34, 211, 238, 0) 0%, rgba(34, 211, 238, 0.38) 50%, rgba(34, 211, 238, 0) 100%);
+    }
+    /* The hot chip wears its own quadrant's colour: `currentColor` is the tone the
+       engine resolved for that band, so the ring and the glow follow the theme. */
+    .quadrant-chip { transition: box-shadow 0.35s ease, filter 0.35s ease; }
+    .quadrant-chip.is-hot {
+      box-shadow: inset 0 0 0 1px currentColor, 0 0 14px -3px currentColor;
+      filter: saturate(1.3);
+    }
     @media (prefers-reduced-motion: no-preference) {
       .motion-gauge-bounce { animation: gauge-spring 2.1s cubic-bezier(0.22, 1.28, 0.36, 1) both; }
       .motion-chart-settle { animation: chart-spring 1.8s cubic-bezier(0.22, 1.28, 0.36, 1) both; }
@@ -162,6 +234,14 @@
       .motion-bar-spring-y { transform-origin: bottom center; animation: bar-spring-y 1.6s cubic-bezier(0.22, 1.28, 0.36, 1) both; }
       .motion-heat-cell { opacity: 0; transform: scale(0.45) rotate(-5deg); }
       .motion-heat-cell.is-revealed { animation: heat-cell-spring 1.25s cubic-bezier(0.22, 1.28, 0.36, 1) both; }
+      .motion-fill-sheen { animation: fill-sheen 1.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+      .motion-hud-swap { animation: hud-swap 0.42s cubic-bezier(0.16, 1, 0.3, 1) both; }
+      .quadrant-chip.is-hot { animation: chip-pop 0.5s cubic-bezier(0.22, 1.28, 0.36, 1) both; }
+      .motion-callout-in { animation: callout-in 0.42s cubic-bezier(0.22, 1.28, 0.36, 1); }
+      /* Two rings on one beat: the second is an echo of the first, so the beacon reads
+         as a pulse leaving the diamond rather than as one thing blinking. */
+      .scatter-beacon.is-live { animation: beacon-out 1.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+      .scatter-beacon.is-live[data-ring="1"] { animation-delay: 0.4s; }
     }
     .filter-btn.active {
       background-color: rgba(6, 182, 212, 0.22);
@@ -183,6 +263,15 @@
     .interactive-canvas-container {
       touch-action: none;
       cursor: crosshair;
+    }
+    /* The callout is a popover, so it is the size of what it says rather than the width of
+       the page: as a plain block in <body> it stretched to the document's width and read as
+       a bar across the window instead of a panel beside the node it describes. Its own
+       measured box is what places it, so sizing it here is also what keeps that placement
+       honest. */
+    #floatingChartCallout {
+      width: max-content;
+      max-width: min(340px, calc(100vw - 30px));
     }
     /* Pulse glow */
     @keyframes pulse-dot {
@@ -239,9 +328,12 @@
        start state only exists once the script has marked the page motion-live, so
        without JavaScript nothing is ever invisible. */
     @media (prefers-reduced-motion: no-preference) {
+      /* The entrance carries a hair of scale as well as the rise, so a panel settles
+         into place rather than only fading up into it. Transform and opacity only,
+         so it stays on the compositor. */
       .motion-live .motion-reveal {
         opacity: 0;
-        transform: translateY(16px);
+        transform: translateY(16px) scale(0.985);
         transition: opacity 0.5s ease, transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
         transition-delay: var(--motion-delay, 0s);
       }
@@ -283,8 +375,11 @@
     }
     @media (prefers-reduced-motion: reduce) {
       .motion-gauge-bounce, .motion-chart-settle, .motion-bar-spring, .motion-bar-spring-y,
-      .motion-heat-cell, .motion-heat-cell.is-revealed { animation: none !important; }
+      .motion-heat-cell, .motion-heat-cell.is-revealed, .motion-fill-sheen, .motion-hud-swap,
+      .quadrant-chip.is-hot, .motion-callout-in { animation: none !important; }
       .motion-heat-cell { opacity: 1 !important; transform: none !important; }
+      .fill-sheen { display: none !important; }
+      .quadrant-chip { transition: none !important; }
       #lockScreen .glass-card { animation: none !important; }
       .motion-tilt { opacity: 1 !important; transform: none !important; }
     }
@@ -438,8 +533,7 @@
 
       <!-- Master Lock Indicator banner (when Master Locked) -->
       <div id="masterLockBanner" class="hidden mt-4 p-4 rounded-xl bg-red-950/80 border border-red-500/60 text-red-300 text-xs text-left">
-        <div class="font-bold text-red-200 flex items-center gap-1.5 mb-1 text-sm">
-          <span>⛔</span> EMERGENCY MASTER LOCKOUT ACTIVE
+        <div class="font-bold text-red-200 flex items-center gap-1.5 mb-1 text-sm">            <span>EMERGENCY MASTER LOCKOUT ACTIVE</span>
         </div>
         <p class="leading-relaxed">This biometric vault is currently under administrative lockdown. Standard 'Capybara' access is disabled.</p>
         <p class="mt-2 text-red-400 font-mono text-[11px]">Enter Master Passphrase (Barabara) to deactivate lockdown.</p>
@@ -555,7 +649,7 @@
             aria-controls="dataQualityPanel"
             title="Which metrics were measured, and which are estimates"
           >
-            <span id="dataQualityIcon">⚠️</span>
+            <span id="dataQualityIcon" aria-hidden="true">&#9679;</span>
             <span id="dataQualityText" class="hidden sm:inline">Data Provenance</span>
           </button>
 
@@ -587,16 +681,35 @@
             <span id="refreshLabel">Refresh</span>
           </button>
 
-          <!-- Audio Toggle Button -->
+          <!-- Tactile feedback toggle. One switch for both senses: the chirps and, on the
+               devices that can buzz, the haptics behind them. -->
           <button 
             type="button" 
             id="audioToggleBtn"
             onclick="toggleAudioSound()" 
             class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 hover:text-cyan-400 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
-            title="Toggle Tactile Micro-Audio Feedback (Shortcut: M)"
+            title="Toggle tactile feedback: sound and vibration (Shortcut: M)"
+            aria-pressed="false"
           >
-            <span id="audioIcon">🔇</span>
-            <span id="audioStatusText" class="hidden sm:inline">Audio</span>
+            <span id="audioIcon" class="flex items-center" aria-hidden="true"></span>
+            <span id="audioStatusText" class="hidden sm:inline">Feedback</span>
+          </button>
+
+          <!-- Fullscreen. The API is not on every browser (an iPhone has none at all), so the
+               button is revealed by the script where it exists rather than sitting there
+               doing nothing. -->
+          <button
+            type="button"
+            id="fullscreenBtn"
+            onclick="toggleFullscreen()"
+            class="hidden p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-cyan-400 transition cursor-pointer"
+            title="Fill the screen (Shortcut: F)"
+            aria-label="Enter fullscreen"
+            aria-pressed="false"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path id="fullscreenIconPath" stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/>
+            </svg>
           </button>
 
           <!-- Clinical Report Button -->
@@ -662,7 +775,11 @@
       <!-- DATA PROVENANCE PANEL (hidden until a degraded metric is detected) -->
       <div id="dataQualityPanel" class="hidden glass-card rounded-2xl p-5 lg:p-6 border border-amber-500/30 space-y-3">
         <div class="flex items-start gap-3">
-          <div class="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-base leading-none">⚠️</div>
+          <div class="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+          </div>
           <div>
             <span class="text-[10px] font-bold tracking-wider text-amber-400 uppercase">Data Provenance</span>
             <h2 id="dataQualityHeadline" class="text-sm font-bold text-white tracking-tight">Some metrics are estimates</h2>
@@ -746,7 +863,7 @@
             </div>
             <div>
               <span id="briefingSourceLabel" class="text-[10px] font-bold tracking-wider text-violet-400 uppercase">Daily Briefing</span>
-              <h2 class="text-base font-bold text-white tracking-tight">Good morning, Harvin 👋</h2>
+              <h2 class="text-base font-bold text-white tracking-tight">Good morning, Harvin</h2>
             </div>
           </div>
           <span id="aiSummaryDate" class="sm:ml-auto text-xs text-slate-500 mono"></span>
@@ -817,9 +934,9 @@
             </button>
             <div class="hidden mt-2 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1.5">
               <p><strong class="text-emerald-400">Recovery Score</strong> is like a daily "readiness percentage" for your body. It's calculated by your watch overnight using your HRV, RHR, and sleep quality.</p>
-              <p>🟢 <strong class="text-white">67–100%</strong> = Your body is fully recharged. Go hard today — train intensely.</p>
-              <p>🟡 <strong class="text-white">34–66%</strong> = Moderate recovery. Stick to easy training or active recovery.</p>
-              <p>🔴 <strong class="text-white">0–33%</strong> = Your body is still rebuilding. Rest or very light movement only.</p>
+              <p><span class="text-emerald-400">&#9679;</span> <strong class="text-white">67–100%</strong> = Your body is fully recharged. Go hard today — train intensely.</p>
+              <p><span class="text-amber-400">&#9679;</span> <strong class="text-white">34–66%</strong> = Moderate recovery. Stick to easy training or active recovery.</p>
+              <p><span class="text-rose-400">&#9679;</span> <strong class="text-white">0–33%</strong> = Your body is still rebuilding. Rest or very light movement only.</p>
               <p class="text-slate-500">Think of it as your phone battery % — but for your body's ability to handle stress.</p>
             </div>
           </div>
@@ -867,10 +984,10 @@
             </button>
             <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1.5">
               <p><strong class="text-cyan-400">Day Strain</strong> is a 0–21 scale measuring how hard your cardiovascular system worked today. It's not just about exercise — stress, standing, and daily movement all count.</p>
-              <p>🔵 <strong class="text-white">0–9</strong> = Light day (rest, recovery, desk work)</p>
-              <p>🟡 <strong class="text-white">10–13</strong> = Moderate (brisk walk, easy gym session)</p>
-              <p>🟠 <strong class="text-white">14–17</strong> = Hard training (ideal for building fitness)</p>
-              <p>🔴 <strong class="text-white">18–21</strong> = Maximal effort (marathon, race day)</p>
+              <p><span class="text-cyan-400">&#9679;</span> <strong class="text-white">0–9</strong> = Light day (rest, recovery, desk work)</p>
+              <p><span class="text-amber-400">&#9679;</span> <strong class="text-white">10–13</strong> = Moderate (brisk walk, easy gym session)</p>
+              <p><span class="text-orange-400">&#9679;</span> <strong class="text-white">14–17</strong> = Hard training (ideal for building fitness)</p>
+              <p><span class="text-rose-400">&#9679;</span> <strong class="text-white">18–21</strong> = Maximal effort (marathon, race day)</p>
               <p class="text-slate-500">Your target window today is personalised to match your recovery level. Going too far above it risks overtraining.</p>
               <p class="text-slate-500">The badge above the number is today's strain zone — it is set from your recovery zone, so a greener recovery allows more strain while a red one limits you to restorative movement only.</p>
             </div>
@@ -1032,11 +1149,12 @@
 
           <div class="my-4 flex items-center gap-4">
             <!-- Visual Battery Icon Container -->
-            <div class="relative w-16 h-28 border-2 border-cyan-400/60 rounded-xl p-1 flex flex-col justify-end bg-slate-900/60 shadow-lg shadow-cyan-500/10">
+            <div class="battery-shell relative w-16 h-28 border-2 border-cyan-400/60 rounded-xl p-1 flex flex-col justify-end bg-slate-900/60 shadow-lg shadow-cyan-500/10" data-fill-sheen>
               <div class="absolute -top-2 left-1/2 -translate-x-1/2 w-6 h-1.5 bg-cyan-400/80 rounded-t-sm"></div>
-              <div id="bbLevelBar" class="w-full bg-gradient-to-t from-cyan-600 via-emerald-500 to-emerald-400 rounded-lg transition-all duration-1000 flex items-center justify-center" style="height: 78%;">
-                <span class="text-[10px] font-black text-slate-950 -rotate-90 mono">78%</span>
+              <div id="bbLevelBar" class="w-full bg-gradient-to-t from-cyan-600 via-emerald-500 to-emerald-400 rounded-lg transition-colors duration-700 flex items-center justify-center" style="height: 78%;">
+                <span id="bbLevelPct" class="text-[10px] font-black text-slate-950 -rotate-90 mono">78%</span>
               </div>
+              <span class="fill-sheen" aria-hidden="true"></span>
             </div>
 
             <div class="flex-1 space-y-2">
@@ -1065,10 +1183,10 @@
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
             <p><strong class="text-cyan-400">Body Battery</strong> is a 0–100 energy reserve score — think of it as the percentage charge left on your body's internal battery. Your watch tracks this continuously by monitoring your HRV, stress, sleep, and activity.</p>
-            <p>🔋 <strong class="text-white">75–100</strong> = Fully charged. Your body is ready for anything.</p>
-            <p>🔋 <strong class="text-white">50–74</strong> = Good energy. Suitable for training.</p>
-            <p>🔋 <strong class="text-white">25–49</strong> = Low. Light activity recommended.</p>
-            <p>🔋 <strong class="text-white">0–24</strong> = Depleted. Your body needs rest and sleep urgently.</p>
+            <p><span class="text-cyan-400">&#9679;</span> <strong class="text-white">75–100</strong> = Fully charged. Your body is ready for anything.</p>
+            <p><span class="text-cyan-400">&#9679;</span> <strong class="text-white">50–74</strong> = Good energy. Suitable for training.</p>
+            <p><span class="text-cyan-400">&#9679;</span> <strong class="text-white">25–49</strong> = Low. Light activity recommended.</p>
+            <p><span class="text-cyan-400">&#9679;</span> <strong class="text-white">0–24</strong> = Depleted. Your body needs rest and sleep urgently.</p>
             <p class="text-slate-500">Sleep charges your battery. Stress, exercise, and mental effort drain it. Overnight your sleep added <span id="infoBodyBatteryCharge" class="text-slate-300">--</span> points of charge to it.</p>
           </div>
         </div>
@@ -1128,10 +1246,10 @@
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
             <p><strong class="text-amber-400">Stress Architecture</strong> tracks your Autonomic Nervous System (ANS) all day — the part of your nervous system you can't consciously control. It runs on two modes: "rest & digest" (recovery) and "fight or flight" (stress).</p>
-            <p>🟢 <strong class="text-white">Rest (0–25)</strong> = Your body is in repair mode — hormones regenerate, muscles rebuild, immune system strengthens.</p>
-            <p>🔵 <strong class="text-white">Low (26–50)</strong> = Light activity or mild mental engagement. Still healthy.</p>
-            <p>🟡 <strong class="text-white">Med (51–75)</strong> = Elevated sympathetic activation. Common during meetings or workouts.</p>
-            <p>🔴 <strong class="text-white">High (76–100)</strong> = Full stress response. If sustained daily, this drains recovery capacity.</p>
+            <p><span class="text-emerald-400">&#9679;</span> <strong class="text-white">Rest (0–25)</strong> = Your body is in repair mode — hormones regenerate, muscles rebuild, immune system strengthens.</p>
+            <p><span class="text-cyan-400">&#9679;</span> <strong class="text-white">Low (26–50)</strong> = Light activity or mild mental engagement. Still healthy.</p>
+            <p><span class="text-amber-400">&#9679;</span> <strong class="text-white">Med (51–75)</strong> = Elevated sympathetic activation. Common during meetings or workouts.</p>
+            <p><span class="text-rose-400">&#9679;</span> <strong class="text-white">High (76–100)</strong> = Full stress response. If sustained daily, this drains recovery capacity.</p>
             <p class="text-slate-500">Your rest time today is <span id="infoStressRestPct" class="text-slate-300">--</span> of the cycle — most people spend less than 50% there.</p>
           </div>
         </div>
@@ -1186,9 +1304,8 @@
         
         <!-- CARD 1: BIOLOGICAL FITNESS AGE -->
         <div class="glass-card rounded-2xl p-5 border border-slate-800">
-          <div class="flex items-center justify-between text-slate-400 mb-2">
+          <div class="flex items-center text-slate-400 mb-2">
             <span class="text-xs font-semibold uppercase tracking-wider">Biological Fitness Age</span>
-            <span class="text-cyan-400 text-xs font-mono">🧬</span>
           </div>
           <div class="flex items-baseline gap-2">
             <span id="kpiFitnessAge" class="text-3xl font-extrabold text-white mono" data-quality-key="fitness_age">--</span>
@@ -1212,9 +1329,8 @@
 
         <!-- CARD 2: ACUTE:CHRONIC WORKLOAD RATIO (ACWR) -->
         <div class="glass-card rounded-2xl p-5 border border-slate-800">
-          <div class="flex items-center justify-between text-slate-400 mb-2">
+          <div class="flex items-center text-slate-400 mb-2">
             <span class="text-xs font-semibold uppercase tracking-wider">Workload Balance (ACWR)</span>
-            <span class="text-emerald-400 text-xs font-mono">⚡</span>
           </div>
           <div class="flex items-baseline gap-2">
             <span id="kpiAcwrVal" class="text-3xl font-extrabold text-white mono" data-quality-key="training_load">--</span>
@@ -1230,19 +1346,18 @@
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
             <p><strong class="text-cyan-400">ACWR</strong> compares this week's training load ("Acute") vs the past 4-week average ("Chronic"). It tells you if you're training too hard too fast — the #1 cause of sports injuries.</p>
-            <p>🟢 <strong class="text-white">0.8 – 1.3</strong> = <strong class="text-white">Sweet Spot</strong> — building fitness safely</p>
-            <p>🔵 <strong class="text-white">&lt; 0.8</strong> = <strong class="text-white">Fresh / Under-trained</strong> — safe to increase gradually</p>
-            <p>🟠 <strong class="text-white">1.3 – 1.5</strong> = <strong class="text-white">High</strong> — hold volume where it is</p>
-            <p>🔴 <strong class="text-white">&gt; 1.5</strong> = <strong class="text-white">Danger Zone</strong> — high injury risk, pull back</p>
+            <p><span class="text-emerald-400">&#9679;</span> <strong class="text-white">0.8 – 1.3</strong> = <strong class="text-white">Sweet Spot</strong> — building fitness safely</p>
+            <p><span class="text-cyan-400">&#9679;</span> <strong class="text-white">&lt; 0.8</strong> = <strong class="text-white">Fresh / Under-trained</strong> — safe to increase gradually</p>
+            <p><span class="text-orange-400">&#9679;</span> <strong class="text-white">1.3 – 1.5</strong> = <strong class="text-white">High</strong> — hold volume where it is</p>
+            <p><span class="text-rose-400">&#9679;</span> <strong class="text-white">&gt; 1.5</strong> = <strong class="text-white">Danger Zone</strong> — high injury risk, pull back</p>
             <p class="text-slate-500">Your <span id="infoAcwrValue" class="text-slate-300">--</span> today sits in the band named beside the badge above. Your watch's own status word for it read <span id="infoAcwrWatchStatus" class="text-slate-300">--</span> — kept here as context, because every ACWR surface on this page uses the bands above.</p>
           </div>
         </div>
 
         <!-- CARD 3: OVERNIGHT HRV STABILITY -->
         <div class="glass-card rounded-2xl p-5 border border-slate-800">
-          <div class="flex items-center justify-between text-slate-400 mb-2">
+          <div class="flex items-center text-slate-400 mb-2">
             <span class="text-xs font-semibold uppercase tracking-wider">Overnight HRV <span class="normal-case tracking-normal text-slate-500">(Heart Rate Variability)</span></span>
-            <span class="text-rose-400 text-xs font-mono">❤️</span>
           </div>
           <div class="flex items-baseline gap-2">
             <span id="kpiHrvValue" class="text-3xl font-extrabold text-white mono">--</span>
@@ -1259,7 +1374,7 @@
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
             <p><strong class="text-emerald-400">HRV (Heart Rate Variability)</strong> measures tiny millisecond differences between each heartbeat. Counterintuitively, <strong class="text-white">MORE variation = better</strong> — it means your nervous system is flexible and responding well to life.</p>
             <p>A LOW HRV means your body is under stress, fighting illness, or inadequately recovered. A HIGH HRV means your nervous system is calm, adapted, and ready for performance.</p>
-            <p>🏆 Elite endurance athletes: 60–100+ ms. General healthy adults: 30–60 ms.</p>
+            <p>Elite endurance athletes commonly sit at 60–100+ ms. General healthy adults sit at 30–60 ms.</p>
             <p class="text-slate-500">Your HRV is best compared to YOUR OWN baseline — not population averages. What matters is whether today's reading is above or below your personal 30-day norm.</p>
             <p class="text-slate-500">Your corridor is the range your own readings normally fall in. Inside the corridor means today is normal for you; below it means your body is under strain. A separate "Band" shows the balanced range your watch reports for today.</p>
             <p class="text-slate-500">Your watch's own status word for last night read <span id="infoHrvWatchStatus" class="text-slate-300">--</span>. It is kept here as context only: every HRV verdict on this page — the badge, the Autonomic State row, the pillar and the quadrant chart — compares your reading with your own 30-day baseline, so they always say the same thing.</p>
@@ -1268,9 +1383,8 @@
 
         <!-- CARD 4: RESTING HEART RATE (RHR) -->
         <div class="glass-card rounded-2xl p-5 border border-slate-800">
-          <div class="flex items-center justify-between text-slate-400 mb-2">
+          <div class="flex items-center text-slate-400 mb-2">
             <span class="text-xs font-semibold uppercase tracking-wider">Resting Heart Rate</span>
-            <span class="text-amber-400 text-xs font-mono">🩺</span>
           </div>
           <div class="flex items-baseline gap-2">
             <span id="kpiRhrValue" class="text-3xl font-extrabold text-white mono">--</span>
@@ -1286,7 +1400,7 @@
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
             <p><strong class="text-amber-400">RHR (Resting Heart Rate)</strong> is your heart's beats-per-minute when you're completely at rest (usually measured during sleep). Lower is generally better for long-term health.</p>
-            <p>🏆 Elite endurance: 38–48 bpm | ✅ Athletic: 48–58 bpm | 🟡 Average adult: 60–80 bpm</p>
+            <p><span class="text-emerald-400">&#9679;</span> Elite endurance: 38–48 bpm | <span class="text-cyan-400">&#9679;</span> Athletic: 48–58 bpm | <span class="text-amber-400">&#9679;</span> Average adult: 60–80 bpm</p>
             <p>A rising RHR trend over days is one of the earliest warning signs of illness, overtraining, or poor sleep quality — often showing up 24–48h before you feel sick.</p>
             <p class="text-slate-500">Your <span id="infoRhrValue" class="text-slate-300">--</span> bpm against those bands. The 4-year chart below shows whether it is holding.</p>
           </div>
@@ -1585,7 +1699,7 @@
             </div>
             <div class="flex items-center gap-2">
               <span id="consistencySummary" class="text-[11px] text-slate-500 mono">--</span>
-              <button type="button" onclick="toggleConsistencyFocus()" aria-expanded="false" aria-controls="consistencyFocusModal" class="tap-squish px-2 py-1 rounded-lg bg-slate-800/80 border border-slate-700 text-[10px] text-cyan-400 hover:text-cyan-300 transition cursor-pointer" title="Open a square enlarged view of the training heat map">⛶ Enlarge</button>
+              <button type="button" onclick="toggleConsistencyFocus()" aria-expanded="false" aria-controls="consistencyFocusModal" class="tap-squish px-2 py-1 rounded-lg bg-slate-800/80 border border-slate-700 text-[10px] text-cyan-400 hover:text-cyan-300 transition cursor-pointer" title="Open a square enlarged view of the training heat map">Enlarge</button>
             </div>
           </div>
           <div id="consistencyGrid" class="grid gap-[3px]" style="grid-auto-flow: column; grid-template-rows: repeat(7, 1fr); grid-template-columns: repeat(18, minmax(0, 1fr));"></div>
@@ -1771,10 +1885,10 @@
             <span>ⓘ What do these sleep stages mean?</span>
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1.5">
-            <p>🟣 <strong class="text-indigo-400">Deep Sleep (Slow Wave)</strong> — Your body's repair phase. Growth hormone is released, muscles rebuild, immune system strengthens. Aim for 15–25%. This is the most physically restorative stage.</p>
-            <p>🔵 <strong class="text-cyan-400">REM Sleep</strong> — Your brain's processing phase. Memories are consolidated, emotions regulated, creativity enhanced. Aim for 20–25%. Low REM = foggy thinking, poor mood.</p>
-            <p>⬜ <strong class="text-slate-300">Light Sleep</strong> — The bridge between stages. Still restorative, but less critical. It's normal for 50–60% of sleep to be light.</p>
-            <p>🔴 <strong class="text-rose-400">Awake</strong> — Brief awakenings are normal (5–10 min/night). More than 30 min may indicate stress or poor sleep quality.</p>
+            <p><span class="text-violet-400">&#9679;</span> <strong class="text-indigo-400">Deep Sleep (Slow Wave)</strong> — Your body's repair phase. Growth hormone is released, muscles rebuild, immune system strengthens. Aim for 15–25%. This is the most physically restorative stage.</p>
+            <p><span class="text-cyan-400">&#9679;</span> <strong class="text-cyan-400">REM Sleep</strong> — Your brain's processing phase. Memories are consolidated, emotions regulated, creativity enhanced. Aim for 20–25%. Low REM = foggy thinking, poor mood.</p>
+            <p><span class="text-slate-400">&#9679;</span> <strong class="text-slate-300">Light Sleep</strong> — The bridge between stages. Still restorative, but less critical. It's normal for 50–60% of sleep to be light.</p>
+            <p><span class="text-rose-400">&#9679;</span> <strong class="text-rose-400">Awake</strong> — Brief awakenings are normal (5–10 min/night). More than 30 min may indicate stress or poor sleep quality.</p>
           </div>
         </div>
 
@@ -1834,7 +1948,7 @@
               class="px-2.5 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 border border-amber-500/30 text-amber-400 font-mono text-xs flex items-center gap-1.5 transition cursor-pointer"
               title="Superimpose Resting Heart Rate (bpm) with dual Y-axis (Shortcut: O)"
             >
-              <span>⚡ Overlay RHR</span>
+              <span>Overlay RHR</span>
             </button>
             <div class="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs mono">
               <button onclick="changeHrvTimeframe(7)" class="filter-btn px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition" data-hrv-tf="7">7D</button>
@@ -1883,11 +1997,11 @@
           </div>
 
           <!-- Quadrant Legend Quick Tags -->
-          <div class="flex items-center gap-1.5 text-[10px] mono flex-wrap">
-            <span class="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">● Q1: Peak Recovery</span>
-            <span class="px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400">● Q2: Cardio Arousal</span>
-            <span class="px-2 py-0.5 rounded bg-violet-500/10 border border-violet-500/30 text-violet-400">● Q3: Parasymp Fatigue</span>
-            <span class="px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 text-rose-400">● Q4: Systemic Strain</span>
+          <div class="flex items-center gap-1.5 text-[10px] mono flex-wrap" id="quadrantLegend">
+            <span class="quadrant-chip px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400" data-quadrant="Q1">● Q1: Peak Recovery</span>
+            <span class="quadrant-chip px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400" data-quadrant="Q2">● Q2: Cardio Arousal</span>
+            <span class="quadrant-chip px-2 py-0.5 rounded bg-violet-500/10 border border-violet-500/30 text-violet-400" data-quadrant="Q3">● Q3: Parasymp Fatigue</span>
+            <span class="quadrant-chip px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 text-rose-400" data-quadrant="Q4">● Q4: Systemic Strain</span>
           </div>
         </div>
 
@@ -1923,19 +2037,19 @@
           </div>
           <div class="grid grid-cols-2 gap-2">
             <div class="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-              <div class="text-emerald-400 font-bold text-[10px] mb-1">🟢 Q1: PEAK RECOVERY</div>
+              <div class="text-emerald-400 font-bold text-[10px] mb-1"><span class="text-emerald-400">&#9679;</span> Q1: PEAK RECOVERY</div>
               <div class="text-slate-500">High HRV + Low RHR. Your nervous system is fully recovered. Train hard — your body is primed for peak performance.</div>
             </div>
             <div class="p-2 rounded-lg bg-amber-500/5 border border-amber-500/20">
-              <div class="text-amber-400 font-bold text-[10px] mb-1">🟡 Q2: CARDIO AROUSAL</div>
+              <div class="text-amber-400 font-bold text-[10px] mb-1"><span class="text-amber-400">&#9679;</span> Q2: CARDIO AROUSAL</div>
               <div class="text-slate-500">High HRV + High RHR. Often after intense training or heat. HRV is good but heart rate is elevated — train moderately.</div>
             </div>
             <div class="p-2 rounded-lg bg-violet-500/5 border border-violet-500/20">
-              <div class="text-violet-400 font-bold text-[10px] mb-1">🟣 Q3: PARASYMP FATIGUE</div>
+              <div class="text-violet-400 font-bold text-[10px] mb-1"><span class="text-violet-400">&#9679;</span> Q3: PARASYMP FATIGUE</div>
               <div class="text-slate-500">Low HRV + Low RHR. Nervous system suppressed. Common with deep fatigue or illness onset. Prioritize sleep and rest.</div>
             </div>
             <div class="p-2 rounded-lg bg-rose-500/5 border border-rose-500/20">
-              <div class="text-rose-400 font-bold text-[10px] mb-1">🔴 Q4: SYSTEMIC STRAIN</div>
+              <div class="text-rose-400 font-bold text-[10px] mb-1"><span class="text-rose-400">&#9679;</span> Q4: SYSTEMIC STRAIN</div>
               <div class="text-slate-500">Low HRV + High RHR. Worst recovery state. Indicates overtraining, illness, or high psychological stress. Rest is mandatory.</div>
             </div>
           </div>
@@ -1987,10 +2101,10 @@
             </button>
             <div class="hidden mt-2 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
               <p><strong class="text-emerald-400">Training Readiness</strong> is a composite 0–100 score that tells you how primed your body is for physical performance today. It combines your recovery score, HRV trend, sleep quality, body battery, and recent training load.</p>
-              <p>🟢 <strong class="text-white">75–100</strong> = Go hard. Your body is asking to be challenged.</p>
-              <p>🟡 <strong class="text-white">50–74</strong> = Train moderately. Good but not peak capacity.</p>
-              <p>🟠 <strong class="text-white">25–49</strong> = Easy only. Active recovery, walking, light yoga.</p>
-              <p>🔴 <strong class="text-white">0–24</strong> = Rest day. Training will do more harm than good today.</p>
+              <p><span class="text-emerald-400">&#9679;</span> <strong class="text-white">75–100</strong> = Go hard. Your body is asking to be challenged.</p>
+              <p><span class="text-amber-400">&#9679;</span> <strong class="text-white">50–74</strong> = Train moderately. Good but not peak capacity.</p>
+              <p><span class="text-orange-400">&#9679;</span> <strong class="text-white">25–49</strong> = Easy only. Active recovery, walking, light yoga.</p>
+              <p><span class="text-rose-400">&#9679;</span> <strong class="text-white">0–24</strong> = Rest day. Training will do more harm than good today.</p>
             </div>
           </div>
         </div>
@@ -2324,21 +2438,38 @@
       motionTargets.set(el, target);
       // A width grows across the track; a height grows up it.
       const grow = prop === 'height' ? 'motion-bar-spring-y' : 'motion-bar-spring';
-      let filled = false;
-      const fill = () => {
-        if (filled) return;
-        filled = true;
+      // The reading and the movement are two different obligations. The value is
+      // published on a timer whether or not the reader ever arrives, because a bar
+      // left at zero width is a reading that was measured and then shown as nothing,
+      // and the sweep runs on a frame the browser may never give us. The spring is
+      // the reveal's, not the failsafe's: a fill spent off-screen is exactly why a
+      // battery the reader scrolls to later arrived already full and perfectly still.
+      let published = false;
+      let sprung = false;
+      const publish = () => {
+        if (published) return;
+        published = true;
         el.style[prop] = motionTargets.get(el) || target;
-        requestAnimationFrame(() => replayAnimation(el, grow));
+      };
+      const fill = () => {
+        if (sprung) return;
+        sprung = true;
+        publish();
+        requestAnimationFrame(() => {
+          replayAnimation(el, grow);
+          // A surface the fill plays over -- the battery's cell -- carries a highlight
+          // that climbs with the level. It is started here, on the fill's own beat, so
+          // it can never sweep across a bar that is standing still.
+          const surface = el.closest('[data-fill-sheen]');
+          if (surface) replayAnimation(surface.querySelector('.fill-sheen'), 'motion-fill-sheen');
+          playCue('grow');
+        });
       };
       // Do not add the animation class until the visual reaches the fold. Adding
       // it here would spend the spring off-screen while the page is loading.
       playAfterSeen(el, fill, delay);
-      // The sweep runs on a frame the browser may never give us -- a background
-      // tab, a paused frame loop -- and a bar left at zero width is a reading that
-      // was measured and then shown as nothing. The failsafe fills it regardless.
       window.setTimeout(() => {
-        if (document.documentElement.contains(el)) fill();
+        if (document.documentElement.contains(el)) publish();
       }, 4000 + delay);
       el.style[prop] = '0%';
     }
@@ -2353,7 +2484,10 @@
       motionTargets.set(el, target);
       playWhenSeen(el, () => {
         el.style.strokeDashoffset = motionTargets.get(el) || target;
-        requestAnimationFrame(() => replayAnimation(el.parentElement, 'motion-gauge-bounce'));
+        requestAnimationFrame(() => {
+          replayAnimation(el.parentElement, 'motion-gauge-bounce');
+          playCue('ring');
+        });
       });
       el.style.strokeDashoffset = empty;
     }
@@ -2396,6 +2530,7 @@
         return `${sign}${shown}${suffix}`;
       };
       playWhenSeen(el, () => {
+        playCue('count');
         const started = performance.now();
         let lastFrame = frameFor(0);
         const tick = now => {
@@ -2429,7 +2564,10 @@
     // same spring, applied to the dial itself.
     function primeScale(el) {
       if (!el || vizPlayed.has(el)) return;
-      playWhenSeen(el, () => requestAnimationFrame(() => replayAnimation(el, 'motion-gauge-bounce')));
+      playWhenSeen(el, () => requestAnimationFrame(() => {
+        replayAnimation(el, 'motion-gauge-bounce');
+        playCue('ring');
+      }));
     }
 
     // A string of numbers is not a picture. A panel whose children are tiles, rows
@@ -2445,6 +2583,9 @@
         child.classList.add(tilt ? 'motion-tilt' : 'motion-reveal');
         playWhenSeen(child, () => child.classList.add('is-revealed'));
       });
+      // The rows share one movement, so they share one sound instead of chirping once
+      // per row: the cue belongs to the panel assembling, not to each child of it.
+      playWhenSeen(host, () => playCue('stagger'));
     }
 
     // Everything the motion layer animates, applied to a scope. The first paint
@@ -2506,7 +2647,8 @@
       // a measured number behind an animation.
       ['recoveryScoreVal', 'strainScoreVal', 'kpiHrvValue', 'kpiRhrValue', 'kpiFitnessAge',
        'kpiAcwrVal', 'movementRingPct', 'glanceSessions', 'glanceSteps',
-       'markerDeltaRhr', 'markerDeltaHrv', 'markerRespRate', 'markerSleepStress']
+       'markerDeltaRhr', 'markerDeltaHrv', 'markerRespRate', 'markerSleepStress',
+       'bbLevelPct']
         .forEach(id => {
           const el = document.getElementById(id);
           if (inScope(el)) primeCount(el);
@@ -2526,6 +2668,7 @@
           const live = window.Chart && Chart.getChart ? Chart.getChart(canvas) : null;
           if (!live) return;
           replayAnimation(canvas.parentElement, 'motion-chart-settle');
+          playCue('chart');
           // A chart may own how it arrives -- the quadrant matrix brings its nights forward
           // out of the screen -- and resetting the rest is the generic arrival.
           if (typeof live.arriveFromDepth === 'function') live.arriveFromDepth();
@@ -2677,6 +2820,16 @@
     // first chirp is the one that plays after the passphrase.
     let isAudioEnabled = localStorage.getItem("garmin_sound_enabled") !== "false";
 
+    // How loud a chirp is. Feedback rather than notification -- you should notice it, not
+    // be told something -- but the first pass was quiet enough to miss on a laptop across
+    // the room, so every note is lifted by one gain and held under one ceiling. The table
+    // keeps its relative volumes, and both numbers live here so the pitch ladders, which
+    // never go through the table, are lifted with everything else.
+    const CHIRP_VOLUME = 0.015;
+    const MICRO_AUDIO_GAIN = 1.6;
+    const MICRO_AUDIO_CEILING = 0.04;
+    const chirpVolume = volume => Math.min(volume * MICRO_AUDIO_GAIN, MICRO_AUDIO_CEILING);
+
     function initAudioContext() {
       if (!audioCtx) {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -2689,7 +2842,7 @@
       }
     }
 
-    function playMicroChirp(freq = 880, duration = 0.03, type = 'sine', volume = 0.015) {
+    function playMicroChirp(freq = 880, duration = 0.03, type = 'sine', volume = CHIRP_VOLUME) {
       if (!isAudioEnabled) return;
       try {
         initAudioContext();
@@ -2698,7 +2851,7 @@
         const gain = audioCtx.createGain();
         osc.type = type;
         osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+        gain.gain.setValueAtTime(chirpVolume(volume), audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
         osc.connect(gain);
         gain.connect(audioCtx.destination);
@@ -2717,7 +2870,9 @@
     }
 
     // The sound vocabulary. One table names every cue so a press sounds like what it
-    // did, rather than like whichever frequency the call site happened to pick:
+    // did, rather than like whichever frequency the call site happened to pick -- and
+    // so every animation sounds like itself, which is why the motion layer has cues of
+    // its own rather than one chirp reused for whatever moved:
     //
     //   open / accept   rising     something opened or was accepted
     //   close / lock    falling    something closed or was put away
@@ -2726,6 +2881,17 @@
     //   step            one note   a step through a control (a filter, a timeframe)
     //   start           three up   work accepted, before it finishes
     //   done            the melody work finished and there is something new
+    //   grow            low pair   a bar or the battery filling to its measured value
+    //   ring            two bells  a gauge, a ring or the workload dial closing
+    //   count           two high   a headline number rolling up to its value
+    //   chart           low sweep  a chart drawing itself as the reader reaches it
+    //   stagger         soft tick  a panel assembling its rows and tiles in turn
+    //   tick            one high   the inspector moving to another night's reading
+    //   hover           one soft   a chart's callout arriving under the cursor
+    //   today           two rising the beacon leaving tonight's own reading
+    //
+    // Every cue in the table also has a pattern in `HAPTIC_CUES`, so the vocabulary is one
+    // list of events in two senses rather than a sound list with vibration bolted on.
     //
     // Each entry is [frequency, seconds, waveform, volume, delay-ms]. Volumes stay at
     // or below 0.025 so a cue reads as feedback rather than as a notification, and
@@ -2742,10 +2908,83 @@
       start: [[560, 0.03], [660, 0.03, 'sine', 0.018, 60], [780, 0.04, 'sine', 0.02, 120]],
       reveal: [[660, 0.03], [990, 0.05, 'sine', 0.02, 60]],
       print: [[1200, 0.06]],
+      grow: [[520, 0.045, 'sine', 0.018], [760, 0.05, 'sine', 0.015, 55]],
+      ring: [[990, 0.03], [1320, 0.05, 'sine', 0.014, 60]],
+      count: [[1180, 0.018, 'sine', 0.012], [1500, 0.03, 'sine', 0.011, 75]],
+      chart: [[300, 0.06, 'triangle', 0.015], [430, 0.05, 'sine', 0.011, 70]],
+      stagger: [[660, 0.022, 'sine', 0.011]],
+      tick: [[1400, 0.016, 'sine', 0.011]],
+      hover: [[940, 0.02, 'sine', 0.012]],
+      today: [[1046, 0.05, 'sine', 0.014], [1568, 0.07, 'sine', 0.012, 90]],
     };
+
+    // The same vocabulary, felt instead of heard, for the devices that can buzz. A pattern
+    // is one short tap, or a tap, a pause and a second tap: every entry is under 160 ms, so
+    // a cue reads as feedback on the fingertip and never as an alarm going off -- and the
+    // continuous interactions (a scrub, a sweep) have no pattern at all, because a phone
+    // buzzing its way through a chart is not feedback. A device that cannot vibrate -- a
+    // desktop, an iPhone -- simply has the sound, and nothing stands in for it.
+    const HAPTIC_CUES = {
+      open: 12,
+      accept: [10, 40, 16],
+      close: 10,
+      lock: [24, 60, 24],
+      refuse: [22, 70, 22],
+      warn: [20, 60, 20],
+      step: 7,
+      start: [10, 50, 20],
+      reveal: [8, 40, 12],
+      print: 10,
+      grow: [8, 30, 14],
+      ring: 14,
+      count: 6,
+      chart: 12,
+      stagger: 5,
+      tick: 4,
+      hover: 6,
+      today: [8, 50, 14],
+    };
+
+    // A browser refuses to vibrate until the reader has touched the frame at all, and it
+    // writes an error into the console every time it refuses. On a page whose reveal fires
+    // a cue per panel, waiting to be told no a few hundred times is a wall of noise, so the
+    // buzz waits for the first gesture exactly as the audio context does.
+    let frameTouched = false;
+    const markFrameTouched = () => { frameTouched = true; };
+    ['pointerdown', 'keydown', 'touchstart'].forEach(event =>
+      window.addEventListener(event, markFrameTouched, { once: true, passive: true }));
+
+    function pulseHaptic(name) {
+      const pattern = HAPTIC_CUES[name];
+      // The same switch that silences the chirps stops the buzz: one control for tactile
+      // feedback, whichever sense the device answers with.
+      if (!isAudioEnabled || !frameTouched || pattern === undefined) return;
+      if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+      try {
+        navigator.vibrate(pattern);
+      } catch (e) {
+        // A refused vibration is not an error: the sound already carried the cue.
+      }
+    }
+
+    // Motion cues arrive in bursts: one panel's bars, one sweep's charts, one grid's
+    // cascade. A burst of the same cue is one movement, not a drum roll, so repeats
+    // inside this window are merged into the first -- the interaction vocabulary above
+    // is never merged, because a press has to answer every time it is made.
+    const CUE_MERGE_MS = {
+      grow: 130, ring: 130, count: 150, chart: 220, stagger: 240, tick: 160, hover: 200,
+      today: 260,
+    };
+    const cueMergedUntil = {};
 
     function playCue(name) {
       if (!isAudioEnabled || !SOUND_CUES[name]) return;
+      if (CUE_MERGE_MS[name]) {
+        const now = performance.now();
+        if (now < (cueMergedUntil[name] || 0)) return;
+        cueMergedUntil[name] = now + CUE_MERGE_MS[name];
+      }
+      pulseHaptic(name);
       for (const [freq, duration, type, volume, delay] of SOUND_CUES[name]) {
         if (delay) window.setTimeout(() => playMicroChirp(freq, duration, type, volume), delay);
         else playMicroChirp(freq, duration, type, volume);
@@ -2818,23 +3057,93 @@
       if (typeof playMicroChirp === 'function')      playCue(next === 'light' ? 'open' : 'close');
     }
 
+    // The two states of the feedback toggle, drawn rather than typed: a speaker with its
+    // waves, and the same speaker struck through. Both are the same stroked-icon language
+    // as every other control in the header.
+    const FEEDBACK_ICONS = {
+      on: '<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"/></svg>',
+      off: '<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 9.75L19.5 12m0 0l2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"/></svg>',
+    };
+
     function updateAudioUi() {
       const icon = document.getElementById("audioIcon");
       const text = document.getElementById("audioStatusText");
       const btn = document.getElementById("audioToggleBtn");
       if (!icon || !btn) return;
+      icon.innerHTML = isAudioEnabled ? FEEDBACK_ICONS.on : FEEDBACK_ICONS.off;
+      btn.setAttribute("aria-pressed", isAudioEnabled ? "true" : "false");
+      if (text) text.textContent = isAudioEnabled ? "Feedback ON" : "Feedback OFF";
       if (isAudioEnabled) {
-        icon.textContent = "🔊";
-        text.textContent = "Audio ON";
         btn.classList.add("border-cyan-500/50", "text-cyan-400", "bg-cyan-500/10");
         btn.classList.remove("text-slate-400", "border-slate-700");
       } else {
-        icon.textContent = "🔇";
-        text.textContent = "Audio OFF";
         btn.classList.remove("border-cyan-500/50", "text-cyan-400", "bg-cyan-500/10");
         btn.classList.add("text-slate-400", "border-slate-700");
       }
     }
+
+    // ========================================================
+    // FULLSCREEN
+    // ========================================================
+    // A dashboard is a wall of charts and readings, and the only thing on it that is not
+    // the dashboard is the browser's own furniture -- so where the API exists, it can be
+    // asked for the whole screen. Where it does not (an iPhone browser has none at all),
+    // the button is never revealed: a control that cannot do anything is worse than no
+    // control, and the shortcut says why instead of doing nothing.
+    const FULLSCREEN_ICON_PATHS = {
+      enter: 'M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15',
+      leave: 'M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25',
+    };
+
+    function fullscreenElement() {
+      return document.fullscreenElement || document.webkitFullscreenElement || null;
+    }
+
+    function fullscreenSupported() {
+      const root = document.documentElement;
+      const request = root.requestFullscreen || root.webkitRequestFullscreen;
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      // `fullscreenEnabled` is false in a frame that is not allowed to go fullscreen, and
+      // an embed is exactly where a dashboard like this gets opened.
+      return !!(request && exit) && document.fullscreenEnabled !== false;
+    }
+
+    function updateFullscreenUi() {
+      const btn = document.getElementById("fullscreenBtn");
+      if (!btn) return;
+      const active = !!fullscreenElement();
+      const path = document.getElementById("fullscreenIconPath");
+      if (path) path.setAttribute("d", active ? FULLSCREEN_ICON_PATHS.leave : FULLSCREEN_ICON_PATHS.enter);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+      btn.setAttribute("aria-label", active ? "Leave fullscreen" : "Enter fullscreen");
+      btn.title = `${active ? 'Leave' : 'Fill'} the screen (Shortcut: F)`;
+    }
+
+    function toggleFullscreen() {
+      const root = document.documentElement;
+      if (!fullscreenSupported()) {
+        playCue('refuse');
+        return;
+      }
+      // Leaving is its own control, and a browser that declines the request (a gesture it
+      // did not accept, a permission the frame does not hold) says so rather than
+      // pretending it worked.
+      if (fullscreenElement()) {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        Promise.resolve(exit.call(document)).catch(() => playCue('refuse'));
+        playCue('close');
+      } else {
+        const request = root.requestFullscreen || root.webkitRequestFullscreen;
+        Promise.resolve(request.call(root)).catch(() => playCue('refuse'));
+        playCue('open');
+      }
+    }
+
+    const fullscreenBtn = document.getElementById("fullscreenBtn");
+    if (fullscreenBtn && fullscreenSupported()) fullscreenBtn.classList.remove("hidden");
+    document.addEventListener("fullscreenchange", updateFullscreenUi);
+    document.addEventListener("webkitfullscreenchange", updateFullscreenUi);
+    updateFullscreenUi();
 
     function printClinicalReport() {
       playCue('print');
@@ -2936,7 +3245,9 @@
       chip.className = allLive
         ? 'px-2.5 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition cursor-pointer bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
         : 'px-2.5 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition cursor-pointer bg-amber-500/10 border-amber-500/40 text-amber-400';
-      document.getElementById("dataQualityIcon").textContent = allLive ? '✅' : '⚠️';
+      // The chip's own colour carries the verdict, so the mark is one non-emoji glyph
+      // rather than a pictogram: a filled dot for measured, a hollow one for estimated.
+      document.getElementById("dataQualityIcon").innerHTML = allLive ? '&#9679;' : '&#9675;';
       document.getElementById("dataQualityText").textContent = allLive ? `${live}/${total} LIVE` : `${degraded.length} ESTIMATED`;
 
       document.getElementById("dataQualityHeadline").textContent = allLive
@@ -3184,12 +3495,12 @@
           checkMasterLockState();
           document.getElementById("passInput").value = "";
           errorDiv.className = "mt-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs text-center font-medium";
-          errorDiv.textContent = "✅ Master Lock Deactivated. Enter Capybara to view dashboard.";
+          errorDiv.textContent = "Master Lock deactivated. Enter the standard passphrase to view the dashboard.";
           errorDiv.classList.remove("hidden");
           return;
         } else {
           errorDiv.className = "mt-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs text-center font-medium";
-          errorDiv.textContent = "⛔ SYSTEM MASTER-LOCKED: Capybara access suspended. Valid Master Passphrase required.";
+          errorDiv.textContent = "System master-locked: standard access suspended until the Master Passphrase is entered.";
           errorDiv.classList.remove("hidden");
           return;
         }
@@ -3249,7 +3560,7 @@
         sessionPassphrase = null;
         localStorage.removeItem("garmin_vault_pass");
         errorDiv.className = "mt-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs text-center font-medium";
-        errorDiv.textContent = "❌ Invalid passphrase or corrupted vault. Decryption failed.";
+        errorDiv.textContent = "Invalid passphrase or corrupted vault. Decryption failed.";
         errorDiv.classList.remove("hidden");
       } finally {
         btn.disabled = false;
@@ -3284,7 +3595,7 @@
         closeMasterLockModal();
         logout();
       } else {
-        errorDiv.textContent = "❌ Incorrect Master Passphrase.";
+        errorDiv.textContent = "Incorrect Master Passphrase.";
         errorDiv.classList.remove("hidden");
       }
     }
@@ -3811,7 +4122,7 @@
       
       document.getElementById('aiSummaryDate').textContent = now.toLocaleDateString('en-SG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
       const h2El = document.querySelector('#aiDailySummary')?.closest('section')?.querySelector('h2');
-      if (h2El) h2El.textContent = `${greeting}, Harvin 👋`;
+      if (h2El) h2El.textContent = `${greeting}, Harvin`;
 
       const hrv30d = hrv30 || 55.3;
       const hrvDiff = hrv - hrv30d;
@@ -3830,7 +4141,7 @@
       const injuryCopy = {
         low: ' Injury risk is <strong class="text-emerald-400">low</strong> — safe to train and progressively increase load.',
         moderate: ` Injury risk is <strong class="text-amber-400">moderate (${injuryPct}%)</strong> — manage training volume carefully this week.`,
-        high: ` <strong class="text-rose-400">⚠️ Injury risk is elevated (${injuryPct}%)</strong> — reduce training load significantly.`,
+        high: ` <strong class="text-rose-400">Injury risk is elevated (${injuryPct}%)</strong> — reduce training load significantly.`,
       }[injury.band];
       if (injuryCopy) summaryLines.push(injuryCopy);
       
@@ -3907,11 +4218,23 @@
         : `<span class="coach-bar w-full rounded-t ${bar.value ? `bg-${fill}-500/80` : 'bg-slate-700'}" style="height: ${Math.max(bar.pct, 4)}%" title="${esc(bar.date)}: ${esc(String(bar.value))}${esc(unit)}"></span>`
       ).join('');
       const labels = (visual.bars || []).map(bar => `<span class="w-full text-center text-[9px] text-slate-500 mono">${esc(bar.label)}</span>`).join('');
-      const line = visual.target_pct !== null && visual.target_pct !== undefined
-        ? `<div class="absolute left-0 right-0 border-t border-dashed border-slate-500/70" style="bottom: ${Math.min(visual.target_pct, 100)}%"></div>`
+      // The number belongs on the line, not only in the caption under it: a dashed line is
+      // a target, and a target a reader has to hunt for in a sentence is a decoration. It
+      // sits at the right-hand end, on whichever side of the line has room -- at the top of
+      // the chart there is none above -- and it is the same number the caption states.
+      const targetValue = visual.target === null || visual.target === undefined
+        ? null
+        : Number(visual.target).toLocaleString('en-SG');
+      const targetPct = visual.target_pct === null || visual.target_pct === undefined
+        ? null
+        : Math.max(0, Math.min(100, visual.target_pct));
+      const line = targetPct !== null && targetValue !== null
+        ? `<div class="absolute left-0 right-0 border-t border-dashed border-slate-500/70" style="bottom: ${targetPct}%">`
+          + `<span class="absolute right-0 leading-4 px-1 rounded bg-slate-900/85 text-[9px] mono text-slate-300 ${targetPct > 80 ? 'top-0.5' : 'bottom-0.5'}">${targetValue}</span>`
+          + `</div>`
         : '';
-      const reference = visual.target !== null && visual.target !== undefined
-        ? ` · line at ${Number(visual.target).toLocaleString('en-SG')}${esc(unit)}`
+      const reference = targetValue !== null
+        ? ` · line at ${targetValue}${esc(unit)}`
         : '';
       return `
         <div class="pt-1">
@@ -4310,6 +4633,12 @@
       if (subset.length > 0) {
         scrubSleepCallout(subset[subset.length - 1]);
       }
+
+      // The sleep inspector's height is reserved for the tallest night in this window, so
+      // scrubbing the nights it describes cannot resize the panel the reader is pointing at.
+      const sleepHud = document.getElementById('sleepCalloutHud');
+      hoverPanelReservations.sleep = () => reserveReadingHudHeight(sleepHud, item => scrubSleepCallout(item), subset);
+      hoverPanelReservations.sleep();
     }
 
     function scrubSleepCallout(item) {
@@ -4481,10 +4810,10 @@
       if (btn) {
         if (isRhrOverlayActive) {
           btn.className = "px-2.5 py-1 rounded-xl bg-amber-500/20 border border-amber-500/60 text-amber-300 font-mono text-xs flex items-center gap-1.5 transition cursor-pointer shadow-lg shadow-amber-500/10";
-          btn.innerHTML = `<span>⚡ Overlay RHR: ACTIVE</span>`;
+          btn.innerHTML = `<span>Overlay RHR: ACTIVE</span>`;
         } else {
           btn.className = "px-2.5 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 border border-amber-500/30 text-amber-400 font-mono text-xs flex items-center gap-1.5 transition cursor-pointer";
-          btn.innerHTML = `<span>⚡ Overlay RHR</span>`;
+          btn.innerHTML = `<span>Overlay RHR</span>`;
         }
       }
       playCue(isRhrOverlayActive ? 'accept' : 'close');
@@ -4586,7 +4915,6 @@
                   const clientX = canvasRect.left + tooltipModel.caretX;
                   const clientY = canvasRect.top + tooltipModel.caretY;
                   showFloatingCallout(clientX, clientY, getHrvCalloutHtml(subset[idx], rhrVal));
-                  playMicroChirp(840, 0.02);
                 }
               }
             }
@@ -4629,6 +4957,22 @@
         const lastIdx = subset.length - 1;
         scrubHrvCallout(subset[lastIdx], rhrVals[lastIdx]);
       }
+
+      // The widest of every field this window carries, which is what the inspector's
+      // height is reserved against so a scrub can move through it without the chart
+      // shifting under the cursor.
+      const widestHrv = {
+        hrv: Math.max(0, ...subset.map(d => Number(d.lastNightAvg) || 0)),
+        rhr: Math.max(0, ...rhrVals.map(v => Number(v) || 0)),
+        baseline: Math.max(0, ...subset.map(d => Number(d.baseline) || 0)),
+        corridor: document.getElementById('hrvHudCorridor').textContent,
+        status: subset.reduce((longest, night) => {
+          const text = hrvVerdictChip(night).text;
+          return text.length > longest.length ? text : longest;
+        }, '--'),
+      };
+      hoverPanelReservations.hrv = () => reserveHrvHudHeight(widestHrv);
+      reserveHrvHudHeight(widestHrv);
     }
 
     function scrubHrvCallout(item, rhrVal) {
@@ -4866,7 +5210,7 @@
           animation: motionAllows() ? {
             x: { duration: 0 },
             y: { duration: 0 },
-            duration: 900,
+            duration: SCATTER_SETTLE_MS,
             easing: 'easeOutBack',
           } : false,
           plugins: {
@@ -4904,7 +5248,6 @@
                     const clientX = canvasRect.left + tooltipModel.caretX;
                     const clientY = canvasRect.top + tooltipModel.caretY;
                     showFloatingCallout(clientX, clientY, getScatterCalloutHtml(pt, baseHrv, baseRhr));
-                    playMicroChirp(920, 0.02);
                   }
                 }
               }
@@ -4956,6 +5299,13 @@
               scatterChart.update();
             }, SCATTER_ARRIVAL_BEAT_MS * beat));
           });
+          // Tonight is the last night home, so the beacon leaves the diamond once the
+          // last night has settled onto the size the render measured for it -- a signal
+          // over a map still in flight would be pointing at a dot that is still small.
+          arrivalTimers.push(window.setTimeout(() => {
+            if (scatterChartInstance !== scatterChart) return;
+            playTodayBeacon();
+          }, SCATTER_ARRIVAL_BEAT_MS * Math.max(arrivalOrder.length - 1, 0) + SCATTER_SETTLE_MS));
         };
         scatterChart.arriveFromDepth();
       }
@@ -4965,6 +5315,16 @@
       } else {
         paintScatterHudAbsent();
       }
+
+      // The inspector's height is reserved for the tallest night it can be pointed at, so
+      // a hover can never move the map under the reader's cursor -- and how to answer that
+      // again after a resize is left behind with the values it was measured against.
+      const widestReadings = {
+        hrv: `${Math.max(0, ...hrvList.map(h => Number(h.lastNightAvg) || 0))} ms`,
+        rhr: `${Math.max(0, ...rhrList.map(r => Number(r.rhr) || 0))} bpm`,
+      };
+      hoverPanelReservations.scatter = () => reserveScatterHudHeight(baseHrv, baseRhr, widestReadings);
+      reserveScatterHudHeight(baseHrv, baseRhr, widestReadings);
     }
 
     // How far inside the screen a night sits before it travels forward to the size it
@@ -4974,6 +5334,10 @@
     // not per quadrant, so the whole map -- every night on record -- comes forward one dot
     // at a time rather than in five lumps.
     const SCATTER_ARRIVAL_BEAT_MS = 22;
+    // How long a night takes to arrive once its beat comes round. Named because the
+    // beacon on tonight's diamond waits for it: it leaves the dot when the dot is drawn
+    // at the size the render measured.
+    const SCATTER_SETTLE_MS = 900;
 
     function getScatterQuadrantInfo(hrv, rhr, baseHrv, baseRhr) {
       if (hrv >= baseHrv && rhr <= baseRhr) {
@@ -5017,21 +5381,228 @@
     const SCATTER_HUD_RHR_TONE = 'text-amber-400';
     const SCATTER_HUD_HRV_TONE = 'text-emerald-400';
     const SCATTER_HUD_ABSENT_TONE = 'bg-slate-500/10 border-slate-500/30 text-slate-400';
+    // The sentence the inspector shows when tonight was not measured. It is named here
+    // rather than inline because the height reservation below has to measure it too,
+    // and a copy would be free to drift from the words the reader is actually shown.
+    const SCATTER_HUD_ABSENT_TEXT = "Nothing measured for tonight yet: no overnight heart rate variability (HRV) and no resting heart rate (RHR) have been published, so tonight is not on the map. Point at any night to read it.";
+
+    // A hover must never move the page. An inspector is a panel the scrub rewrites in
+    // place, and where its text wraps decides how tall it is: at a narrow viewport one
+    // line more, and then everything below the panel -- the chart the reader is pointing
+    // at included -- drops by that line, so the cursor lands on a different reading,
+    // which writes another label, which moves the chart again. The page jumps while the
+    // reader is only trying to read one dot. The tallest state a panel can be in at this
+    // width is therefore measured and reserved once, and its text is free to change after
+    // that without the layout ever noticing it.
+    //
+    // `withStates` writes each state the panel can be in and calls `take()` after every
+    // one. The caller owns what a state is, because only it knows which fields move; this
+    // owns the measuring and the reservation.
+    function reserveHoverPanel(hud, withStates) {
+      if (!hud) return;
+      // The previous reservation is dropped before measuring, or it would be read back as
+      // if it were the panel's own height and the tallest state could never come back
+      // down -- which is exactly what a wider window asks it to do.
+      hud.style.minHeight = '';
+      let tallest = 0;
+      withStates(() => {
+        // The layout box, not the painted one: an entrance that has not been revealed yet
+        // still scales its section, and a height read through that transform would reserve
+        // 1.5% less than the panel needs and leave a few pixels of jump behind.
+        tallest = Math.max(tallest, hud.offsetHeight);
+      });
+      hud.style.minHeight = tallest ? `${Math.ceil(tallest)}px` : '';
+    }
+
+    // Each reservation is a question about wrapping, and wrapping is a question about the
+    // viewport: both are answered again whenever the width changes, by whichever render
+    // left behind how to ask. Keyed per panel, so a re-render replaces its own entry and
+    // no other panel's.
+    const hoverPanelReservations = {};
+    window.addEventListener('resize', () => {
+      Object.values(hoverPanelReservations).forEach(reserve => reserve());
+    });
+
+    function reserveScatterHudHeight(baseHrv, baseRhr, widest) {
+      const hud = document.getElementById('scatterCalloutHud');
+      const badge = document.getElementById('scatterHudQuadrant');
+      const sentence = document.getElementById('scatterHudInterpretation');
+      const hrvEl = document.getElementById('scatterHudHrv');
+      const rhrEl = document.getElementById('scatterHudRhr');
+      if (!hud || !badge || !sentence || !hrvEl || !rhrEl) return;
+      // The live state goes back before the frame is drawn: every write and every read
+      // below happens inside one task, so nothing flickers on the way.
+      const live = {
+        badgeClass: badge.className, badgeText: badge.textContent, sentence: sentence.textContent,
+        hrv: hrvEl.textContent, rhr: rhrEl.textContent,
+      };
+      // One night from each corner of the map, at the widest readings the payload has to
+      // show, plus the state the inspector is in when tonight was never measured.
+      const states = [
+        { x: baseRhr - 1, y: baseHrv + 1 },
+        { x: baseRhr + 1, y: baseHrv + 1 },
+        { x: baseRhr - 1, y: baseHrv - 1 },
+        { x: baseRhr + 1, y: baseHrv - 1 },
+      ].map(corner => getScatterQuadrantInfo(corner.y, corner.x, baseHrv, baseRhr));
+      states.push({ quadrant: 'NOT MEASURED', badgeClass: SCATTER_HUD_ABSENT_TONE, plain: SCATTER_HUD_ABSENT_TEXT });
+      reserveHoverPanel(hud, take => {
+        states.forEach(state => {
+          badge.className = `px-2 py-0.5 rounded border font-mono font-bold ${state.badgeClass}`;
+          badge.textContent = state.quadrant;
+          sentence.textContent = state.plain;
+          hrvEl.textContent = widest.hrv;
+          rhrEl.textContent = widest.rhr;
+          take();
+        });
+      });
+      badge.className = live.badgeClass;
+      badge.textContent = live.badgeText;
+      sentence.textContent = live.sentence;
+      hrvEl.textContent = live.hrv;
+      rhrEl.textContent = live.rhr;
+    }
+
+    // The sleep and resting-heart-rate inspectors move readings rather than sentences, so
+    // the tallest state they can be in is the one where every field is at its widest: a
+    // wrapping row can only gain lines as what is in it gets wider, so that single state
+    // bounds every night the reader can point at. The widest of each field is found by
+    // running the scrub's own writer over the nights themselves -- so no value is formatted
+    // twice and none is invented -- and none of those reads forces a layout, which leaves
+    // one measured state for the whole window.
+    function reserveReadingHudHeight(hud, scrub, items) {
+      const values = hud ? Array.from(hud.querySelectorAll('strong')) : [];
+      if (!values.length || !items.length) return;
+      // The reading the panel is showing is kept, because the probe below ends on a
+      // mixture of the widest fields -- a value no night ever had -- and that is not
+      // something a reader may be left looking at.
+      const live = values.map(el => el.textContent);
+      const widest = values.map(() => '');
+      items.forEach(item => {
+        scrub(item);
+        values.forEach((el, index) => {
+          const text = el.textContent;
+          if (text.length > widest[index].length) widest[index] = text;
+        });
+      });
+      reserveHoverPanel(hud, take => {
+        values.forEach((el, index) => { el.textContent = widest[index]; });
+        take();
+      });
+      values.forEach((el, index) => { el.textContent = live[index]; });
+    }
+
+    // The HRV inspector is the same promise on the chart above: its reading carries the
+    // resting heart rate beside it only while the overlay is on, and its verdict chip is
+    // as long as the band label it wears, so how wide the row gets is a property of the
+    // payload rather than of the night being read.
+    function reserveHrvHudHeight(widest) {
+      const hud = document.getElementById('hrvCalloutHud');
+      const valEl = document.getElementById('hrvHudVal');
+      const baseEl = document.getElementById('hrvHudBase');
+      const corridorEl = document.getElementById('hrvHudCorridor');
+      const statusEl = document.getElementById('hrvHudStatus');
+      if (!hud || !valEl || !baseEl || !corridorEl || !statusEl) return;
+      const live = {
+        val: valEl.textContent, base: baseEl.textContent, corridor: corridorEl.textContent,
+        status: statusEl.textContent, statusClass: statusEl.className,
+      };
+      // The two shapes the reading takes -- with the overlaid resting heart rate and
+      // without it -- each at the widest of every field this window has to show.
+      reserveHoverPanel(hud, take => {
+        [true, false].forEach(withRhr => {
+          valEl.textContent = withRhr ? `${widest.hrv} ms • RHR: ${widest.rhr} bpm` : `${widest.hrv} ms`;
+          baseEl.textContent = `${widest.baseline} ms`;
+          corridorEl.textContent = widest.corridor;
+          statusEl.textContent = widest.status;
+          take();
+        });
+      });
+      valEl.textContent = live.val;
+      baseEl.textContent = live.base;
+      corridorEl.textContent = live.corridor;
+      statusEl.textContent = live.status;
+      statusEl.className = live.statusClass;
+    }
+
+    // The legend chip for the corner of the map the inspected night sits in lights up, so
+    // the callout and the map agree on which quadrant is being described without the
+    // reader having to match the colours up.
+    function setHotQuadrantChip(tag) {
+      const legend = document.getElementById('quadrantLegend');
+      if (!legend) return;
+      legend.querySelectorAll('.quadrant-chip').forEach(chip => {
+        if (chip.dataset.quadrant === tag) {
+          // Adding a class an element already carries restarts nothing, so arriving at a
+          // quadrant replays the same pop the row uses; staying inside one does not.
+          if (!chip.classList.contains('is-hot')) replayAnimation(chip, 'is-hot');
+        } else {
+          chip.classList.remove('is-hot');
+        }
+      });
+    }
+
+    // Tonight's diamond is the reading the page exists to show, and on a map of nearly two
+    // hundred nights "where is tonight" is the question it has to answer at a glance. The
+    // last night home gets a beacon: two rings that leave the diamond and fade, and a cue
+    // of their own, because the map finishing its arrival is an event of its own. They are
+    // placed at the pixel the chart measured for the reading -- so they sit on the dot
+    // rather than near it, at any window size -- and are read out of the chart that drew
+    // it rather than guessed from the scales.
+    const TODAY_BEACON_RINGS = 2;
+    function playTodayBeacon() {
+      const chart = scatterChartInstance;
+      const canvas = document.getElementById("autonomicScatterChart");
+      const holder = canvas && canvas.parentElement;
+      if (!chart || !holder) return;
+      const meta = chart.getDatasetMeta(chart.data.datasets.length - 1);
+      const dot = meta && meta.data ? meta.data[0] : null;
+      if (!dot) return;
+      const rings = [];
+      for (let index = 0; index < TODAY_BEACON_RINGS; index += 1) {
+        // Reused rather than rebuilt: this plays on every render, and a fresh element per
+        // pass would leave the panel littered with rings that never run again.
+        let ring = holder.querySelector(`.scatter-beacon[data-ring="${index}"]`);
+        if (!ring) {
+          ring = document.createElement("div");
+          ring.className = "scatter-beacon";
+          ring.setAttribute("data-ring", String(index));
+          ring.setAttribute("aria-hidden", "true");
+          holder.appendChild(ring);
+        }
+        ring.style.left = `${dot.x}px`;
+        ring.style.top = `${dot.y}px`;
+        rings.push(ring);
+      }
+      rings.forEach(ring => replayAnimation(ring, "is-live"));
+      playCue('today');
+    }
 
     function scrubScatterCallout(pt, baseHrv, baseRhr) {
       if (!pt) return;
       const info = getScatterQuadrantInfo(pt.y, pt.x, baseHrv, baseRhr);
       document.getElementById("scatterHudDate").textContent = pt.date || 'Session';
       const badge = document.getElementById("scatterHudQuadrant");
+      const quadrantIsNew = badge.textContent !== info.quadrant;
       badge.className = `px-2 py-0.5 rounded border font-mono font-bold ${info.badgeClass}`;
       badge.textContent = info.quadrant;
       const hrvEl = document.getElementById("scatterHudHrv");
+      const rhrEl = document.getElementById("scatterHudRhr");
+      const readingIsNew = hrvEl.textContent !== `${pt.y} ms`;
       hrvEl.className = `${SCATTER_HUD_HRV_TONE} font-bold text-sm`;
       hrvEl.textContent = `${pt.y} ms`;
-      const rhrEl = document.getElementById("scatterHudRhr");
       rhrEl.className = `${SCATTER_HUD_RHR_TONE} font-bold text-sm`;
       rhrEl.textContent = `${pt.x} bpm`;
       document.getElementById("scatterHudInterpretation").textContent = info.plain;
+      setHotQuadrantChip(info.tag);
+      // The readings settle onto the night the cursor moved to instead of swapping
+      // between frames, so a scrub reads as the inspector travelling across the map.
+      if (readingIsNew) {
+        replayAnimation(hrvEl, 'motion-hud-swap');
+        replayAnimation(rhrEl, 'motion-hud-swap');
+      }
+      // Crossing into another quadrant is the discrete event here -- the point of the
+      // chart -- so that is what is heard; the movement itself keeps its pitch ladder.
+      if (quadrantIsNew && motionPainted) playCue('tick');
     }
 
     // Tonight before it has been measured: the row states what is missing, in the same
@@ -5048,8 +5619,8 @@
       const rhrEl = document.getElementById("scatterHudRhr");
       rhrEl.className = 'text-slate-400 font-bold text-sm';
       rhrEl.textContent = '--';
-      document.getElementById("scatterHudInterpretation").textContent =
-        "Nothing measured for tonight yet: no overnight heart rate variability (HRV) and no resting heart rate (RHR) have been published, so tonight is not on the map. Point at any night to read it.";
+      document.getElementById("scatterHudInterpretation").textContent = SCATTER_HUD_ABSENT_TEXT;
+      setHotQuadrantChip(null);
     }
 
     function getScatterCalloutHtml(pt, baseHrv, baseRhr) {
@@ -5179,6 +5750,12 @@
       if (multiYear.length > 0) {
         scrubRhrCallout(multiYear[multiYear.length - 1]);
       }
+
+      // The resting-heart-rate inspector gets the same promise, reserved against the
+      // widest month in the window it can be scrubbed across.
+      const rhrHud = document.getElementById('rhrCalloutHud');
+      hoverPanelReservations.rhr = () => reserveReadingHudHeight(rhrHud, item => scrubRhrCallout(item), multiYear);
+      hoverPanelReservations.rhr();
     }
 
     // The 4-year baseline used to be hard-coded at 50.0 bpm in the UI, which
@@ -5583,6 +6160,9 @@
     // ========================================================
     function showFloatingCallout(x, y, html) {
       let el = document.getElementById("floatingChartCallout");
+      // A callout that is not on screen is arriving: it rises into place and gets a sound,
+      // while one that is already up merely follows the cursor across the chart.
+      const arriving = !el || el.classList.contains("opacity-0");
       if (!el) {
         el = document.createElement("div");
         el.id = "floatingChartCallout";
@@ -5594,26 +6174,34 @@
       el.classList.remove("opacity-0");
       el.classList.add("opacity-100");
 
-      const tooltipWidth = 230;
-      const tooltipHeight = 175;
+      // The panel's own box, measured after its content is in it, instead of the fixed
+      // 230x175 this used to be placed from: the callouts render wider and taller than
+      // that, so one opened near the top of the window was placed as if it were smaller
+      // than it is and covered the very node it was describing.
+      const box = el.getBoundingClientRect();
+      const width = box.width || 230;
+      const height = box.height || 175;
+      const margin = 15;
 
-      // Position centered horizontally
-      let left = x - (tooltipWidth / 2);
-      if (left + tooltipWidth > window.innerWidth - 15) {
-        left = window.innerWidth - tooltipWidth - 15;
-      }
-      if (left < 15) {
-        left = 15;
-      }
+      // Centred on the point, then held inside the window on both sides.
+      let left = x - (width / 2);
+      const limit = Math.max(margin, window.innerWidth - width - margin);
+      left = Math.min(Math.max(left, margin), limit);
 
-      // Position above point
-      let top = y - tooltipHeight - 15;
+      // Above the point by default; below it when there is no room above, and never off
+      // the bottom of the window.
+      let top = y - height - margin;
       if (top < 70) {
-        top = y + 25; // Flip below if too close to ceiling
+        top = Math.min(y + 25, Math.max(70, window.innerHeight - height - margin));
       }
 
       el.style.left = `${left}px`;
       el.style.top = `${top}px`;
+
+      if (arriving) {
+        replayAnimation(el, 'motion-callout-in');
+        playCue('hover');
+      }
     }
 
     function hideFloatingCallout() {
@@ -6104,6 +6692,8 @@
         logout();
       } else if (key === 'T') {
         toggleTheme();
+      } else if (key === 'F') {
+        toggleFullscreen();
       } else if (key === 'O') {
         toggleRhrOverlay();
       } else if (key === 'R') {

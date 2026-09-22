@@ -5,8 +5,10 @@ repository with no memory of the sessions that built it. Everything below is
 either a fact about the current tree or a rule the codebase already follows;
 nothing here is a plan that has not happened.
 
-*Last updated: 2026-09-21, after the plain-language + motion pass (uncommitted at
-the time of writing — check `git status` and `git log` for the true tip).*
+*Last updated: 2026-09-22, after the final build pass (a fill plays when the reader
+reaches it, every animation names its own cue, tonight's diamond has a beacon, the
+feedback is felt as well as heard, and the interface types no emoji) — uncommitted at
+the time of writing, so check `git status` and `git log` for the true tip.*
 
 ---
 
@@ -27,7 +29,7 @@ step, and no database.
 | Repository | https://github.com/Zurplox/garmin-bio-dashboard (public) |
 | Viewer passphrase | documented in `DASHBOARD_GUIDE.md` → *Dashboard Access & Security* (master-lock phrase is separate) |
 | Language | Python 3.14 pipeline + one static HTML page (Tailwind CDN + Chart.js CDN) |
-| Unit tests | `python -m unittest discover -s tests -t .` — 141 pass before this pass, 146 after |
+| Unit tests | `python -m unittest discover -s tests -t .` — 247 pass |
 | Scheduler | `.github/workflows/daily_sync.yml` — `Daily Biometrics Sync & AI Analysis`, 00:00 UTC (08:00 SGT) |
 | CI | `.github/workflows/tests.yml` — `Tests`, runs on push/PR |
 | Plaintext vault | `data/biometrics.json` is **gitignored**; only ciphertext ships |
@@ -224,13 +226,35 @@ These are not style preferences. Each one closed a real, user-visible bug.
    a cooldown; it never fires two dispatches. Do not test it by spamming the
    workflow — the owner has asked repeatedly for no extra GitHub runs. A refused
    press now also says so out loud (the `refuse` cue).
-8. **Sound has one vocabulary.** `SOUND_CUES` in `index.html` names every cue and
-   `playCue(name)` plays it; a call site may not choose a frequency of its own. Rising
-   = opened, falling = closed, two rising = accepted, three rising = work started, the
-   melody = work finished, one note = a step, a dull low pair = refused, a low pair =
-   warning. Scrub, heat-map sweep and section jumps keep their own ladders because
-   they are continuous, not discrete. Volumes stay at or below 0.025 so a cue reads as
-   feedback rather than a notification, and `TactileAudioTests` enforces all of it.
+8. **Feedback has one vocabulary, in two senses.** `SOUND_CUES` in `index.html` names
+   every cue and `playCue(name)` plays it; a call site may not choose a frequency of its
+   own. Rising = opened, falling = closed, two rising = accepted, three rising = work
+   started, the melody = work finished, one note = a step, a dull low pair = refused, a
+   low pair = warning. Scrub, heat-map sweep and section jumps keep their own ladders
+   because they are continuous, not discrete — and because they are continuous they have
+   no haptic pattern either. `HAPTIC_CUES` names the same events with a tap (never longer
+   than 160 ms), `pulseHaptic` is called from `playCue` and nowhere else, and the switch
+   that silences the chirps stops the buzz: the header button says `Feedback ON/OFF`, while
+   the stored key is still `garmin_sound_enabled`. Loudness is one policy —
+   `MICRO_AUDIO_GAIN` (1.6) lifts every note, `MICRO_AUDIO_CEILING` (0.04) keeps it under
+   a notification — applied inside `playMicroChirp` so the ladders are lifted too. A
+   device with no `navigator.vibrate` just hears it; nothing stands in for the buzz.
+   `TactileAudioTests` enforces all of it.
+
+   **The interface is drawn, not typed.** A band, a state or a quadrant is a coloured
+   `&#9679;` in the page's own palette, a control is a stroked SVG, and no emoji appears
+   anywhere in the page (`InterfaceGlyphTests` fails on one). The two marks that remain
+   sit outside the emoji ranges on purpose: the information mark that opens a dropdown,
+   and the filled circle. Emoji as the *colour key* inside an explanation panel was the
+   worst of it — it rendered differently on every platform and read as a chat message
+   beside a clinical reading.
+
+   **A revealed control is one that can work.** The fullscreen button is in the markup
+   hidden and is revealed only where `fullscreenSupported()` is true (both spellings of
+   the API plus `fullscreenEnabled`, because a frame can hold the method and not be
+   allowed to use it); `F` says so with a refusal cue where it cannot. Its icon, spoken
+   label and tooltip are re-read from the browser's own state on `fullscreenchange`, so it
+   can never say "enter" while the page is fullscreen.
 9. **Motion computes nothing.** `playVisuals()` reads what the render pass already
    wrote and re-applies it. Reduced-motion readers get final values, no hidden
    cards, no animation.
@@ -271,6 +295,11 @@ These are not style preferences. Each one closed a real, user-visible bug.
 | #18 | The pattern caveat gets one owner (`policy.CORRELATION_CAVEAT`), publishes with the correlation payload, and reads as a neutral statement — the `— not why` aside and the `is a guess` empty state are gone |
 | #19 | The movement card becomes a week-and-month trend, built from the same daily channels the correlation lab uses, with the heart reading beside it and today's still-running day left out of the average |
 | #20 | Bars fill from their own edge (`scaleX(0)` from the left, `scaleY(0)` from the bottom) instead of springing at 92% of their width; the five-pillar bars are primed by class with a failsafe that fills them if the reveal never comes; the quadrant chart rains its points in from above the plot |
+| #35 | Fullscreen, haptics, louder feedback and no emoji. A header button fills the screen where the browser has the API (both spellings plus `fullscreenEnabled`, because a frame can hold the method and still not be allowed to use it) and is never revealed where it does not, with its icon, `aria-label` and tooltip re-read from the browser's own state on `fullscreenchange`; `F` toggles it. Every cue in `SOUND_CUES` gains a pattern in `HAPTIC_CUES` and `pulseHaptic` is called from the one place a cue is fired, so one switch (the header's `Feedback ON/OFF`) owns the sound and the buzz, patterns never run past 160 ms, and the continuous pitch ladders have no pattern at all; a device without `navigator.vibrate` just hears it. Every chirp is lifted by one gain (`MICRO_AUDIO_GAIN = 1.6`) under one ceiling (`MICRO_AUDIO_CEILING = 0.04`) inside `playMicroChirp`, so the ladders are lifted with the table. And the interface stops typing its icons: the explanation panels' coloured-circle band keys, the status chip's tick/warning, the metric cards' pictograms, the audio button and the lock screen's messages are all drawn or written now -- a test asserts no emoji remains anywhere in the page |
+| #36 | A coach card's dashed target line states its own number. The 8,000 in the walking card lived only in the caption under the chart; the label now sits at the line's right-hand end, on whichever side of the line has room (`targetPct > 80` puts it below), and reads from the same published target the caption does -- 91% for this month's step goal, measured on the running page |
+| #34 | Tonight's diamond on the quadrant map gets a beacon, and the chart callout that points at it arrives instead of appearing. The beacon is two rings (`beacon-out`) that leave the newest night once the map has settled -- measured at 4.99 s for 187 nights, `SCATTER_ARRIVAL_BEAT_MS * (n - 1) + SCATTER_SETTLE_MS` -- placed at the pixel the chart measured for that reading (`getDatasetMeta(last).data[0]`, read out of the chart rather than guessed from the scales) inside the chart's own container, so the rings sit on the dot at any window size; the element is reused across renders, and a timer left over from a replaced chart stands down. It has a cue of its own (`today`), because the map finishing its arrival is its own event. The callout arrives with one owner (`callout-in`, one `hover` cue for all four charts rather than a frequency per chart) and is placed from the box it actually renders -- measured 340 x 186, not the fixed 230 x 175 it used to assume, which opened a panel near the top of the window as if it were smaller than it is -- and it is a popover (`width: max-content`) instead of a block stretched to the width of the document |
+| #33 | The sound vocabulary grows a cue per kind of movement (`grow`, `ring`, `count`, `chart`, `stagger`, `tick`), each fired by the primitive that owns the movement rather than by a call site, and each documented in the `SOUND_CUES` table. A *motion* cue merges its own repeats inside a window (`CUE_MERGE_MS`), because one panel filling is one movement and not a drum roll; the interaction vocabulary is never merged, so a press still answers every time it is made. The quadrant legend chip for the night being inspected lights up in that band's own colour, and the inspector's readings settle onto each new night (`hud-swap`) instead of swapping between frames |
+| #32 | A fill plays when the reader reaches it. `primeGrow` used to publish a bar's value and play its spring in the same four-second failsafe, so every fill below the fold -- on a 16,000 px page, nearly all of them -- was spent before the reader got there. The two are separate promises now: the value is still published on the timer (a measured bar drawn as nothing stays the one forbidden outcome) and the spring is played only by the reveal. Measured on the running page: at 6.5 s the battery carried no spring class at all, and scrolling to it played the fill -- scale 0.70 → 1.05 → 1.0 while the label rolled 0 → 53%. The bar's `transition-all duration-1000` (the height tween that raced the spring, measured as a 2.7 px dip before the spring took over) is now `transition-colors`, and the cell carries a sheen the fill starts on its own beat. The same commit closes the hover jump: the quadrant inspector's label and sentence wrapped to one line more at a narrow viewport, growing the panel by 16 px and moving the chart -- and every reading below it -- out from under the cursor, so the cursor landed on a different night and the page kept jumping. `reserveHoverPanel` measures the tallest state each inspector can be in at the current width -- the four quadrants and the not-measured state for the scatter (`reserveScatterHudHeight`), the reading with and without its overlaid resting heart rate for the HRV panel (`reserveHrvHudHeight`), and, for the sleep and resting-heart-rate inspectors whose text is readings rather than prose, the one state where every field is at its widest (`reserveReadingHudHeight`, which finds each field's widest by running the scrub's own writer over the readings themselves) -- and reserves it as a `min-height`, with `hoverPanelReservations` giving one resize listener each panel's way to answer again. Measured at 821 px: 45 pointer steps across each of the four charts each held one canvas position, one panel height, one scroll position and an unchanged document height, and the sleep panel's reservation matched the tallest of its 30 real nights exactly (77 px reserved, 77 px measured). The scatter's reservation follows the window both ways -- 380 px wide reserves 218 px, 1000 px reserves 131 px, and back again |
 | #21 | Every coaching card leads with its own reading drawn: seven finished days as bars (muted for a measured zero, dashed target line where policy has one) or a readiness level bar, empty stubs for a domain with no history. The coach's walking week moves to finished days so it quotes the same average as the movement trend card |
 | #31 | Every night on the quadrant scatter arrives on a beat of its own instead of one beat per quadrant: the depth a dot comes forward from is now a per-night value (`scatterNightDepth`, a `WeakMap` read by the dataset's `pointRadius` accessor) and the arrival walks all 187 dots in draw order, promoting one per beat so the map comes forward dot by dot and tonight is the last one home. Measured on the running page: 187 promotions, 187 distinct start times, monotonic, 14-35 ms apart, last at 4.1 s, every dot landing on the size the render measured, none moving in x or y, none left at depth. The quadrant-wide `SCATTER_ARRIVAL_STAGGER_MS` is deleted and the per-dot beat is `SCATTER_ARRIVAL_BEAT_MS` |
 | #30 | Tonight's point on the quadrant scatter is plotted only from readings the payload actually measured, and the two fields behind it stop being invented at the source: `build_today_snapshot` publishes `None` for an unmeasured overnight HRV and resting heart rate (it used to substitute 60 ms and 51.0 bpm) and publishes no population tier for an absent pulse. When there is no measured night the point is withheld and the chart says so -- no key in the legend, `--` and `NOT MEASURED` in the inspector on the neutral tone, and a sentence under the chart naming both measurements in plain English beside their scientific names. Proved by running the engine with the records present and absent, and by serving the page a vault with tonight's readings removed and then restored |

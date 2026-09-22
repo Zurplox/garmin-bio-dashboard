@@ -97,9 +97,46 @@ frontend: that is how the page once displayed a recovery score of 68 labelled
   numbers, which stop writing the moment a render replaces their target), `animateHeatmap`
   (the heat map and its square enlarged view, one cell at a time) and the chart settle
   applied to every canvas — and the springs themselves live in CSS as `gauge-spring` /
-  `bar-spring` / `chart-spring` / `heat-cell-spring`. `replayAnimation(el, class)` restarts
+  `bar-spring` / `chart-spring` / `heat-cell-spring` / `fill-sheen` (the battery's highlight,
+  started by the fill's own beat) / `hud-swap` (an inspector's reading settling onto the night
+  it moved to) / `chip-pop` (the legend chip for the corner that night sits in) / `callout-in`
+  (the inspector a chart opens under the cursor, which rises and settles onto the node instead of
+  appearing, sounded once by the `hover` cue and only by an arrival -- an open callout merely
+  follows the cursor, and its box is measured after its content is in it rather than assumed) /
+  `beacon-out` (two rings that leave tonight's diamond once the map has finished coming forward,
+  on the `today` cue: at any window size they are placed at the pixel the chart measured for the
+  reading, read out of the chart's own meta rather than guessed from the scales, and the element
+  is reused so a re-render leaves one beacon behind and not one per pass).
+  `replayAnimation(el, class)` restarts
   one of those springs for an element the render rewrites in place rather than replaces;
-  it adds no new keyframes. A canvas chart's own arrival is owned by the render that builds it: the quadrant matrix is constructed with every point at a far radius and each night's measured size is promoted on its own beat, so the nights come forward out of the screen one dot at a time. The depth is per night -- a `WeakMap` the dataset's `pointRadius` accessor is the only reader of -- so a dot with no beat yet still draws at the size this render measured, which is also what reduced motion gets: no beat is ever written, so every night draws at full size immediately. A `from`-based depth is deliberately avoided there, because Chart.js re-uses an animation config for every later transition and the entrance would replay on hover, collapsing the point under the reader's cursor. That arrival is one function on the chart instance (`arriveFromDepth`), played at the render and again by the reveal sweep: the sweep asks a canvas chart for its own arrival before it settles it generically, because resetting a chart whose points already sit where they were measured does nothing.
+  it adds no new keyframes. Reading and movement are two promises, and `primeGrow` keeps them
+  apart: the value is published on its timer whether or not the reader ever arrives (a bar left
+  at zero width is a reading shown as nothing), while the spring is played only by the reveal —
+  as one call they made every fill below the fold play four seconds after the paint, so a battery
+  the reader scrolled to later arrived already full and perfectly still. Every primitive that moves
+  also names a cue of its own (`grow`, `ring`, `count`, `chart`, `stagger`, `tick`, `reveal`,
+  `hover`, `today`), and
+  a motion cue merges its own repeats inside a window because one panel filling is one movement
+  rather than a drum roll; the interaction vocabulary is never merged, because a press answers
+  every time. **Feedback is one vocabulary in two senses**: every cue in `SOUND_CUES` also has a
+  pattern in `HAPTIC_CUES`, and `pulseHaptic(name)` is called from the one place a cue is fired, so
+  a device that can buzz feels exactly what a device that cannot simply hears -- and nothing else in
+  the page can vibrate on its own. Both tables sit under the same switch (the header button reads
+  `Feedback ON/OFF`; the stored key is still `garmin_sound_enabled`), a pattern is never longer than
+  160 ms so a cue is a tap rather than an alarm, and the continuous interactions (a scrub, a heat-map
+  sweep) have no pattern at all. Loudness is one policy in `chirpVolume(volume)` -- the table keeps
+  its relative volumes, `MICRO_AUDIO_GAIN` lifts them together, `MICRO_AUDIO_CEILING` stops the lift
+  becoming a notification -- and it is applied inside `playMicroChirp`, so the pitch ladders that
+  never go through the table are lifted with everything else. Every surface that carries feedback is
+  drawn rather than typed: the header's audio and fullscreen controls are stroked SVGs, a band or a
+  state is a coloured `&#9679;` in the page's own palette, and no emoji appears anywhere in the
+  interface (a test asserts it). Fullscreen is a revealed control, not a hopeful one: `F` and the
+  header button check `fullscreenSupported()` -- both spellings of the API plus `fullscreenEnabled`,
+  because a frame can hold the method and still not be allowed to use it -- and the icon, `aria-label`
+  and tooltip are re-read from the browser's own state on `fullscreenchange`, so the button can never
+  say "enter" while the page is fullscreen.
+
+  A canvas chart's own arrival is owned by the render that builds it: the quadrant matrix is constructed with every point at a far radius and each night's measured size is promoted on its own beat, so the nights come forward out of the screen one dot at a time. The depth is per night -- a `WeakMap` the dataset's `pointRadius` accessor is the only reader of -- so a dot with no beat yet still draws at the size this render measured, which is also what reduced motion gets: no beat is ever written, so every night draws at full size immediately. A `from`-based depth is deliberately avoided there, because Chart.js re-uses an animation config for every later transition and the entrance would replay on hover, collapsing the point under the reader's cursor. That arrival is one function on the chart instance (`arriveFromDepth`), played at the render and again by the reveal sweep: the sweep asks a canvas chart for its own arrival before it settles it generically, because resetting a chart whose points already sit where they were measured does nothing.
 
   A panel that is mostly readings and prose opts in with `data-stagger` (plus
   `data-stagger-flip` for the tipped entrance the glance strip uses): `staggerChildren`
@@ -114,6 +151,26 @@ frontend: that is how the page once displayed a recovery score of 68 labelled
   and a reveal reads a chart instance when it runs rather than capturing it, because a
   render rebuilds the charts and resetting a destroyed one throws out of the sweep and
   leaves everything behind it unrevealed.
+
+  An inspector is a panel the scrub rewrites in place, so it must not resize while the
+  reader is pointing at it: `reserveHoverPanel(hud, states)` measures the tallest state the
+  panel can be in at this width and reserves it as a `min-height`, after which its text is free
+  to change without the layout noticing. What a state is belongs to the panel: the two whose
+  text is prose write each state they can be in (`reserveScatterHudHeight` with its four
+  quadrants and the not-measured one, `reserveHrvHudHeight` with the reading carrying the
+  overlaid resting heart rate and without it), while the two whose text is readings -- the sleep
+  and resting-heart-rate inspectors -- reserve the single state where every field is at its
+  widest, because a wrapping row can only gain lines as what is in it gets wider, and
+  `reserveReadingHudHeight` finds the widest of each field by running the scrub's own writer over
+  the readings themselves. Without it a longer quadrant label and sentence wrapped
+  to one more line, everything below the panel (the chart being pointed at included) moved by
+  that line, and the cursor landed on a different night, which wrote another label, which moved
+  the chart again: the page jumped while the reader was only trying to read one dot. The
+  measurement reads `offsetHeight`, so an entrance that has not been revealed yet cannot scale
+  the answer down, and the previous reservation is dropped before measuring or it would be read
+  back as the panel's own height. Each render leaves how to recompute its reservation in
+  `hoverPanelReservations`, which one resize listener applies -- wrapping is a question about
+  the viewport and about nothing else.
 
 Analysis prose is split on `PLAIN_PARAGRAPH_SEPARATOR` into the clinical paragraph and the explanation beneath it; `asSentence()` stands policy's lowercase clauses alone on the lines that no longer carry an "In plain English:" label.
 

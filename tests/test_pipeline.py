@@ -1945,6 +1945,7 @@ class ReRenderMotionTests(unittest.TestCase):
         self.assertEqual(
             re.findall(r"@keyframes ([\w-]+)", page),
             ["gauge-spring", "chart-spring", "bar-spring", "bar-spring-y", "heat-cell-spring",
+             "fill-sheen", "hud-swap", "chip-pop", "callout-in", "beacon-out",
              "pulse-dot", "meridian-spin", "spin", "lock-rise"],
         )
         # Replay re-runs the primitives; it never adds an effect of its own.
@@ -1976,6 +1977,239 @@ class ReRenderMotionTests(unittest.TestCase):
         self.assertIn("if (!live) return;", body)
         self.assertIn("live.reset();", body)
         self.assertNotIn("chart.reset();", body)
+
+class MotionReachesTheReaderTests(unittest.TestCase):
+    """Reading and movement are two promises, and the filler keeps them apart.
+
+    The fill used to play a bar's spring the moment its failsafe timer fired -- four
+    seconds after the paint, wherever the bar happened to be -- so a battery fifteen
+    thousand pixels down the page had already filled and settled before the reader ever
+    scrolled to it. What they saw arrive, then, was the card and nothing inside it: the
+    reading was right and the movement had been spent off-screen. The value is still
+    published on that timer, because a stalled frame loop must never leave a measured
+    bar drawn as nothing, but the spring now belongs to the reveal alone.
+
+    The quadrant inspector had the mirror-image of the same problem: its label and its
+    sentence are as long as the night they describe, so a longer pair wrapped to another
+    line, the panel below it grew, and the map -- with every reading under it -- moved
+    16 px under the reader's cursor, which then pointed at a different night.
+    """
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+
+    @staticmethod
+    def _fn(page, name):
+        return page.split(f"function {name}(", 1)[1].split("\n    function ", 1)[0]
+
+    def test_a_fill_spent_off_screen_still_plays_when_the_reader_arrives(self):
+        page = self._page()
+        grow = self._fn(page, "primeGrow")
+        # Two obligations, two latches: the value is published by the timer, the spring
+        # only ever by the reveal.
+        self.assertIn("let published = false;", grow)
+        self.assertIn("let sprung = false;", grow)
+        self.assertIn("const publish = () => {", grow)
+        self.assertIn("const fill = () => {", grow)
+        self.assertIn("if (sprung) return;", grow)
+        failsafe = grow.split("playAfterSeen(el, fill, delay);", 1)[1]
+        self.assertIn("4000 + delay", failsafe)
+        self.assertIn("publish()", failsafe)
+        # The failsafe may write the value and nothing else: playing the spring there is
+        # exactly how a bar arrives full and still.
+        self.assertNotIn("replayAnimation", failsafe)
+        self.assertNotIn("playCue", failsafe)
+        self.assertIn("playCue('grow')", grow)
+
+    def test_the_battery_fills_over_its_own_surface_and_counts_its_level(self):
+        page = self._page()
+        # The sheen is a real element on the cell rather than a pseudo-element, so the
+        # same beat that fills the level can start it -- and it is started there, so it
+        # can never sweep across a bar that is standing still.
+        self.assertIn("data-fill-sheen", page)
+        self.assertIn('<span class="fill-sheen" aria-hidden="true"></span>', page)
+        grow = self._fn(page, "primeGrow")
+        self.assertIn("const surface = el.closest('[data-fill-sheen]');", grow)
+        self.assertIn("replayAnimation(surface.querySelector('.fill-sheen'), 'motion-fill-sheen');", grow)
+        self.assertIn(".battery-shell { position: relative; overflow: hidden; }", page)
+        # The level reads as a number rolling while the cell fills.
+        self.assertIn('id="bbLevelPct"', page)
+        self.assertIn("'bbLevelPct'", page)
+        # The height transition that raced the spring is gone: the bar is written to its
+        # value once and the spring plays that from zero, instead of two tweens competing.
+        bar = page.split('id="bbLevelBar"', 1)[1].split(">", 1)[0]
+        self.assertNotIn("transition-all", bar)
+        self.assertIn("transition-colors", bar)
+
+    def test_a_hover_can_never_move_the_map_under_the_cursor(self):
+        page = self._page()
+        reserve = self._fn(page, "reserveScatterHudHeight")
+        # The tallest state the inspector can be in is measured and reserved, so a shorter
+        # one cannot shrink the panel and pull the chart up under the cursor.
+        self.assertIn("getScatterQuadrantInfo(corner.y, corner.x, baseHrv, baseRhr)", reserve)
+        self.assertIn("SCATTER_HUD_ABSENT_TONE", reserve)
+        # It hands its states to the one owner of the measuring.
+        self.assertIn("reserveHoverPanel(hud, take => {", reserve)
+        # Every variant is measured with the live state restored, all inside one task, so
+        # the reservation is never itself seen as a flicker.
+        self.assertIn("badge.className = live.badgeClass;", reserve)
+        self.assertIn("sentence.textContent = live.sentence;", reserve)
+        self.assertIn("hrvEl.textContent = live.hrv;", reserve)
+        self.assertIn("rhrEl.textContent = live.rhr;", reserve)
+        # The widest readings the payload carries are what it is measured against, not
+        # tonight's own numbers.
+        self.assertIn("hrv: `${Math.max(0, ...hrvList.map(h => Number(h.lastNightAvg) || 0))} ms`", page)
+        # One owner for the sentence the inspector shows when tonight was not measured:
+        # the reservation has to measure the same words the reader is shown.
+        self.assertIn("const SCATTER_HUD_ABSENT_TEXT = ", page)
+        self.assertIn("plain: SCATTER_HUD_ABSENT_TEXT", page)
+
+    def test_the_measuring_is_one_owner_for_every_hover_panel(self):
+        page = self._page()
+        measure = self._fn(page, "reserveHoverPanel")
+        # The previous reservation is dropped before measuring: read back as the panel's
+        # own height, it would pin the reservation to the widest window ever seen.
+        self.assertIn("hud.style.minHeight = '';", measure)
+        # The layout box rather than the painted one: an unrevealed section is scaled by
+        # its own entrance, and a height read through that transform reserves too little.
+        self.assertIn("tallest = Math.max(tallest, hud.offsetHeight);", measure)
+        self.assertNotIn("getBoundingClientRect", measure)
+        self.assertIn("hud.style.minHeight = tallest ? `${Math.ceil(tallest)}px` : '';", measure)
+        # Both inspectors hand it their states and nothing else: the caller owns what a
+        # state is, the helper owns how it is measured.
+        for caller in ("reserveScatterHudHeight", "reserveHrvHudHeight"):
+            with self.subTest(caller=caller):
+                body = self._fn(page, caller)
+                self.assertIn("reserveHoverPanel(hud, take => {", body)
+                self.assertIn("take();", body)
+        # The HRV inspector reserves for the one shape that swings its width: the reading
+        # that carries the overlaid resting heart rate beside it.
+        hrv_reserve = self._fn(page, "reserveHrvHudHeight")
+        self.assertIn("[true, false].forEach(withRhr => {", hrv_reserve)
+        self.assertIn("statusEl.textContent = live.status;", hrv_reserve)
+        # Each reservation runs at its own render and again when the width changes, which
+        # is the only other thing that decides how the text wraps.
+        self.assertIn("reserveHrvHudHeight(widestHrv);", self._fn(page, "updateHrvChart"))
+        self.assertIn("reserveScatterHudHeight(baseHrv, baseRhr, widestReadings);", page)
+        self.assertIn("const hoverPanelReservations = {};", page)
+        self.assertIn("window.addEventListener('resize', () => {", page)
+        self.assertIn("Object.values(hoverPanelReservations).forEach(reserve => reserve());", page)
+        for reservation in ("scatter", "hrv", "sleep", "rhr"):
+            with self.subTest(registered=reservation):
+                self.assertIn(f"hoverPanelReservations.{reservation} = ", page)
+
+    def test_the_reading_inspectors_reserve_the_widest_reading(self):
+        page = self._page()
+        reserve = self._fn(page, "reserveReadingHudHeight")
+        # The height of a wrapping row can only grow with what is in it, so the state where
+        # every field is at its widest bounds every reading the reader can point at -- and
+        # the widest of each is read from the readings themselves, through the scrub's own
+        # writer, so nothing is formatted twice and nothing is invented.
+        self.assertIn("const values = hud ? Array.from(hud.querySelectorAll('strong')) : [];", reserve)
+        self.assertIn("scrub(item);", reserve)
+        self.assertIn("if (text.length > widest[index].length) widest[index] = text;", reserve)
+        # No layout is read while scanning the window: one measured state for the whole of it.
+        self.assertNotIn("offsetHeight", reserve)
+        self.assertIn("reserveHoverPanel(hud, take => {", reserve)
+        # The probe ends on a mixture of the widest fields -- a night that never happened --
+        # so the reading the panel was showing is put back before the frame is drawn.
+        self.assertIn("const live = values.map(el => el.textContent);", reserve)
+        self.assertIn("values.forEach((el, index) => { el.textContent = live[index]; });", reserve)
+        # Both reading inspectors leave their own way to answer again on a resize.
+        self.assertIn(
+            "hoverPanelReservations.sleep = () => reserveReadingHudHeight(sleepHud, item => scrubSleepCallout(item), subset);",
+            page,
+        )
+        self.assertIn(
+            "hoverPanelReservations.rhr = () => reserveReadingHudHeight(rhrHud, item => scrubRhrCallout(item), multiYear);",
+            page,
+        )
+
+    def test_the_callout_measures_itself_and_arrives_rather_than_appearing(self):
+        page = self._page()
+        callout = self._fn(page, "showFloatingCallout")
+        # The panel is placed from the box it actually renders, not from a fixed 230x175:
+        # the callouts are wider and taller than that, so one opened near the top of the
+        # window used to be placed as if it were smaller and covered the node it described.
+        self.assertIn("const box = el.getBoundingClientRect();", callout)
+        self.assertIn("const width = box.width || 230;", callout)
+        self.assertIn("const height = box.height || 175;", callout)
+        self.assertNotIn("tooltipWidth", callout)
+        self.assertNotIn("tooltipHeight", callout)
+        # Held inside the window on both sides, above the point where there is room and
+        # below it where there is not.
+        self.assertIn("Math.max(margin, window.innerWidth - width - margin)", callout)
+        self.assertIn("top = Math.min(y + 25, Math.max(70, window.innerHeight - height - margin));", callout)
+        # An arrival rises into place and speaks once; moving an open callout does neither.
+        self.assertIn('const arriving = !el || el.classList.contains("opacity-0");', callout)
+        self.assertIn("if (arriving) {", callout)
+        self.assertIn("replayAnimation(el, 'motion-callout-in');", callout)
+        self.assertIn("playCue('hover');", callout)
+        # One owner for the arrival sound: the charts no longer pick their own frequency for
+        # the same event, so it sounds the same wherever a callout opens.
+        self.assertNotIn("playMicroChirp(840", page)
+        self.assertNotIn("playMicroChirp(920", page)
+
+    def test_the_inspector_settles_onto_the_night_it_moved_to(self):
+        page = self._page()
+        scrub = self._fn(page, "scrubScatterCallout")
+        # A reading the scrub moves on to settles in rather than swapping between frames,
+        # and only a reading that actually changed replays -- the rest of the move is the
+        # cursor travelling, not the inspector rewriting itself.
+        self.assertIn("const readingIsNew = hrvEl.textContent !== `${pt.y} ms`;", scrub)
+        self.assertIn("if (readingIsNew) {", scrub)
+        self.assertIn("replayAnimation(hrvEl, 'motion-hud-swap');", scrub)
+        self.assertIn("replayAnimation(rhrEl, 'motion-hud-swap');", scrub)
+        # Crossing into another quadrant is the discrete event the chart exists to show,
+        # so that is what is heard: the movement itself keeps its pitch ladder.
+        self.assertIn("const quadrantIsNew = badge.textContent !== info.quadrant;", scrub)
+        self.assertIn("if (quadrantIsNew && motionPainted) playCue('tick');", scrub)
+        # The chip that stands for the corner lights up, and arriving at a quadrant is
+        # what replays its pop -- not every frame spent inside one.
+        self.assertIn("setHotQuadrantChip(info.tag);", scrub)
+        self.assertIn("setHotQuadrantChip(null);", page)
+        hot = self._fn(page, "setHotQuadrantChip")
+        self.assertIn("if (!chip.classList.contains('is-hot')) replayAnimation(chip, 'is-hot');", hot)
+        self.assertIn("chip.classList.remove('is-hot');", hot)
+        for tag in ("Q1", "Q2", "Q3", "Q4"):
+            with self.subTest(tag=tag):
+                self.assertIn(f'data-quadrant="{tag}"', page)
+
+    def test_tonights_diamond_gets_a_beacon_of_its_own(self):
+        page = self._page()
+        beacon = self._fn(page, "playTodayBeacon")
+        # Placed at the pixel the chart measured for the reading rather than a coordinate
+        # guessed from the scales, so the rings sit on the dot at any window size.
+        self.assertIn("const meta = chart.getDatasetMeta(chart.data.datasets.length - 1);", beacon)
+        self.assertIn("const dot = meta && meta.data ? meta.data[0] : null;", beacon)
+        self.assertIn('ring.style.left = `${dot.x}px`;', beacon)
+        self.assertIn('ring.style.top = `${dot.y}px`;', beacon)
+        # Reused rather than rebuilt: this plays on every render, and a fresh element per
+        # pass would litter the panel with rings that never run again.
+        self.assertIn('let ring = holder.querySelector(`.scatter-beacon[data-ring="${index}"]`);', beacon)
+        self.assertIn("holder.appendChild(ring);", beacon)
+        # It waits for the last night to settle onto the size the render measured, and it
+        # stands down with the arrival that owns it so a replaced chart gets no beacon.
+        self.assertIn("const SCATTER_SETTLE_MS = 900;", page)
+        self.assertIn("duration: SCATTER_SETTLE_MS,", page)
+        self.assertIn(
+            "SCATTER_ARRIVAL_BEAT_MS * Math.max(arrivalOrder.length - 1, 0) + SCATTER_SETTLE_MS", page
+        )
+        arrival = page.split("scatterChart.arriveFromDepth = () => {", 1)[1].split("      };", 1)[0]
+        self.assertIn("if (scatterChartInstance !== scatterChart) return;\n            playTodayBeacon();", arrival)
+        # The rings live in the container the chart fills and never eat a hover meant for a
+        # dot, and they are invisible unless their animation is running -- so reduced motion,
+        # which never enters the arrival at all, gets the plain diamond.
+        ring_css = page.split(".scatter-beacon {", 1)[1].split("}", 1)[0]
+        self.assertIn("position: absolute;", ring_css)
+        self.assertIn("pointer-events: none;", ring_css)
+        self.assertIn("opacity: 0;", ring_css)
+        self.assertIn("const arriveFromDepth = motionAllows();", page)
+        self.assertIn(".scatter-beacon.is-live { animation: beacon-out", page)
+
 
 class ThemeDefaultTests(unittest.TestCase):
     """Night mode is the default; day mode is a choice the reader makes.
@@ -2141,6 +2375,85 @@ class TactileAudioTests(unittest.TestCase):
             with self.subTest(note=note):
                 self.assertLessEqual(float(fields[3]), 0.025)
 
+    def test_the_feedback_is_louder_but_still_quiet(self):
+        page = self._page()
+        # The first pass was quiet enough to miss on a laptop across the room, so one gain
+        # lifts every note together -- and one ceiling stops the lift becoming a
+        # notification. The table keeps its relative volumes; the policy lives in one place.
+        gain = float(re.search(r"const MICRO_AUDIO_GAIN = ([\d.]+);", page).group(1))
+        ceiling = float(re.search(r"const MICRO_AUDIO_CEILING = ([\d.]+);", page).group(1))
+        self.assertGreater(gain, 1.0, "it has to be louder than it was")
+        self.assertLessEqual(gain, 2.0, "a lift, not a shout")
+        self.assertLessEqual(ceiling, 0.05)
+        self.assertIn(
+            "const chirpVolume = volume => Math.min(volume * MICRO_AUDIO_GAIN, MICRO_AUDIO_CEILING);",
+            page,
+        )
+        # Applied inside the one chirp primitive, so the pitch ladders that never go
+        # through the table are lifted with everything else, the default is the same
+        # number the table's short notes fall back to, and no call site can pass a
+        # volume that ignores the policy.
+        chirp = self._fn(page, "playMicroChirp")
+        self.assertIn("gain.gain.setValueAtTime(chirpVolume(volume), audioCtx.currentTime);", chirp)
+        self.assertIn("volume = CHIRP_VOLUME)", page)
+        self.assertIn("const CHIRP_VOLUME = 0.015;", page)
+
+    def test_every_cue_is_felt_as_well_as_heard(self):
+        page = self._page()
+        # One vocabulary in two senses: every event the sound table names is an event the
+        # haptic table names, so neither can drift away from the other.
+        sounds = set(re.findall(r"^\s{6}([a-z]+): \[", page.split("const SOUND_CUES = {", 1)[1].split("\n    };", 1)[0], re.M))
+        haptics = set(re.findall(r"^\s{6}([a-z]+): ", page.split("const HAPTIC_CUES = {", 1)[1].split("\n    };", 1)[0], re.M))
+        self.assertGreaterEqual(len(sounds), 15, sorted(sounds))
+        self.assertEqual(sounds, haptics)
+
+    def test_a_buzz_is_feedback_rather_than_an_alarm(self):
+        page = self._page()
+        table = page.split("const HAPTIC_CUES = {", 1)[1].split("\n    };", 1)[0]
+        patterns = re.findall(r"^\s{6}([a-z]+): (\[[^\]]+\]|\d+),$", table, re.M)
+        self.assertGreaterEqual(len(patterns), 15, patterns)
+        for name, pattern in patterns:
+            with self.subTest(cue=name):
+                # A tap on the fingertip: any pattern that runs longer than a fifth of a
+                # second reads as a notification going off in a pocket.
+                self.assertLessEqual(sum(int(v) for v in re.findall(r"\d+", pattern)), 160)
+
+    def test_the_buzz_rides_the_same_switch_as_the_sound(self):
+        page = self._page()
+        pulse = self._fn(page, "pulseHaptic")
+        # One control for tactile feedback: the switch that silences the chirps stops the
+        # buzz too, so nobody has to hunt for a second one.
+        self.assertIn("if (!isAudioEnabled || !frameTouched || pattern === undefined) return;", pulse)
+        # A browser refuses to vibrate until the reader has touched the frame, and logs an
+        # error each time it refuses -- so the buzz waits for that first gesture rather than
+        # asking to be told no once per panel the reveal fires.
+        self.assertIn("let frameTouched = false;", page)
+        self.assertIn("window.addEventListener(event, markFrameTouched, { once: true, passive: true }));", page)
+        for event in ("pointerdown", "keydown", "touchstart"):
+            with self.subTest(event=event):
+                self.assertIn(event, page.split("let frameTouched = false;", 1)[1].split("]", 1)[0])
+        # A device that cannot vibrate simply has the sound; nothing stands in for it.
+        self.assertIn("typeof navigator.vibrate !== 'function'", pulse)
+        self.assertIn("navigator.vibrate(pattern);", pulse)
+        # Fired by the one place a cue is fired, so a cue that sounds also buzzes, and
+        # nothing else in the page can buzz on its own.
+        self.assertIn("pulseHaptic(name);", self._fn(page, "playCue"))
+        self.assertNotIn("navigator.vibrate", page.replace(pulse, ""))
+
+    def test_the_switch_names_both_senses(self):
+        page = self._page()
+        ui = self._fn(page, "updateAudioUi")
+        # The control used to say Audio and only meant sound; it carries the buzz as well
+        # now, so it says what it is.
+        self.assertIn('isAudioEnabled ? "Feedback ON" : "Feedback OFF"', ui)
+        self.assertIn('btn.setAttribute("aria-pressed", isAudioEnabled ? "true" : "false");', ui)
+        self.assertIn('Toggle tactile feedback: sound and vibration (Shortcut: M)', page)
+        # Drawn icons rather than a pictogram in whatever font the reader happens to have.
+        self.assertIn("const FEEDBACK_ICONS = {", page)
+        self.assertIn("icon.innerHTML = isAudioEnabled ? FEEDBACK_ICONS.on : FEEDBACK_ICONS.off;", ui)
+        flag = page.split('id="audioStatusText"', 1)[1].split("</span>", 1)[0]
+        self.assertIn("Feedback", flag)
+
     def test_a_refused_press_and_a_failed_refresh_speak(self):
         page = self._page()
         guard_section = page.split("async function refreshVault()", 1)[1].split("const previousAt", 1)[0]
@@ -2178,6 +2491,162 @@ class TactileAudioTests(unittest.TestCase):
         heat = page.split("function animateHeatmap", 1)[1].split("\n    function ", 1)[0]
         self.assertIn("const arriving = !grid.querySelector('.motion-heat-cell');", heat)
         self.assertIn("if (arriving && grid.id === 'consistencyGrid') playCue('reveal');", heat)
+
+    @staticmethod
+    def _fn(page, name):
+        return page.split(f"function {name}(", 1)[1].split("\n    function ", 1)[0]
+
+    def test_every_animation_sounds_like_itself(self):
+        page = self._page()
+        vocabulary = self._cue_table(page)
+        # One voice per kind of movement, named in the table rather than chosen by
+        # whichever call site happens to know the element moved.
+        for cue, owner in (
+            ("grow", "primeGrow"),          # a bar or the battery filling
+            ("ring", "primeGauge"),         # a gauge, a ring or the dial closing
+            ("count", "primeCount"),        # a headline number rolling up
+            ("stagger", "staggerChildren"),  # a panel assembling its rows
+        ):
+            with self.subTest(cue=cue, owner=owner):
+                self.assertIn(f"{cue}: [", vocabulary)
+                self.assertIn(f"playCue('{cue}')", self._fn(page, owner))
+        self.assertIn("playCue('ring')", self._fn(page, "primeScale"))
+        # The chart's arrival is cued where the reveal settles the canvas, beside the
+        # spring it replays.
+        canvas = page.split("each('canvas', canvas => {", 1)[1].split("      });", 1)[0]
+        self.assertIn("playCue('chart')", canvas)
+        # The inspector moving to another night is its own note, and it is fired once per
+        # crossing rather than once per frame of the scrub.
+        self.assertIn("tick: [", vocabulary)
+        self.assertIn("if (quadrantIsNew && motionPainted) playCue('tick');", page)
+        # The map finishing its arrival and marking tonight is its own event, so the beacon
+        # on the diamond has a cue of its own rather than borrowing the chart's low sweep.
+        self.assertIn("today: [", vocabulary)
+        self.assertIn("playCue('today')", self._fn(page, "playTodayBeacon"))
+        self.assertNotIn("playCue('chart')", self._fn(page, "playTodayBeacon"))
+        # A callout arriving is one event across all four charts, so it is one cue fired by
+        # the one place that shows a callout rather than a frequency per chart.
+        self.assertIn("hover: [", vocabulary)
+        self.assertIn("playCue('hover');", self._fn(page, "showFloatingCallout"))
+        # Moving things sound in bursts, so the same motion cue merges inside its window;
+        # a press answers every time, so the interaction vocabulary is never merged.
+        merge = page.split("const CUE_MERGE_MS = {", 1)[1].split("};", 1)[0]
+        for cue in ("grow", "ring", "count", "chart", "stagger", "tick", "hover", "today"):
+            with self.subTest(merged=cue):
+                self.assertIn(cue, merge)
+        for cue in ("open", "close", "accept", "lock", "refuse", "warn", "start", "step"):
+            with self.subTest(unmerged=cue):
+                self.assertNotIn(cue, merge)
+        route = self._fn(page, "playCue")
+        self.assertIn("cueMergedUntil[name] = now + CUE_MERGE_MS[name];", route)
+
+
+class FullscreenTests(unittest.TestCase):
+    """The dashboard can fill the screen, where the browser allows it.
+
+    It is a wall of charts and readings, and the browser's own furniture is the only
+    thing on it that is not the dashboard. The API is not everywhere -- an iPhone
+    browser has none at all -- so the control is revealed by the script where it exists,
+    and the shortcut refuses where it does not, rather than offering a button that does
+    nothing.
+    """
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+
+    @staticmethod
+    def _fn(page, name):
+        return page.split(f"function {name}(", 1)[1].split("\n    function ", 1)[0]
+
+    def test_the_control_is_revealed_only_where_it_can_work(self):
+        page = self._page()
+        # Hidden in the markup, so a browser without the API never shows a dead button.
+        button = page.split('id="fullscreenBtn"', 1)[1].split(">", 1)[0]
+        self.assertIn('class="hidden p-2 rounded-lg', button)
+        self.assertIn(
+            'if (fullscreenBtn && fullscreenSupported()) fullscreenBtn.classList.remove("hidden");', page
+        )
+        supported = self._fn(page, "fullscreenSupported")
+        # Both spellings, because Safari shipped only the prefixed one for years -- and the
+        # permission as well as the method: a frame that is not allowed to go fullscreen
+        # has the method and still cannot use it.
+        self.assertIn("root.requestFullscreen || root.webkitRequestFullscreen", supported)
+        self.assertIn("document.exitFullscreen || document.webkitExitFullscreen", supported)
+        self.assertIn("document.fullscreenEnabled !== false", supported)
+
+    def test_fullscreen_is_one_toggle_that_can_say_no(self):
+        page = self._page()
+        toggle = self._fn(page, "toggleFullscreen")
+        self.assertIn("if (!fullscreenSupported()) {", toggle)
+        self.assertIn("if (fullscreenElement()) {", toggle)
+        # A browser that declines (a gesture it did not accept, a frame that may not go
+        # fullscreen) says so rather than pretending it worked.
+        self.assertIn("Promise.resolve(exit.call(document)).catch(() => playCue('refuse'));", toggle)
+        self.assertIn("Promise.resolve(request.call(root)).catch(() => playCue('refuse'));", toggle)
+        # Entering and leaving are different events and each answers with its own cue.
+        self.assertIn("playCue('close');", toggle)
+        self.assertIn("playCue('open');", toggle)
+
+    def test_the_button_follows_the_browser_rather_than_assuming(self):
+        page = self._page()
+        ui = self._fn(page, "updateFullscreenUi")
+        # The icon, the spoken label and the tooltip all read the browser's own state, so
+        # the button can never say "enter" while the page is fullscreen.
+        self.assertIn(
+            'path.setAttribute("d", active ? FULLSCREEN_ICON_PATHS.leave : FULLSCREEN_ICON_PATHS.enter);', ui
+        )
+        self.assertIn('btn.setAttribute("aria-label", active ? "Leave fullscreen" : "Enter fullscreen");', ui)
+        self.assertIn('btn.setAttribute("aria-pressed", active ? "true" : "false");', ui)
+        for event in ("fullscreenchange", "webkitfullscreenchange"):
+            with self.subTest(event=event):
+                self.assertIn(f'document.addEventListener("{event}", updateFullscreenUi);', page)
+        # Leaving the screen with the escape key is the browser's own gesture, so the
+        # button is only ever re-read, never re-toggled by the page.
+        shortcut = page.split("} else if (key === 'F') {", 1)[1].split("}", 1)[0]
+        self.assertIn("toggleFullscreen();", shortcut)
+
+
+class InterfaceGlyphTests(unittest.TestCase):
+    """The interface is drawn, not typed in emoji.
+
+    A pictogram in a font renders differently on every platform and reads as a chat
+    message beside a clinical reading -- worst of all inside an explanation panel, where
+    the emoji *was* the colour key. The two marks the interface does use sit outside the
+    emoji ranges on purpose: the information mark that opens a dropdown, and the filled
+    circle that stands for a band, a state or a quadrant.
+    """
+
+    EMOJI = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\uFE0F]")
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+
+    def test_no_emoji_anywhere_in_the_interface(self):
+        found = sorted(set(self.EMOJI.findall(self._page())))
+        self.assertEqual(found, [], [f"U+{ord(c):04X}" for c in found])
+
+    def test_every_band_in_a_dropdown_keeps_its_own_colour(self):
+        page = self._page()
+        # The emoji was the colour key inside these panels. It is the page's own language
+        # now: a dot, in the tone of the band it stands for.
+        for tone in ("text-emerald-400", "text-amber-400", "text-orange-400",
+                     "text-rose-400", "text-cyan-400", "text-violet-400"):
+            with self.subTest(tone=tone):
+                self.assertIn(f'<span class="{tone}">&#9679;</span>', page)
+        # The status chip's mark is a glyph in the same language, not a pictogram.
+        self.assertIn(
+            'document.getElementById("dataQualityIcon").innerHTML = allLive ? \'&#9679;\' : \'&#9675;\';',
+            page,
+        )
+        # An icon in a section header is a stroked SVG like every other control.
+        self.assertIn("const FEEDBACK_ICONS = {", page)
+        self.assertIn("id=\"fullscreenIconPath\"", page)
 
 
 class SoundDefaultTests(unittest.TestCase):
@@ -2296,8 +2765,11 @@ class NoInventedMeasurementTests(unittest.TestCase):
         self.assertIn("rhrEl.textContent = '--';", absent)
         self.assertIn("hrvEl.className = 'text-slate-400 font-bold text-sm';", absent)
         self.assertIn("rhrEl.className = 'text-slate-400 font-bold text-sm';", absent)
-        # Plain English beside the scientific term, neither one alone.
-        self.assertIn("overnight heart rate variability (HRV) and no resting heart rate (RHR)", absent)
+        # Plain English beside the scientific term, neither one alone. The sentence has
+        # one owner now -- the constant the height reservation also measures against --
+        # so both the words and the panel's reserved height come from one place.
+        self.assertIn("overnight heart rate variability (HRV) and no resting heart rate (RHR)", page)
+        self.assertIn("plain: SCATTER_HUD_ABSENT_TEXT", page)
         # The measured state owns its own colours, so the two states cannot be blended.
         self.assertIn("SCATTER_HUD_HRV_TONE", page)
         self.assertIn("SCATTER_HUD_RHR_TONE", page)
@@ -2887,6 +3359,30 @@ class CoachCardTests(unittest.TestCase):
         for card in empty["cards"]:
             if not card["measured"]:
                 self.assertIsNone(card["visual"], card["key"])
+
+    def test_a_target_line_carries_its_own_number(self):
+        """The dashed target line is labelled, not only described underneath it.
+
+        A dashed line is a target, and a target the reader has to find in a sentence is a
+        decoration. The number sits at the end of the line itself, on whichever side of it
+        has room, and it is the same number the caption below states.
+        """
+        page = (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+        visual = page.split("function coachVisual(", 1)[1].split("\n    function ", 1)[0]
+        # One number, two places: the label on the line and the caption under the chart read
+        # from the same published target and are formatted the same way.
+        self.assertIn("const targetValue = visual.target === null || visual.target === undefined", visual)
+        self.assertIn("Number(visual.target).toLocaleString('en-SG')", visual)
+        self.assertIn(" · line at ${targetValue}${esc(unit)}", visual)
+        # The line is held inside the chart, and the label flips to the other side of it
+        # where there is no room above -- the top of the chart has none.
+        self.assertIn("Math.max(0, Math.min(100, visual.target_pct))", visual)
+        self.assertIn("${targetPct > 80 ? 'top-0.5' : 'bottom-0.5'}", visual)
+        self.assertIn("${targetValue}</span>", visual)
+        # A visual with no target draws no line at all, and claims none.
+        self.assertIn("targetPct !== null && targetValue !== null", visual)
 
     def test_a_missing_step_day_is_a_gap_and_a_sessionless_day_is_a_zero(self):
         """The two absences mean different things and are published differently."""
