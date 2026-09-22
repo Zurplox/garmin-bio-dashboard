@@ -18,6 +18,13 @@ A comprehensive, plain-English reference manual for Harvin's personal bio-intell
 
 ## 🧭 Complete Metric Guide (Plain-English Translations)
 
+### 0. 🔎 Today at a Glance (top of the page)
+* **What it is:** three short readings above everything else — **today's steps** against your own step goal, **what you trained in the last 24 hours**, and **last night's sleep** against your own sleep need.
+* **How to read it:** the ring closes as today's steps approach the goal (the number beside it is the percentage), each filled pip under *Last 24 hours* is one logged session, and the bar under *Last night* is the night measured against the sleep need your coach computed. The window ends at the moment shown in the corner, so *the last 24 hours* always means the same thing each time you look.
+* **If a number is missing:** it reads `--`, never a placeholder. The window label says `--` when the vault carries no publish time, and *No session in this window* means exactly that — no session was logged, which is not the same as a session that scored badly.
+
+---
+
 ### 1. 🧠 Daily Briefing
 * **What it is:** A personalized daily executive briefing combining your overnight sleep, recovery, stress, and workload trends. The narrative paragraphs can be written by Google Gemini AI when a key is configured; the **Recovery and Readiness numbers inside it are always computed by the deterministic rule engine** from your own measured baselines. The badge above the briefing names which engine wrote the words, and reads `Deterministic rule engine` when no model key is present.
 * **Read the second paragraph of each analysis first.** Every analysis — whether the rule engine or Gemini wrote it — is published as two paragraphs: the clinical one, then an explanation in everyday words directly beneath it, written by the rule engine from your own measurements. There is no label between them; the plain half is simply the paragraph below, so you never have to know the vocabulary to get the verdict. Example: *"Autonomic tone is Below Baseline: overnight heart rate variability (HRV) averaged 52 ms (-5.6% versus your 30-day baseline of 55.1 ms and 6-month baseline of 58.8 ms)…"* followed by *"Your overnight recovery signal reads 52 ms against your own 30-day average of 55.1 ms, so this is an ordinary day-to-day dip — train as planned, but do not chase a personal best."*

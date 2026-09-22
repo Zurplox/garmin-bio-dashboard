@@ -730,6 +730,65 @@
         </p>
       </div>
 
+      <!-- TODAY AT A GLANCE: the three readings a reader wants before scrolling --
+           today's steps, what was trained in the last 24 hours, and last night's
+           sleep. Each one is a published measurement or "--", and each carries the
+           window it covers, so nothing here is a number without a source. -->
+      <section class="glass-card rounded-2xl p-4 lg:p-5 border border-slate-800">
+        <div class="flex items-baseline justify-between gap-3 mb-3">
+          <span class="text-[10px] font-bold tracking-wider text-cyan-400 uppercase">Today at a glance</span>
+          <span id="glanceWindow" class="text-[10px] text-slate-500 mono">--</span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <!-- 1. Steps, against the goal that is set on the watch -->
+          <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/70 border border-slate-800">
+            <svg viewBox="0 0 48 48" class="w-12 h-12 shrink-0" role="img" aria-label="Steps taken today against the daily goal">
+              <circle cx="24" cy="24" r="18" fill="none" stroke="rgba(148,163,184,0.25)" stroke-width="5" />
+              <circle id="glanceStepsRing" cx="24" cy="24" r="18" fill="none" stroke="currentColor" stroke-width="5"
+                      stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="113.1"
+                      transform="rotate(-90 24 24)" class="gauge-circle text-cyan-400" />
+            </svg>
+            <div class="min-w-0">
+              <div class="text-[10px] uppercase tracking-wider text-slate-500">Steps today</div>
+              <div class="flex items-baseline gap-1.5">
+                <span id="glanceSteps" class="text-2xl font-extrabold text-white mono">--</span>
+                <span id="glanceStepsPct" class="text-[11px] text-slate-400 mono">--</span>
+              </div>
+              <div id="glanceStepsGoal" class="text-[10px] text-slate-500 leading-tight">Goal --</div>
+              <div id="glanceStepsYesterday" class="text-[10px] text-slate-500 leading-tight">Yesterday --</div>
+            </div>
+          </div>
+
+          <!-- 2. Movement inside the published 24-hour window -->
+          <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/70 border border-slate-800">
+            <div class="flex gap-1 shrink-0" id="glanceSessionPips" aria-hidden="true"></div>
+            <div class="min-w-0">
+              <div class="text-[10px] uppercase tracking-wider text-slate-500">Last 24 hours</div>
+              <div class="flex items-baseline gap-1.5">
+                <span id="glanceSessions" class="text-2xl font-extrabold text-white mono">--</span>
+                <span class="text-[11px] text-slate-400">session(s)</span>
+              </div>
+              <div id="glanceMovementDetail" class="text-[10px] text-slate-500 leading-tight">--</div>
+              <div id="glanceMovementLatest" class="text-[10px] text-slate-500 leading-tight">--</div>
+            </div>
+          </div>
+
+          <!-- 3. Last night, against the athlete's own published sleep need -->
+          <div class="flex flex-col justify-center gap-1.5 p-3 rounded-xl bg-slate-900/70 border border-slate-800">
+            <div class="text-[10px] uppercase tracking-wider text-slate-500">Last night</div>
+            <div class="flex items-baseline gap-2">
+              <span id="glanceSleep" class="text-2xl font-extrabold text-white mono">--</span>
+              <span id="glanceSleepScore" class="text-[11px] text-slate-400 mono">--</span>
+            </div>
+            <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+              <div id="glanceSleepBar" class="h-1.5 rounded-full bg-gradient-to-r from-violet-500 to-cyan-400" style="width: 0%"></div>
+            </div>
+            <div id="glanceSleepNeed" class="text-[10px] text-slate-500 leading-tight">--</div>
+          </div>
+        </div>
+      </section>
+
       <!-- SECTION 0: AI DAILY BRIEFING (PERSONALIZED SUMMARY) -->
       <section class="glass-card briefing-card rounded-2xl p-5 lg:p-6 border border-violet-500/20" style="background: linear-gradient(135deg, rgba(139,92,246,0.08) 0%, rgba(14,24,46,0.9) 60%);">
         <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
@@ -2358,9 +2417,10 @@
 
       [['strainTargetBar', 'width', 0], ['barRest', 'width', 160], ['barLow', 'width', 320],
        ['barMed', 'width', 480], ['barHigh', 'width', 640], ['injuryRiskBar', 'width', 800],
-       ['bbLevelBar', 'height', 180]].forEach(([id, prop, delay]) => primeGrow(document.getElementById(id), prop, delay));
+       ['bbLevelBar', 'height', 180], ['glanceSleepBar', 'width', 120]]
+        .forEach(([id, prop, delay]) => primeGrow(document.getElementById(id), prop, delay));
 
-      ['recoveryGaugeCircle', 'strainGaugeCircle', 'readinessGauge', 'movementRingArc']
+      ['recoveryGaugeCircle', 'strainGaugeCircle', 'readinessGauge', 'movementRingArc', 'glanceStepsRing']
         .forEach(id => primeGauge(document.getElementById(id)));
 
       primeScale(document.getElementById('acwrDial'));
@@ -2373,7 +2433,8 @@
       // final values remain in the DOM while off-screen, so the page never hides
       // a measured number behind an animation.
       ['recoveryScoreVal', 'strainScoreVal', 'kpiHrvValue', 'kpiRhrValue', 'kpiFitnessAge',
-       'kpiAcwrVal', 'movementRingPct'].forEach(id => primeCount(document.getElementById(id)));
+       'kpiAcwrVal', 'movementRingPct', 'glanceSessions']
+        .forEach(id => primeCount(document.getElementById(id)));
 
       // Charts draw themselves the first time the reader scrolls to them rather
       // than finishing their animation off-screen while the page loads.
@@ -3091,6 +3152,9 @@
 
       globalBaselines = baselines;
 
+      // 0. The three readings a reader wants first, above everything else.
+      renderTodaySummary(data);
+
       // 1. Header Information
       document.getElementById("headerAthlete").textContent = athlete.name || "Harvin";
       document.getElementById("headerDevice").textContent = athlete.primary_device || "fenix 6S Sapphire";
@@ -3458,6 +3522,88 @@
           <div class="text-slate-600 leading-tight mt-0.5">${esc(f.note)}</div>
         </div>
       `).join('');
+    }
+
+    // ========================================================
+    // TODAY AT A GLANCE
+    // ========================================================
+    // A short visual summary above the briefing: today's steps against the goal the
+    // watch holds, what was trained inside the published 24-hour window, and last
+    // night against the athlete's own sleep need. Every number arrives resolved in
+    // the payload; an absent one reads "--" like everywhere else on this page.
+    function renderTodaySummary(data) {
+      const summary = data.today_summary || {};
+      const set = (id, text) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+      };
+
+      set("glanceWindow", summary.window_label ? `window ends ${summary.window_label}` : "--");
+
+      // Counts read as counts: thousands separated, and "--" when unmeasured.
+      const count = value => (value == null ? null : Number(value).toLocaleString("en-US"));
+
+      const steps = summary.steps || {};
+      set("glanceSteps", measured(count(steps.count)));
+      set("glanceStepsPct", steps.pct == null ? "--" : `${steps.pct}% of goal`);
+      set("glanceStepsGoal", steps.goal == null ? "Goal --" : `Goal ${count(steps.goal)}`);
+      set(
+        "glanceStepsYesterday",
+        steps.yesterday_count == null
+          ? "Yesterday --"
+          : `Yesterday ${count(steps.yesterday_count)}${steps.yesterday_goal == null ? "" : ` of ${count(steps.yesterday_goal)}`}`
+      );
+      const ring = document.getElementById("glanceStepsRing");
+      if (ring) {
+        const circle = Number(ring.getAttribute("stroke-dasharray")) || 113.1;
+        ring.style.strokeDashoffset = steps.pct == null
+          ? circle
+          : circle * (1 - Math.min(Math.max(steps.pct, 0), 100) / 100);
+      }
+
+      const movement = summary.movement || {};
+      set("glanceSessions", measured(movement.sessions));
+      const kinds = (movement.categories || []).join(", ");
+      set(
+        "glanceMovementDetail",
+        movement.minutes == null
+          ? (movement.sessions ? "minutes not published" : "nothing logged in this window")
+          : `${movement.minutes} min logged${kinds ? ` \u00b7 ${kinds}` : ""}`
+      );
+      const latest = movement.latest;
+      set(
+        "glanceMovementLatest",
+        latest && latest.category
+          ? `Latest: ${latest.category}${latest.minutes == null ? "" : `, ${latest.minutes} min`}${latest.hours_ago == null ? "" : ` \u00b7 ${latest.hours_ago} h ago`}`
+          : "No session in this window"
+      );
+
+      // One pip per session (up to five): a count of sessions is a measured fact and
+      // needs no threshold to read.
+      const pips = document.getElementById("glanceSessionPips");
+      if (pips) {
+        const count = Number(movement.sessions) || 0;
+        const shown = Math.min(count, 5);
+        pips.innerHTML = Array.from({ length: 5 }, (_, index) =>
+          `<span class="w-1.5 h-6 rounded-sm ${index < shown ? "bg-cyan-400" : "bg-slate-700/60"}"></span>`
+        ).join("") + (count > 5 ? `<span class="text-[10px] text-slate-400 mono self-center">+${count - 5}</span>` : "");
+      }
+
+      const sleep = summary.sleep || {};
+      set("glanceSleep", measured(sleep.formatted));
+      set("glanceSleepScore", sleep.score == null ? "--" : `score ${sleep.score}`);
+      set(
+        "glanceSleepNeed",
+        sleep.baseline_hours == null
+          ? "sleep need not published"
+          : `${sleep.pct_of_baseline == null ? "--" : `${sleep.pct_of_baseline}% of`} your ${sleep.baseline_hours} h need`
+      );
+      const sleepBar = document.getElementById("glanceSleepBar");
+      if (sleepBar) {
+        sleepBar.style.width = sleep.pct_of_baseline == null
+          ? "0%"
+          : `${Math.min(sleep.pct_of_baseline, 100)}%`;
+      }
     }
 
     // ========================================================
