@@ -1746,6 +1746,44 @@ class ThemeDefaultTests(unittest.TestCase):
         self.assertIn("dataset.theme === 'light' ? 'dark' : 'light'", toggle)
 
 
+class SoundDefaultTests(unittest.TestCase):
+    """The dashboard is audible on a first visit, and a refusal is remembered.
+
+    The chirps are how a press reports back -- a refresh that landed, a filter that
+    switched -- and the page is read before the reader is properly awake. So the
+    default is on, and only an explicit "false" silences it; the toggle still writes
+    the choice either way.
+    """
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+
+    def test_a_first_visit_is_audible(self):
+        page = self._page()
+        self.assertIn(
+            'let isAudioEnabled = localStorage.getItem("garmin_sound_enabled") !== "false";',
+            page,
+        )
+        self.assertNotIn('garmin_sound_enabled") === "true"', page)
+
+    def test_turning_it_off_is_remembered(self):
+        page = self._page()
+        toggle = page.split("function toggleAudioSound()", 1)[1].split("\n    function ", 1)[0]
+        self.assertIn('localStorage.setItem("garmin_sound_enabled", isAudioEnabled ? "true" : "false")', toggle)
+        self.assertIn("updateAudioUi()", toggle)
+
+    def test_the_first_sound_follows_a_gesture(self):
+        page = self._page()
+        # Browsers do not start audio without a gesture, so the context is resumed on
+        # demand rather than assumed to be running.
+        init = page.split("function initAudioContext()", 1)[1].split("\n    function ", 1)[0]
+        self.assertIn("audioCtx.state === 'suspended'", init)
+        self.assertIn("audioCtx.resume()", init)
+
+
 class NoInventedMeasurementTests(unittest.TestCase):
     """Absent stays absent on the dashboard, exactly as policy already renders it.
 
