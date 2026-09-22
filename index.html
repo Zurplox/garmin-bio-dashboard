@@ -2642,7 +2642,13 @@
     // TACTILE WEB AUDIO MICRO-FEEDBACK SYNTHESIZER
     // ==========================================
     let audioCtx = null;
-    let isAudioEnabled = localStorage.getItem("garmin_sound_enabled") === "true";
+    // Sound is on unless the viewer turned it off. The chirps are the feedback that a
+    // press landed -- a refresh finishing, an overlay opening, a filter switching --
+    // and on a dashboard you open before you are properly awake they are the part you
+    // notice without reading. Turning it off is remembered, so "off" still means off.
+    // The browser only lets audio start after a gesture, and unlocking is one, so the
+    // first chirp is the one that plays after the passphrase.
+    let isAudioEnabled = localStorage.getItem("garmin_sound_enabled") !== "false";
 
     function initAudioContext() {
       if (!audioCtx) {

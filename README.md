@@ -237,7 +237,7 @@ python -m http.server 8971 --bind 127.0.0.1   # then open http://127.0.0.1:8971
 |:---:|:---|
 | `1` – `9` | Jump to a dashboard section |
 | `O` | Toggle the RHR dual-axis overlay |
-| `M` | Toggle micro-audio feedback |
+| `M` | Toggle tactile audio feedback (on for a first visit; a refusal is remembered) |
 | `P` | Print / export clinical PDF |
 | `R` | Refresh: re-read the published vault (and trigger the sync if a GitHub token is stored) |
 | `L` | Lock the vault and purge decrypted data (destroys chart instances, not just the global) |
