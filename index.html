@@ -295,7 +295,7 @@
         color: #0f172a !important;
         padding: 0 !important;
       }
-      .no-print, header button, #lockScreen, #masterLockModal, #refreshSettingsModal, #refreshToast, #floatingChartCallout, .filter-btn, #hrvOverlayBtn, .interactive-canvas-container + p, footer div {
+      .no-print, header button, #lockScreen, #masterLockModal, #refreshToast, #floatingChartCallout, .filter-btn, #hrvOverlayBtn, .interactive-canvas-container + p, footer div {
         display: none !important;
       }
       #mainDashboard {
@@ -508,82 +508,6 @@
 
 
   <!-- ======================================================== -->
-  <!-- 2b. REFRESH SETTINGS MODAL                               -->
-  <!-- ======================================================== -->
-  <div id="refreshSettingsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-    <div class="relative w-full max-w-md p-6 rounded-2xl glass-card border border-cyan-500/40 shadow-2xl">
-      <div class="flex items-center gap-3 text-cyan-400 mb-3">
-        <div class="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-          </svg>
-        </div>
-        <div>
-          <h2 class="text-lg font-bold text-white">Manual Refresh</h2>
-          <p class="text-xs text-cyan-300/80">Re-read the vault, or trigger a fresh sync</p>
-        </div>
-      </div>
-
-      <div class="space-y-3 text-xs text-slate-300 leading-relaxed mb-4">
-        <p>
-          <strong class="text-white">Refresh</strong> always re-reads the published vault, so if a sync has already
-          finished you will see the new data immediately. No configuration needed.
-        </p>
-        <p>
-          To start a sync from this page, paste a GitHub token with
-          <span class="mono text-cyan-400">Actions: read and write</span> on
-          <span class="mono text-slate-200">Zurplox/garmin-bio-dashboard</span>. It is kept in this browser's local storage,
-          never committed, and never sent anywhere except <span class="mono">api.github.com</span>.
-        </p>
-        <p class="text-slate-500">
-          GitHub &rsaquo; Settings &rsaquo; Developer settings &rsaquo; Personal access tokens &rsaquo; Fine-grained tokens
-          &rarr; Repository access: only this repository, Permissions: Actions (read and write).
-        </p>
-      </div>
-
-      <form onsubmit="saveRefreshSettings(event)" class="space-y-3">
-        <div>
-          <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">GitHub token:</label>
-          <input
-            type="password"
-            id="ghTokenInput"
-            autocomplete="off"
-            placeholder="github_pat_..."
-            class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-cyan-500/40 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 outline-none text-white text-sm mono"
-          />
-        </div>
-
-        <div id="refreshSettingsNote" class="text-xs text-slate-400"></div>
-
-        <div class="flex items-center gap-3 pt-2">
-          <button
-            type="button"
-            onclick="closeRefreshSettings()"
-            class="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs transition cursor-pointer"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onclick="clearGitHubToken()"
-            class="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-rose-900/60 text-slate-300 font-medium text-xs transition cursor-pointer"
-            title="Forget the stored token on this device"
-          >
-            Forget
-          </button>
-          <button
-            type="submit"
-            class="flex-1 py-2.5 px-4 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs transition shadow-lg shadow-cyan-600/30 cursor-pointer"
-          >
-            Save Token
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-
-  <!-- ======================================================== -->
   <!-- 3. MAIN DASHBOARD (BIO-INTELLIGENCE TERMINAL)      -->
   <!-- ======================================================== -->
   <div id="mainDashboard" class="hidden flex-1 flex flex-col">
@@ -655,27 +579,12 @@
             id="refreshBtn"
             onclick="refreshVault()"
             class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-cyan-400 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer disabled:opacity-60 disabled:cursor-wait"
-            title="Re-read the published vault; with a token, trigger a fresh sync (Shortcut: R)"
+            title="Re-read the published vault, and trigger a fresh sync (Shortcut: R)"
           >
             <svg id="refreshIcon" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
             </svg>
             <span id="refreshLabel">Refresh</span>
-          </button>
-
-          <!-- Refresh Settings (GitHub token). Hidden once a relay is configured,
-               because then there is no token to paste anywhere. -->
-          <button
-            type="button"
-            id="refreshSettingsBtn"
-            onclick="openRefreshSettings()"
-            class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 hover:text-cyan-400 transition cursor-pointer"
-            title="Refresh settings: GitHub token for triggering syncs"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-            </svg>
           </button>
 
           <!-- Audio Toggle Button -->
@@ -3014,6 +2923,11 @@
     window.addEventListener('DOMContentLoaded', () => {
       checkMasterLockState();
       updateAudioUi();
+      // A one-time link is the only way a token enters a browser now, so it is read
+      // before anything can use it -- and again if the link is pasted onto an already
+      // open page, which changes only the fragment and would otherwise reload nothing.
+      applyTokenFromFragment();
+      window.addEventListener('hashchange', applyTokenFromFragment);
       // The head script already resolved the theme; this only paints the button to
       // match it, without rebuilding charts that do not exist yet.
       applyTheme(document.documentElement.dataset.theme || 'dark', false);
@@ -5667,9 +5581,6 @@
           : mode
             ? "Re-read the published vault, and trigger a fresh sync (Shortcut: R)"
             : "Re-read the published vault (Shortcut: R)";
-      // The gear is the token's home. With a relay there is no token to keep, so it
-      // goes away rather than sitting there asking for something nothing needs.
-      document.getElementById("refreshSettingsBtn")?.classList.toggle("hidden", relayConfigured());
     }
 
     function startRefreshCooldown() {
@@ -5873,40 +5784,37 @@
       }
     }
 
-    function openRefreshSettings() {
-      document.getElementById("ghTokenInput").value = githubToken();
-      document.getElementById("refreshSettingsNote").textContent = githubToken()
-        ? `Sync triggering: enabled // workflow ${SYNC_WORKFLOW_FILE} in ${VAULT_REPO}`
-        : "No token stored — Refresh will re-read the vault only.";
-      document.getElementById("refreshSettingsModal").classList.remove("hidden");
-    }
-
-    function closeRefreshSettings() {
-      document.getElementById("refreshSettingsModal").classList.add("hidden");
-      document.getElementById("ghTokenInput").value = "";
-    }
-
-    function saveRefreshSettings(event) {
-      event.preventDefault();
-      const token = document.getElementById("ghTokenInput").value.trim();
-      if (token) {
-        localStorage.setItem(GITHUB_TOKEN_KEY, token);
+    // Onboarding a device without a settings dialog.
+    //
+    // There is no token field in the header any more: a press uses the relay when one
+    // is configured, and otherwise the token this browser already stores. To put a
+    // token into a browser (a new phone, or a machine whose storage was cleared),
+    // open the dashboard once with the token in the URL fragment:
+    //
+    //   https://zurplox.github.io/garmin-bio-dashboard/#token=github_pat_...
+    //
+    // A fragment is never sent to a server, so the token stays in the browser, and it
+    // is stored and then stripped from the address bar and history immediately -- the
+    // link is not a place a credential sits. `#token=` with nothing after it forgets
+    // the stored token instead.
+    function applyTokenFromFragment() {
+      const match = String(location.hash || "").match(/^#token=(.*)$/);
+      if (!match) return;
+      const supplied = decodeURIComponent(match[1]).trim();
+      const looksLikeToken = /^(github_pat_|ghp_|gho_|ghs_)/.test(supplied);
+      if (supplied && !looksLikeToken) {
+        showRefreshToast("That link did not carry a recognisable GitHub token — nothing stored.", "amber");
+      } else if (supplied) {
+        localStorage.setItem(GITHUB_TOKEN_KEY, supplied);
+        showRefreshToast("Token stored on this device — Refresh can start a sync.", "slate");
       } else {
         localStorage.removeItem(GITHUB_TOKEN_KEY);
+        showRefreshToast("Stored token forgotten on this device.", "slate");
       }
-      closeRefreshSettings();
+      // Strip the fragment so the credential is not left in the address bar,
+      // in history, or in anything the reader copies out of it later.
+      history.replaceState(null, "", location.pathname + location.search);
       updateRefreshButton();
-      showRefreshToast(
-        token ? "Token saved — Refresh can now trigger a sync." : "Token cleared — Refresh will only re-read the vault.",
-        "slate"
-      );
-    }
-
-    function clearGitHubToken() {
-      localStorage.removeItem(GITHUB_TOKEN_KEY);
-      closeRefreshSettings();
-      updateRefreshButton();
-      showRefreshToast("Stored token forgotten.", "slate");
     }
 
 
@@ -5934,7 +5842,6 @@
         refreshVault();
       } else if (key === 'ESCAPE') {
         closeMasterLockModal();
-        closeRefreshSettings();
         hideFloatingCallout();
       } else if (key >= '1' && key <= '9') {
         const sectionIndex = parseInt(key, 10);

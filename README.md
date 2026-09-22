@@ -185,8 +185,14 @@ The dashboard is a static page, so it cannot run the Python pipeline itself. The
 1. **Re-read the published vault** (always available, no configuration). It fetches `data/biometrics.enc.json` with a cache-busting request, compares `data/status.json` against the publish this session already loaded, and re-decrypts and re-renders when there is something new. If nothing has changed it says so instead of pretending to work.
 2. **Trigger a sync** (opt-in). Two routes, and the relay is the one to use:
 
-   * **A relay** (`relay/`, deploy it once) holds the GitHub token as its own encrypted secret, so the page never sees a credential and no device has to be keyed in. Refresh POSTs to the relay, which starts `daily_sync.yml` on `main` — the workflow file and the ref are pinned there, only this dashboard's origin may call it, and a second request inside its window is refused. With `SYNC_RELAY_URL` set, the gear button disappears entirely, because there is nothing left to configure.
-   * **A token in this browser** is the fallback for a checkout with no relay. The gear button beside Refresh accepts a token with `Actions: read and write` on this repository; it is kept in this browser's local storage, never committed, and sent nowhere except `api.github.com`.
+   * **A relay** (`relay/`, deploy it once) holds the GitHub token as its own encrypted secret, so the page never sees a credential and no device has to be keyed in. Refresh POSTs to the relay, which starts `daily_sync.yml` on `main` — the workflow file and the ref are pinned there, only this dashboard's origin may call it, and a second request inside its window is refused. With `SYNC_RELAY_URL` set, nothing has to be configured on any device.
+   * **A token in this browser** is the fallback for a checkout with no relay. There is no token field in the page: open the dashboard once with the token in the URL fragment and it is stored, then stripped from the address bar and history:
+
+     ```
+     https://zurplox.github.io/garmin-bio-dashboard/#token=github_pat_...
+     ```
+
+     A fragment is never sent to a server, so the token stays in the browser; it is kept in local storage, never committed, and sent nowhere except `api.github.com`. `#token=` with nothing after it forgets the stored token, and a value that is not a token is refused rather than stored. A token needs `Actions: read and write` on this repository only.
 
    Either way Refresh then polls `status.json` for up to 15 minutes — a full sync takes several minutes and Pages has to redeploy — and loads the new vault automatically when it lands. With neither route configured, the same button only re-reads the vault, and says so.
 

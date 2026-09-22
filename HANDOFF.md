@@ -200,11 +200,18 @@ These are not style preferences. Each one closed a real, user-visible bug.
    protection validates credentials rather than matching their shape (a random
    `github_pat_`-shaped string was accepted, so a real one is exactly what it
    catches).
+
+   There is no longer any token field in the page. A token enters a browser through
+   a one-time link, `#token=<pat>`, read on load **and** on `hashchange` (pasting the
+   link into an open tab changes only the fragment): it is stored, the fragment is
+   stripped with `history.replaceState`, `#token=` alone forgets it, and anything
+   that is not a `github_pat_`/`ghp_`/`gho_`/`ghs_` value is refused with a toast
+   rather than stored.
 6. **A sync can be started without a token in the page.** `relay/worker.js` holds
    the token as a worker secret and does one thing: dispatch `daily_sync.yml` on
    `main`. Set `SYNC_RELAY_URL` in `index.html` and `syncTriggerMode()` returns
-   `relay`, the page POSTs there with no `Authorization` header, and the gear button
-   hides itself because no token is needed anywhere. The worker pins the workflow
+   `relay`, the page POSTs there with no `Authorization` header, and there is no
+   token to store on any device. The worker pins the workflow
    and ref, refuses any origin but `ALLOWED_ORIGIN`, holds a second request inside
    `MIN_INTERVAL_SECONDS` with a 429 (checked against GitHub's own run list, so it
    survives multiple isolates), and never returns GitHub's error body — only a
@@ -256,6 +263,7 @@ These are not style preferences. Each one closed a real, user-visible bug.
 | #19 | The movement card becomes a week-and-month trend, built from the same daily channels the correlation lab uses, with the heart reading beside it and today's still-running day left out of the average |
 | #20 | Bars fill from their own edge (`scaleX(0)` from the left, `scaleY(0)` from the bottom) instead of springing at 92% of their width; the five-pillar bars are primed by class with a failsafe that fills them if the reveal never comes; the quadrant chart rains its points in from above the plot |
 | #21 | Every coaching card leads with its own reading drawn: seven finished days as bars (muted for a measured zero, dashed target line where policy has one) or a readiness level bar, empty stubs for a domain with no history. The coach's walking week moves to finished days so it quotes the same average as the movement trend card |
+| #25 | The token field and its gear leave the header — a token now enters a browser through a one-time `#token=` link that stores it and strips itself (read on load and on `hashchange`), and `#token=` alone forgets it. The Refresh tooltip follows whichever trigger exists |
 | #24 | The sync relay (`relay/`): a worker secret holds the token, so Refresh can start a sync with nothing pasted, nothing committed and no gear in the header. Worker logic executed in CI against a stubbed GitHub (`tests/check_relay.mjs`, 13 checks) and proven in a browser |
 | #23 | Tactile audio is on for a first visit instead of off — the chirps are how a press reports back, and only an explicit `false` (the `M` toggle, or the header button) silences them |
 | #22 | No panel is a wall of words any more: a container marked `data-stagger` hands its children to the same reveal sweep (tiles, table rows, coaching cards, dossier blocks, briefing blocks), the glance strip tips in (`motion-tilt`), the lock screen rises in CSS, and the illness/glance numbers roll through their own sign. Two frame-dependency holes closed: the reveal sweep's rAF latch now has a timer, and a stalled count-up writes the published value back |
