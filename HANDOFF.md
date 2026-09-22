@@ -153,8 +153,12 @@ These are not style preferences. Each one closed a real, user-visible bug.
    second vocabulary for the same number is how the page once showed `BALANCED`
    in green next to `Below Baseline` in amber.
 2. **Absent stays absent.** No `|| 'BALANCED'`, `|| 'FRESH'`, `|| 0`. `--` with a
-   neutral tone. (One known exception remains, in the quadrant scatter's point
-   data — see §8.)
+   neutral tone. In `index.html` that means `measured(value, suffix, prefix)` rather
+   than `value || 54`: a plausible default is how a KPI card read `0.2` while the dial
+   beside it said it had nothing to point at. In Python it means `_nullish` /
+   `_truthy` / `_as_float`, never a bare `.get(key, default)` (see §6.8).
+   (Two known exceptions remain: the quadrant scatter's point data and the
+   in-engine `intel.recovery_score || 76` fallback — see §8.)
 3. **No static claim beside a live number.** A header pill that always says
    `LIVE`, a tier badge baked to `ATHLETIC`, a colour hardcoded next to a
    word — all three shipped once. Derive both from the payload.
@@ -202,6 +206,7 @@ These are not style preferences. Each one closed a real, user-visible bug.
 | #11 | Gemini model fallback chain (`gemini-3.8` → `3.5`, overridable with `GEMINI_MODELS`) |
 | #12 | Slower spring-eased motion with physics overshoot: staggered bars, night-by-night sleep chart, cascading heat map, square enlarged heat map, dial bounce, counting headline numbers |
 | #13 | `None` from a failed endpoint no longer crashes the pipeline; an unmeasured workload ratio is reported as unmeasured instead of assumed |
+| #14 | Every card renders `--` for an absent measurement instead of a plausible number; the fitness-age advantage badge gets a policy owner |
 
 Since the last merge, `daily_sync.yml` has been dispatch-verified on `main`: the
 runner fetches with the real key, publishes from the deterministic engine, commits
@@ -212,10 +217,16 @@ its data, and the published page loads the fresh vault.
 ## 8. Known open items (honest list)
 
 * **The quadrant scatter still fabricates a word.** Its point data uses
-  `data.today.hrv_status || 'BALANCED'`, the last place on the page where an
-  absent field becomes a reassuring verdict. Every other surface was fixed in
-  PR #6/#9; this chart was left deliberately out of scope. Small fix: the scatter's
+  `data.today.hrv_status || 'BALANCED'`, one of the last two places on the page where
+  an absent field becomes a reassuring verdict. Every other surface was fixed in
+  PR #6/#9/#14; this chart was left deliberately out of scope. Small fix: the scatter's
   callout should read the published band/delta like the HUD does.
+* **The engine's own fallbacks are still fallbacks.** `intel.recovery_score || 76`
+  and `today.hrv_last_night || 60` feed gauges and chart coordinates when a field is
+  missing, and the sleep-stage seconds still default inside the doughnut's own
+  dataset. The published payload carries all of them today, so nothing on screen is
+  fabricated — but they are the same shape of trap, and PR #14 only closed the ones
+  the render pass publishes as readings.
 * **Population advice still exists in a few info panels** ("Elite endurance:
   60–100+ ms"). It is labelled as context, but the page's own rule is
   compare-to-your-own-baseline.

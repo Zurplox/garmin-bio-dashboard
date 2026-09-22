@@ -1185,12 +1185,12 @@
             <span class="text-cyan-400 text-xs font-mono">🧬</span>
           </div>
           <div class="flex items-baseline gap-2">
-            <span id="kpiFitnessAge" class="text-3xl font-extrabold text-white mono" data-quality-key="fitness_age">24.7</span>
+            <span id="kpiFitnessAge" class="text-3xl font-extrabold text-white mono" data-quality-key="fitness_age">--</span>
             <span class="text-xs text-slate-400 font-medium">years</span>
-            <span class="ml-auto text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-semibold">-4.3 yrs</span>
+            <span id="kpiFitnessAgeDelta" class="ml-auto text-xs px-2 py-0.5 rounded bg-slate-500/10 text-slate-400 font-semibold">--</span>
           </div>
           <div class="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400 flex justify-between">
-            <span>Chronological: <strong id="kpiChronologicalAge" class="text-slate-200">29</strong></span>
+            <span>Chronological: <strong id="kpiChronologicalAge" class="text-slate-200">--</strong></span>
             <span>Achievable: <strong id="kpiAchievableAge" class="text-cyan-400">--</strong></span>
           </div>
           <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
@@ -1198,7 +1198,7 @@
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
             <p>Your <strong class="text-cyan-400">Biological Age</strong> is NOT your birthday age — it's an estimate of how old your cardiovascular and aerobic system actually <em>performs</em>, based on your VO2 max (oxygen efficiency).</p>
-            <p>A biological age <strong class="text-emerald-400">younger than your real age</strong> means your heart and lungs are in better shape than most people your age. Your <strong class="text-white">−4.3 years advantage</strong> is a genuinely impressive result.</p>
+            <p>A biological age <strong class="text-emerald-400">younger than your real age</strong> means your heart and lungs are in better shape than most people your age. The badge beside the number tells you how many years younger or older your aerobic system measures today.</p>
             <p class="text-slate-500">This improves with consistent aerobic training, good sleep, and low resting heart rate.</p>
             <p class="text-slate-500">"Achievable" is your device's estimate of the fitness age you could reach with consistent aerobic training — it is a target, not your current reading.</p>
           </div>
@@ -1211,13 +1211,13 @@
             <span class="text-emerald-400 text-xs font-mono">⚡</span>
           </div>
           <div class="flex items-baseline gap-2">
-            <span id="kpiAcwrVal" class="text-3xl font-extrabold text-white mono" data-quality-key="training_load">0.2</span>
+            <span id="kpiAcwrVal" class="text-3xl font-extrabold text-white mono" data-quality-key="training_load">--</span>
             <span class="text-xs text-slate-400 font-medium">ratio</span>
             <span id="kpiAcwrStatus" class="ml-auto text-xs px-2 py-0.5 rounded bg-slate-500/10 text-slate-400 font-semibold">--</span>
           </div>
           <div class="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400 flex justify-between">
-            <span>Acute: <strong id="kpiAcuteLoad" class="text-slate-200">44</strong></span>
-            <span>Chronic: <strong id="kpiChronicLoad" class="text-slate-300">219</strong></span>
+            <span>Acute: <strong id="kpiAcuteLoad" class="text-slate-200">--</strong></span>
+            <span>Chronic: <strong id="kpiChronicLoad" class="text-slate-300">--</strong></span>
           </div>
           <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
             <span>ⓘ What is ACWR?</span>
@@ -1239,7 +1239,7 @@
             <span class="text-rose-400 text-xs font-mono">❤️</span>
           </div>
           <div class="flex items-baseline gap-2">
-            <span id="kpiHrvValue" class="text-3xl font-extrabold text-white mono">60</span>
+            <span id="kpiHrvValue" class="text-3xl font-extrabold text-white mono">--</span>
             <span class="text-xs text-slate-400 font-medium">ms</span>
             <span id="kpiHrvStatus" class="ml-auto text-xs px-2 py-0.5 rounded bg-slate-500/10 text-slate-400 font-semibold">--</span>
           </div>
@@ -1267,7 +1267,7 @@
             <span class="text-amber-400 text-xs font-mono">🩺</span>
           </div>
           <div class="flex items-baseline gap-2">
-            <span id="kpiRhrValue" class="text-3xl font-extrabold text-white mono">51</span>
+            <span id="kpiRhrValue" class="text-3xl font-extrabold text-white mono">--</span>
             <span class="text-xs text-slate-400 font-medium">bpm</span>
             <span id="kpiRhrTier" class="ml-auto text-xs px-2 py-0.5 rounded bg-slate-500/10 text-slate-400 font-semibold">--</span>
           </div>
@@ -2404,6 +2404,15 @@
 
     // Activity names and AI output are interpolated into HTML; escape them so a
     // stray angle bracket cannot break the layout.
+    // A measurement, or "--" when it was not measured. A plausible-looking default
+    // is how a KPI card once read "0.2" while the dial beside it said it had nothing
+    // to point at, and how an unmeasured acute load read "44". An absent value now
+    // reads absent everywhere, exactly like the dial already did.
+    function measured(value, suffix = '', prefix = '') {
+      if (value === null || value === undefined || value === '') return '--';
+      return `${prefix}${value}${suffix}`;
+    }
+
     function esc(value) {
       return String(value === null || value === undefined ? '' : value).replace(/[&<>"']/g, ch => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -3112,7 +3121,8 @@
       const recCircle = document.getElementById("recoveryGaugeCircle");
       recCircle.style.strokeDashoffset = offsetRec;
       recCircle.setAttribute("stroke", TONE_STROKE[intel.recovery_tone] || TONE_STROKE.green);
-      document.getElementById("cardRhrVal").textContent = `${Math.round(today.rhr || 51)} bpm`;
+      document.getElementById("cardRhrVal").textContent =
+        measured(today.rhr == null ? null : Math.round(today.rhr), ' bpm');
 
       // 3. Day Strain & Target Strain
       const dayStrain = whoop.day_strain ?? 0;
@@ -3133,18 +3143,19 @@
       }
 
       // 4. Sleep Need Equation & Bedtime
-      document.getElementById("sleepPerfBadge").textContent = `${whoop.sleep_performance_pct || 76}% Performance`;
-      document.getElementById("needBaseline").textContent = `${whoop.baseline_sleep_need_hours || 7.5}h`;
-      document.getElementById("needDebt").textContent = `+${whoop.sleep_debt_minutes || 55}m`;
-      document.getElementById("needStrain").textContent = `+${whoop.strain_sleep_need_minutes || 12}m`;
-      document.getElementById("needTotal").textContent = whoop.total_sleep_need_formatted || "8h 37m";
-      document.getElementById("targetBedtime").textContent = whoop.recommended_bedtime || "10:03 PM";
-      document.getElementById("targetWake").textContent = whoop.recommended_wake_time || "07:00 AM";
+      document.getElementById("sleepPerfBadge").textContent =
+        whoop.sleep_performance_pct == null ? '--' : `${whoop.sleep_performance_pct}% Performance`;
+      document.getElementById("needBaseline").textContent = measured(whoop.baseline_sleep_need_hours, 'h');
+      document.getElementById("needDebt").textContent = measured(whoop.sleep_debt_minutes, 'm', '+');
+      document.getElementById("needStrain").textContent = measured(whoop.strain_sleep_need_minutes, 'm', '+');
+      document.getElementById("needTotal").textContent = measured(whoop.total_sleep_need_formatted);
+      document.getElementById("targetBedtime").textContent = measured(whoop.recommended_bedtime);
+      document.getElementById("targetWake").textContent = measured(whoop.recommended_wake_time);
 
       // Benchmarks
-      document.getElementById("metricConsistency").textContent = `${whoop.sleep_consistency_pct || 82}%`;
-      document.getElementById("metricEfficiency").textContent = `${whoop.sleep_efficiency_pct || 100}%`;
-      document.getElementById("metric7dDebt").textContent = `${whoop.accumulated_7d_debt_hours || 4.7} hrs`;
+      document.getElementById("metricConsistency").textContent = measured(whoop.sleep_consistency_pct, '%');
+      document.getElementById("metricEfficiency").textContent = measured(whoop.sleep_efficiency_pct, '%');
+      document.getElementById("metric7dDebt").textContent = measured(whoop.accumulated_7d_debt_hours, ' hrs');
 
       // 5. Illness Early Warning Radar
       const illness = intel.illness_early_warning || {};
@@ -3167,8 +3178,8 @@
 
       document.getElementById("markerDeltaRhr").textContent = (illness.delta_rhr_bpm >= 0 ? '+' : '') + illness.delta_rhr_bpm + ' bpm';
       document.getElementById("markerDeltaHrv").textContent = (illness.delta_hrv_pct >= 0 ? '+' : '') + illness.delta_hrv_pct + '%';
-      document.getElementById("markerRespRate").textContent = (today.respiration_rate || 13.0) + ' brpm';
-      document.getElementById("markerSleepStress").textContent = (today.sleep_stress || 16) + ' / 100';
+      document.getElementById("markerRespRate").textContent = measured(today.respiration_rate, ' brpm');
+      document.getElementById("markerSleepStress").textContent = measured(today.sleep_stress, ' / 100');
       if (illness.details && illness.details.length > 0) {
         document.getElementById("illnessDetailText").textContent = illness.details.join(' ');
       }
@@ -3191,12 +3202,18 @@
       renderInstruments(data);
 
       // 7. Biological Fitness Age & Workload
-      document.getElementById("kpiFitnessAge").textContent = fitness.fitness_age || "24.7";
-      document.getElementById("kpiChronologicalAge").textContent = fitness.chronological_age || "29";
-      document.getElementById("kpiAchievableAge").textContent = fitness.achievable_fitness_age
-        ? `${fitness.achievable_fitness_age} yrs`
-        : "--";
-      document.getElementById("kpiAcwrVal").textContent = fitness.acwr || "0.2";
+      document.getElementById("kpiFitnessAge").textContent = measured(fitness.fitness_age);
+      document.getElementById("kpiChronologicalAge").textContent = measured(fitness.chronological_age);
+      document.getElementById("kpiAchievableAge").textContent = measured(fitness.achievable_fitness_age, ' yrs');
+      // The advantage badge belongs to policy, not markup: it reads the years and
+      // the tone the engine resolved, so a new fitness age can never sit beside a
+      // fixed advantage the markup used to state.
+      const ageDeltaEl = document.getElementById("kpiFitnessAgeDelta");
+      const ageDeltaTone = fitness.age_advantage_tone || "slate";
+      ageDeltaEl.textContent = fitness.age_advantage_label || "--";
+      ageDeltaEl.className =
+        `ml-auto text-xs px-2 py-0.5 rounded bg-${ageDeltaTone}-500/10 text-${ageDeltaTone}-400 font-semibold`;
+      document.getElementById("kpiAcwrVal").textContent = measured(fitness.acwr);
       // ACWR has one set of band names, owned by policy and published resolved, so
       // this badge, the readiness card and the ACWR panel name the same band. Garmin's
       // own status word is context in that panel, not a second vocabulary.
@@ -3207,10 +3224,10 @@
         `ml-auto text-xs px-2 py-0.5 rounded bg-${acwrTone}-500/10 text-${acwrTone}-400 font-semibold`;
       document.getElementById("infoAcwrWatchStatus").textContent = fitness.acwr_status || "--";
       document.getElementById("infoAcwrValue").textContent = fitness.acwr ?? "--";
-      document.getElementById("kpiAcuteLoad").textContent = fitness.acute_load || "44";
-      document.getElementById("kpiChronicLoad").textContent = fitness.chronic_load || "219";
+      document.getElementById("kpiAcuteLoad").textContent = measured(fitness.acute_load);
+      document.getElementById("kpiChronicLoad").textContent = measured(fitness.chronic_load);
 
-      document.getElementById("kpiHrvValue").textContent = today.hrv_last_night || 60;
+      document.getElementById("kpiHrvValue").textContent = measured(today.hrv_last_night);
 
       // HRV has one meaning: the band this reading sits in against the athlete's own
       // 30-day baseline. The badge, the Autonomic State row, the pillar dot and the
@@ -3223,19 +3240,19 @@
       hrvStatusEl.className =
         `ml-auto text-xs px-2 py-0.5 rounded bg-${hrvStatusTone}-500/10 text-${hrvStatusTone}-400 font-semibold`;
       document.getElementById("infoHrvWatchStatus").textContent = today.hrv_status || "--";
-      document.getElementById("kpiHrvBaseline").textContent = `${baselines.hrv_30d || 55.3} ms`;
-      document.getElementById("kpiHrvRange").textContent = `${today.hrv_baseline_low || 54} - ${today.hrv_baseline_high || 73} ms`;
+      document.getElementById("kpiHrvBaseline").textContent = measured(baselines.hrv_30d, ' ms');
+      // One personal corridor, read by the KPI, the chart and the HUD; absent unless
+      // both edges were measured, so the three can never show different ranges.
+      const corridor = (today.hrv_baseline_low == null || today.hrv_baseline_high == null)
+        ? '--'
+        : `${today.hrv_baseline_low} - ${today.hrv_baseline_high} ms`;
+      document.getElementById("kpiHrvRange").textContent = corridor;
+      document.getElementById("hrvChartCorridor").textContent = corridor === '--' ? 'Corridor: --' : `Corridor: ${corridor}`;
+      document.getElementById("hrvHudCorridor").textContent = corridor;
 
-      // The HRV chart's "Corridor" and the HUD's "Personal Corridor" are the same
-      // personal range as the KPI band above, so they read from the same fields
-      // instead of the hard-coded figures the markup shipped with.
-      document.getElementById("hrvChartCorridor").textContent =
-        `Corridor: ${today.hrv_baseline_low || 54} - ${today.hrv_baseline_high || 73} ms`;
-      document.getElementById("hrvHudCorridor").textContent =
-        `${today.hrv_baseline_low || 54} — ${today.hrv_baseline_high || 73} ms`;
-
-      document.getElementById("kpiRhrValue").textContent = Math.round(today.rhr || 51);
-      document.getElementById("infoRhrValue").textContent = Math.round(today.rhr || 51);
+      const rhrReading = today.rhr == null ? null : Math.round(today.rhr);
+      document.getElementById("kpiRhrValue").textContent = measured(rhrReading);
+      document.getElementById("infoRhrValue").textContent = measured(rhrReading);
 
       // The tier badge belongs to policy, not markup: it reads the label and tone
       // the engine resolved for this reading, so a 45 or a 62 bpm value can no
@@ -3245,8 +3262,8 @@
       rhrTierEl.textContent = today.rhr_tier_label || "--";
       rhrTierEl.className =
         `ml-auto text-xs px-2 py-0.5 rounded bg-${rhrTierTone}-500/10 text-${rhrTierTone}-400 font-semibold`;
-      document.getElementById("kpiRhr30d").textContent = `${baselines.rhr_30d || 49.8} bpm`;
-      document.getElementById("kpiRhrAllTime").textContent = `${baselines.rhr_all_time || 50.0} bpm`;
+      document.getElementById("kpiRhr30d").textContent = measured(baselines.rhr_30d, ' bpm');
+      document.getElementById("kpiRhrAllTime").textContent = measured(baselines.rhr_all_time, ' bpm');
 
       // 8. AI Diagnostic Dossier
       // The rule engine and Gemini both produce this analysis, so the UI now
@@ -3723,7 +3740,8 @@
       const container = document.getElementById("fitbitPillarsContainer");
       if (!fitbitData || !fitbitData.health_metrics_5_pillars) return;
 
-      document.getElementById("fitbitReadinessScore").textContent = `${fitbitData.daily_readiness_score || 84} / 100`;
+      document.getElementById("fitbitReadinessScore").textContent =
+        measured(fitbitData.daily_readiness_score, ' / 100');
 
       container.innerHTML = fitbitData.health_metrics_5_pillars.map(pillar => {
         // Calculate progress percentage inside range
@@ -3917,8 +3935,8 @@
       const lightM = Math.floor((lightSec % 3600) / 60);
       document.getElementById("sleepHudLight").textContent = `${lightH}h ${lightM}m`;
 
-      document.getElementById("sleepHudStress").textContent = `${item.avg_stress || 16}/100`;
-      document.getElementById("sleepHudResp").textContent = `${item.avg_respiration || 13.0} brpm`;
+      document.getElementById("sleepHudStress").textContent = measured(item.avg_stress, '/100');
+      document.getElementById("sleepHudResp").textContent = measured(item.avg_respiration, ' brpm');
     }
 
     function getSleepCalloutHtml(item) {
@@ -3984,22 +4002,25 @@
       const ctx = document.getElementById("sleepDoughnutChart").getContext("2d");
       if (doughnutChartInstance) doughnutChartInstance.destroy();
 
-      const deepSec = today.deep_sleep_seconds || 5580;
-      const remSec = today.rem_sleep_seconds || 3780;
-      const lightSec = today.light_sleep_seconds || 14340;
-      const awakeSec = today.awake_sleep_seconds || 0;
-      const totalSec = today.sleep_time_seconds || 23700;
+      // A missing stage is a missing stage: the ring stays empty and every share
+      // reads "--", rather than a doughnut drawn from invented hours.
+      const stages = [today.deep_sleep_seconds, today.rem_sleep_seconds, today.light_sleep_seconds];
+      const hasStages = stages.every(value => value !== null && value !== undefined);
+      const deepSec = hasStages ? today.deep_sleep_seconds : 0;
+      const remSec = hasStages ? today.rem_sleep_seconds : 0;
+      const lightSec = hasStages ? today.light_sleep_seconds : 0;
+      const awakeSec = today.awake_sleep_seconds ?? 0;
+      const totalSec = hasStages
+        ? (today.sleep_time_seconds || deepSec + remSec + lightSec + awakeSec)
+        : 0;
 
-      const deepPct = (deepSec / totalSec * 100).toFixed(1);
-      const remPct = (remSec / totalSec * 100).toFixed(1);
-      const lightPct = (lightSec / totalSec * 100).toFixed(1);
-      const awakePct = (awakeSec / totalSec * 100).toFixed(1);
+      const share = (seconds) => (totalSec ? `${(seconds / totalSec * 100).toFixed(1)}%` : '--');
 
-      document.getElementById("doughnutScoreVal").textContent = today.sleep_score || 78;
-      document.getElementById("stageDeepPct").textContent = `${deepPct}%`;
-      document.getElementById("stageRemPct").textContent = `${remPct}%`;
-      document.getElementById("stageLightPct").textContent = `${lightPct}%`;
-      document.getElementById("stageAwakePct").textContent = `${awakePct}%`;
+      document.getElementById("doughnutScoreVal").textContent = measured(today.sleep_score);
+      document.getElementById("stageDeepPct").textContent = share(deepSec);
+      document.getElementById("stageRemPct").textContent = share(remSec);
+      document.getElementById("stageLightPct").textContent = share(lightSec);
+      document.getElementById("stageAwakePct").textContent = share(awakeSec);
 
       doughnutChartInstance = new Chart(ctx, {
         type: 'doughnut',
