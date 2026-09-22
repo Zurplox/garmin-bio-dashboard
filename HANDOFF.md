@@ -191,10 +191,27 @@ These are not style preferences. Each one closed a real, user-visible bug.
    stays `deterministic` and the model's number is recorded as `model_score`. This
    was proven both with and without a key, and on the runner.
 5. **No credential in the repo.** `SecretGuardTests` scans sources, docs,
-   workflows and tests for `ghp_`, `github_pat_`, `AIza`, private keys. The refresh
-   token lives only in the viewer's browser `localStorage`
-   (`garmin_github_token`). There is no way to make the button work without a
-   per-device token, and that is deliberate: the repo is public.
+   workflows and tests for `ghp_`, `github_pat_`, `AIza`, private keys. This repo is
+   public and has secret scanning **and push protection** enabled, so a committed
+   token would be detected and GitHub revokes a leaked token in a public repo — it
+   would work for minutes and then silently stop. The refresh token therefore lives
+   in one of two places, never here: a browser's `localStorage`
+   (`garmin_github_token`), or the relay's own worker secret. Verified live: push
+   protection validates credentials rather than matching their shape (a random
+   `github_pat_`-shaped string was accepted, so a real one is exactly what it
+   catches).
+6. **A sync can be started without a token in the page.** `relay/worker.js` holds
+   the token as a worker secret and does one thing: dispatch `daily_sync.yml` on
+   `main`. Set `SYNC_RELAY_URL` in `index.html` and `syncTriggerMode()` returns
+   `relay`, the page POSTs there with no `Authorization` header, and the gear button
+   hides itself because no token is needed anywhere. The worker pins the workflow
+   and ref, refuses any origin but `ALLOWED_ORIGIN`, holds a second request inside
+   `MIN_INTERVAL_SECONDS` with a 429 (checked against GitHub's own run list, so it
+   survives multiple isolates), and never returns GitHub's error body — only a
+   status and a hint. Proven by `tests/check_relay.mjs` (13 checks against a stubbed
+   GitHub, run in CI) and in a browser: the press reached the worker, which
+   dispatched with `ref=main`, and a repeat inside the window came back 429 and told
+   the reader so.
 6. **One press, one run.** The Refresh button is single-flight and greys out with
    a cooldown; it never fires two dispatches. Do not test it by spamming the
    workflow — the owner has asked repeatedly for no extra GitHub runs.
@@ -239,6 +256,7 @@ These are not style preferences. Each one closed a real, user-visible bug.
 | #19 | The movement card becomes a week-and-month trend, built from the same daily channels the correlation lab uses, with the heart reading beside it and today's still-running day left out of the average |
 | #20 | Bars fill from their own edge (`scaleX(0)` from the left, `scaleY(0)` from the bottom) instead of springing at 92% of their width; the five-pillar bars are primed by class with a failsafe that fills them if the reveal never comes; the quadrant chart rains its points in from above the plot |
 | #21 | Every coaching card leads with its own reading drawn: seven finished days as bars (muted for a measured zero, dashed target line where policy has one) or a readiness level bar, empty stubs for a domain with no history. The coach's walking week moves to finished days so it quotes the same average as the movement trend card |
+| #24 | The sync relay (`relay/`): a worker secret holds the token, so Refresh can start a sync with nothing pasted, nothing committed and no gear in the header. Worker logic executed in CI against a stubbed GitHub (`tests/check_relay.mjs`, 13 checks) and proven in a browser |
 | #23 | Tactile audio is on for a first visit instead of off — the chirps are how a press reports back, and only an explicit `false` (the `M` toggle, or the header button) silences them |
 | #22 | No panel is a wall of words any more: a container marked `data-stagger` hands its children to the same reveal sweep (tiles, table rows, coaching cards, dossier blocks, briefing blocks), the glance strip tips in (`motion-tilt`), the lock screen rises in CSS, and the illness/glance numbers roll through their own sign. Two frame-dependency holes closed: the reveal sweep's rAF latch now has a timer, and a stalled count-up writes the published value back |
 

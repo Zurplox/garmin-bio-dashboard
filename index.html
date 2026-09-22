@@ -663,9 +663,11 @@
             <span id="refreshLabel">Refresh</span>
           </button>
 
-          <!-- Refresh Settings (GitHub token) -->
+          <!-- Refresh Settings (GitHub token). Hidden once a relay is configured,
+               because then there is no token to paste anywhere. -->
           <button
             type="button"
+            id="refreshSettingsBtn"
             onclick="openRefreshSettings()"
             class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 hover:text-cyan-400 transition cursor-pointer"
             title="Refresh settings: GitHub token for triggering syncs"
@@ -2243,6 +2245,14 @@
     const VAULT_REPO = "Zurplox/garmin-bio-dashboard";
     const SYNC_WORKFLOW_FILE = "daily_sync.yml";
     const GITHUB_TOKEN_KEY = "garmin_github_token";
+    // Where a sync gets triggered from. This page is public, so a token must never
+    // live in it: GitHub's secret scanning revokes a leaked token in a public repo,
+    // and every visitor would be able to start runs on the owner's account. Set this
+    // to the deployment URL of `relay/` and the token stays in the worker's own
+    // encrypted secret instead -- the page POSTs there, the gear and the token field
+    // disappear, and no device has to be keyed in. Empty means "trigger straight from
+    // the browser with a token you pasted", which is the fallback it has always been.
+    const SYNC_RELAY_URL = "";
     const REFRESH_POLL_MS = 20000;
     // A full sync takes several minutes and Pages then has to redeploy, so give
     // it a generous window before telling the user to check back later.
@@ -5587,6 +5597,18 @@
       return (localStorage.getItem(GITHUB_TOKEN_KEY) || "").trim();
     }
 
+    // One place decides how a sync can be started, so the button, its tooltip and the
+    // settings gear can never disagree about it. A configured relay wins: it is the
+    // only route that needs nothing from the viewer.
+    function relayConfigured() {
+      return Boolean(SYNC_RELAY_URL && /^https:\/\//.test(SYNC_RELAY_URL));
+    }
+
+    function syncTriggerMode() {
+      if (relayConfigured()) return "relay";
+      return githubToken() ? "token" : null;
+    }
+
     let refreshToastTimer = null;
     let refreshToastSeq = 0;
 
@@ -5637,11 +5659,17 @@
             ? `Wait ${Math.ceil(remaining / 1000)}s`
             : "Refresh";
       }
+      const mode = syncTriggerMode();
       btn.title = refreshBusy
         ? "A refresh is already running"
         : waiting
           ? "Cooling down, so the vault and GitHub are not hammered by repeat clicks"
-          : "Re-read the published vault; with a token, trigger a fresh sync (Shortcut: R)";
+          : mode
+            ? "Re-read the published vault, and trigger a fresh sync (Shortcut: R)"
+            : "Re-read the published vault (Shortcut: R)";
+      // The gear is the token's home. With a relay there is no token to keep, so it
+      // goes away rather than sitting there asking for something nothing needs.
+      document.getElementById("refreshSettingsBtn")?.classList.toggle("hidden", relayConfigured());
     }
 
     function startRefreshCooldown() {
@@ -5691,6 +5719,26 @@
     }
 
     async function dispatchSyncWorkflow() {
+      // Relay first: the token lives in the worker, so nothing secret is in this page
+      // and no viewer has to paste anything. The worker pins the workflow and ref, and
+      // refuses a second run inside its own window, so a stranger cannot make noise
+      // with the owner's Actions minutes.
+      if (relayConfigured()) {
+        let resp;
+        try {
+          resp = await fetch(SYNC_RELAY_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "sync" }),
+          });
+        } catch (err) {
+          throw new Error("Sync relay unreachable — it may be asleep or the URL may be wrong");
+        }
+        if (resp.ok) return;
+        if (resp.status === 429) throw new Error("A sync was started moments ago — the relay is holding the next one");
+        if (resp.status === 403) throw new Error("Relay refused this origin (403)");
+        throw new Error(`Relay refused the dispatch (${resp.status})`);
+      }
       const resp = await fetch(
         `https://api.github.com/repos/${VAULT_REPO}/actions/workflows/${SYNC_WORKFLOW_FILE}/dispatches`,
         {
@@ -5764,9 +5812,9 @@
         // A second dispatch inside the dedupe window would queue a duplicate
         // run, so in that window a refresh only re-reads. The reason travels
         // with the outcome, otherwise the progress toast buries it.
-        const token = githubToken();
-        const dispatchAllowed = token && Date.now() - githubLastDispatchAt() >= DISPATCH_DEDUPE_MS;
-        const deferralNote = token && !dispatchAllowed
+        const canTrigger = Boolean(syncTriggerMode());
+        const dispatchAllowed = canTrigger && Date.now() - githubLastDispatchAt() >= DISPATCH_DEDUPE_MS;
+        const deferralNote = canTrigger && !dispatchAllowed
           ? ` A sync was already requested ${Math.max(1, Math.round((Date.now() - githubLastDispatchAt()) / 60000))} min ago, so this re-read the published data instead of starting another.`
           : "";
 

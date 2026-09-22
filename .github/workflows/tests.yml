@@ -36,6 +36,9 @@ jobs:
       - name: Check frontend inline scripts parse
         run: node tests/check_frontend_syntax.mjs index.html
 
+      - name: Run the sync relay against a stubbed GitHub
+        run: node tests/check_relay.mjs
+
       - name: Verify the encrypted vault decrypts through the browser crypto path
         env:
           VAULT_PASSPHRASE: ${{ secrets.GARMIN_DASHBOARD_PASS || 'Capybara' }}

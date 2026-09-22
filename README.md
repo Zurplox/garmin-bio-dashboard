@@ -183,9 +183,14 @@ This is not cosmetic. Publishing the model's number meant the same physiology pr
 The dashboard is a static page, so it cannot run the Python pipeline itself. The **Refresh** button therefore does the two things it honestly can:
 
 1. **Re-read the published vault** (always available, no configuration). It fetches `data/biometrics.enc.json` with a cache-busting request, compares `data/status.json` against the publish this session already loaded, and re-decrypts and re-renders when there is something new. If nothing has changed it says so instead of pretending to work.
-2. **Trigger a sync** (opt-in). The gear button beside it accepts a GitHub token with `Actions: read and write` on this repository. With a token stored, Refresh POSTs a `workflow_dispatch` to `daily_sync.yml`, then polls `status.json` for up to 15 minutes — a full sync takes several minutes and Pages has to redeploy — and loads the new vault automatically when it lands. Without a token, the same button only re-reads the vault, and says so.
+2. **Trigger a sync** (opt-in). Two routes, and the relay is the one to use:
 
-The token is kept in this browser's local storage, is never committed, and is sent nowhere except `api.github.com`. It is optional because a static page has no other way to authenticate as you; if you would rather not store one, trigger the sync from the Actions tab and press Refresh afterwards.
+   * **A relay** (`relay/`, deploy it once) holds the GitHub token as its own encrypted secret, so the page never sees a credential and no device has to be keyed in. Refresh POSTs to the relay, which starts `daily_sync.yml` on `main` — the workflow file and the ref are pinned there, only this dashboard's origin may call it, and a second request inside its window is refused. With `SYNC_RELAY_URL` set, the gear button disappears entirely, because there is nothing left to configure.
+   * **A token in this browser** is the fallback for a checkout with no relay. The gear button beside Refresh accepts a token with `Actions: read and write` on this repository; it is kept in this browser's local storage, never committed, and sent nowhere except `api.github.com`.
+
+   Either way Refresh then polls `status.json` for up to 15 minutes — a full sync takes several minutes and Pages has to redeploy — and loads the new vault automatically when it lands. With neither route configured, the same button only re-reads the vault, and says so.
+
+Why the token is not simply embedded in the page: this repository is public and has secret scanning and push protection enabled, so GitHub detects and revokes a leaked token — it would work for minutes and then stop. Every visitor would also have been able to start runs. The relay exists so one press can still work without any of that; see `relay/README.md`.
 
 The `R` key does the same thing as the button.
 
