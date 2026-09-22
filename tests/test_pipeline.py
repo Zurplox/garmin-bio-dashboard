@@ -856,7 +856,10 @@ class ScoreOwnershipTests(unittest.TestCase):
             dict(self.today, sleep_time_seconds=27000, deep_sleep_seconds=6000, rem_sleep_seconds=4500),
             dict(self.baselines, respiration_avg_30d=13.0, deep_sleep_pct_180d=22.0,
                  hrv_180d=55.0, rhr_all_time=50.0),
-            {"fitness_age": 24.7},
+            # A measured ratio, because the paragraph names its band: an unmeasured
+            # one is reported as unmeasured rather than assumed to be 0.2 (see
+            # UnmeasuredWorkloadTests).
+            {"fitness_age": 24.7, "acute_load": 40, "chronic_load": 200, "acwr": 0.2},
         )
 
     def _synthesize(self, model_reply, **today_overrides):
@@ -1084,6 +1087,18 @@ class PayloadAssemblyTests(unittest.TestCase):
         dq.record("rhr", True, "120 readings")
         dq.record("hrv", True, "120 summaries")
         return dq
+
+    def test_a_failed_training_status_endpoint_does_not_stop_the_payload(self):
+        self.fetched["fitness"] = make_fitness(
+            acute_load=None, chronic_load=None, acwr=None, acwr_status=None
+        )
+
+        payload = sync.build_payload(self.client, self.fetched, self._dq())
+
+        self.assertIsInstance(payload["fitbit"]["daily_readiness_score"], int)
+        # The ratio is unmeasured, so no band travels with it: the card reads "--".
+        self.assertNotIn("acwr_band", payload["fitness"])
+        self.assertNotIn("None", payload["clinical_intelligence"]["workload_and_biological_age"])
 
     def test_payload_ships_resolved_bands_and_computed_scores(self):
         payload = sync.build_payload(self.client, self.fetched, self._dq())
@@ -1400,6 +1415,61 @@ class FitnessFallbackTests(unittest.TestCase):
 
         self.assertEqual(result["chronological_age"], 29)
         self.assertEqual(result["device_name"], "fenix 6S ASIA Sapphire")
+
+
+class UnmeasuredWorkloadTests(unittest.TestCase):
+    """An endpoint that answers with nothing must not take the whole run down.
+
+    The runner hit exactly this: `get_training_status` returned nothing, every load
+    field stayed None, and the readiness pillar compared that None against a number.
+    The sync died before it could publish anything, so the athlete stopped receiving
+    fresh biometrics at all -- a fallback is not a verdict, but a crash is no data.
+    """
+
+    # What the source publishes when the training-status endpoint answers with nothing.
+    NO_LOAD = {"acute_load": None, "chronic_load": None, "acwr": None, "acwr_status": None}
+
+    def test_readiness_survives_a_missing_training_load(self):
+        fitbit = analytics.calculate_fitbit_metrics(
+            make_today(), make_baselines(), make_fitness(**self.NO_LOAD)
+        )
+
+        self.assertIsInstance(fitbit["daily_readiness_score"], int)
+        self.assertIsInstance(fitbit["fatigue_component_score"], int)
+        for pillar in fitbit["health_metrics_5_pillars"]:
+            for field in ("value", "baseline", "range_min", "range_max"):
+                with self.subTest(pillar=pillar["key"], field=field):
+                    self.assertIsInstance(pillar[field], (int, float))
+
+    def test_a_snapshot_of_nones_cannot_kill_the_run(self):
+        today = dict.fromkeys(make_today())
+        today["date"] = "2026-09-20"
+        baselines = dict.fromkeys(make_baselines())
+
+        fitbit = analytics.calculate_fitbit_metrics(today, baselines, make_fitness(**self.NO_LOAD))
+
+        self.assertIsInstance(fitbit["daily_readiness_score"], int)
+
+    def test_the_narrative_claims_no_band_it_could_not_measure(self):
+        verdict = clinical_engine.deterministic_engine(
+            make_today(), make_baselines(), make_fitness(**self.NO_LOAD)
+        )
+
+        paragraph = verdict["workload_and_biological_age"]
+        self.assertNotIn("None", paragraph)
+        self.assertNotIn(policy.ACWR_BANDS["under"]["plain"], paragraph)
+        self.assertIn("no load band", paragraph)
+        self.assertIn("no load band", verdict["plain_english"]["workload_and_biological_age"])
+
+    def test_a_measured_load_still_names_its_band(self):
+        verdict = clinical_engine.deterministic_engine(make_today(), make_baselines(), make_fitness())
+
+        paragraph = verdict["workload_and_biological_age"]
+        self.assertIn(policy.ACWR_BANDS["under"]["label"].lower(), paragraph)
+        self.assertIn("Acute Load of 40", paragraph)
+        self.assertIn(
+            policy.ACWR_BANDS["under"]["plain"], verdict["plain_english"]["workload_and_biological_age"]
+        )
 
 
 # ---------------------------------------------------------------------------

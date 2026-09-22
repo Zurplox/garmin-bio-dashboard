@@ -487,22 +487,31 @@ def calculate_fitbit_metrics(today, baselines, fitness):
     range rather than being a fixed "all good" verdict, which is what they used
     to be.
     """
-    acute_load = fitness.get("acute_load", 44)
-    hrv_val = today.get("hrv_last_night", 60)
-    hrv_base = baselines.get("hrv_30d", 55.3)
+    # Every input goes through the module's own null helpers. A failed endpoint
+    # publishes None rather than leaving the key out, and a bare `.get(key, default)`
+    # does not catch that: the ACWR comparison below read None against a number and
+    # killed the whole run on the training-status endpoint's bad days. None now lands
+    # on the same fallback a missing key does, which the provenance record already
+    # flags as an estimate.
+    acute_load = _nullish(fitness.get("acute_load"), 44)
+    hrv_val = _nullish(today.get("hrv_last_night"), 60)
+    hrv_base = _truthy(baselines.get("hrv_30d"), 55.3)
     hrv_delta = ((hrv_val - hrv_base) / hrv_base * 100.0) if hrv_base else 0.0
-    hrv_score = min(max(int((hrv_val / hrv_base) * 80), 30), 100)
-    sleep_score = today.get("sleep_score", 78)
+    hrv_score = min(max(int((hrv_val / hrv_base) * 80), 30), 100) if hrv_base else 30
+    sleep_score = _nullish(today.get("sleep_score"), 78)
     fatigue_score = 90 if acute_load < 80 else max(90 - int((acute_load - 80) * 0.3), 30)
     readiness_score = int(round((hrv_score * 0.4) + (sleep_score * 0.4) + (fatigue_score * 0.2)))
 
-    respiration = today.get("respiration_rate", 13.0)
-    sleep_stress = today.get("sleep_stress", 16.0)
-    rhr = round(today.get("rhr", 51.0), 1)
-    rhr_delta = rhr - baselines.get("rhr_30d", 49.8)
-    hrv_range = baselines.get("hrv_normal_range", [54, 73])
-    fitness_age = fitness.get("fitness_age", 24.7)
-    chronological_age = fitness.get("chronological_age", 29)
+    respiration = _nullish(today.get("respiration_rate"), 13.0)
+    sleep_stress = _nullish(today.get("sleep_stress"), 16.0)
+    rhr = round(_nullish(today.get("rhr"), 51.0), 1)
+    rhr_base = _nullish(baselines.get("rhr_30d"), 49.8)
+    rhr_delta = rhr - rhr_base
+    hrv_range = _nullish(baselines.get("hrv_normal_range"), [54, 73]) or [54, 73]
+    hrv_min = _nullish(hrv_range[0] if len(hrv_range) > 0 else None, 54)
+    hrv_max = _nullish(hrv_range[1] if len(hrv_range) > 1 else None, 73)
+    fitness_age = _nullish(fitness.get("fitness_age"), 24.7)
+    chronological_age = _nullish(fitness.get("chronological_age"), 29)
     age_advantage = chronological_age - fitness_age
 
     if 11.5 <= respiration <= 14.5:
@@ -544,7 +553,7 @@ def calculate_fitbit_metrics(today, baselines, fitness):
                 "key": "breathing_rate",
                 "value": respiration,
                 "unit": "brpm",
-                "baseline": baselines.get("respiration_avg_30d", 12.5),
+                "baseline": _nullish(baselines.get("respiration_avg_30d"), 12.5),
                 "range_min": 11.5,
                 "range_max": 14.5,
                 "status": breathing_status,
@@ -557,8 +566,8 @@ def calculate_fitbit_metrics(today, baselines, fitness):
                 "value": hrv_val,
                 "unit": "ms",
                 "baseline": hrv_base,
-                "range_min": hrv_range[0],
-                "range_max": hrv_range[1],
+                "range_min": hrv_min,
+                "range_max": hrv_max,
                 "status": hrv_status,
                 "status_color": hrv_tone,
                 "description": f"{hrv_delta:+.1f}% versus the 30-day baseline of {hrv_base} ms.",
@@ -580,7 +589,7 @@ def calculate_fitbit_metrics(today, baselines, fitness):
                 "key": "rhr",
                 "value": rhr,
                 "unit": "bpm",
-                "baseline": baselines.get("rhr_30d", 49.8),
+                "baseline": rhr_base,
                 "range_min": 48.0,
                 "range_max": 54.0,
                 "status": rhr_status,
@@ -593,7 +602,7 @@ def calculate_fitbit_metrics(today, baselines, fitness):
                 "value": fitness_age,
                 "unit": "yrs",
                 "baseline": chronological_age,
-                "range_min": fitness.get("achievable_fitness_age", 21.1),
+                "range_min": _nullish(fitness.get("achievable_fitness_age"), 21.1),
                 "range_max": chronological_age,
                 "status": (
                     f"Elite ({age_advantage:.1f} yrs younger)"
