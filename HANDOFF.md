@@ -219,13 +219,21 @@ These are not style preferences. Each one closed a real, user-visible bug.
    GitHub, run in CI) and in a browser: the press reached the worker, which
    dispatched with `ref=main`, and a repeat inside the window came back 429 and told
    the reader so.
-6. **One press, one run.** The Refresh button is single-flight and greys out with
+7. **One press, one run.** The Refresh button is single-flight and greys out with
    a cooldown; it never fires two dispatches. Do not test it by spamming the
-   workflow — the owner has asked repeatedly for no extra GitHub runs.
-7. **Motion computes nothing.** `playVisuals()` reads what the render pass already
+   workflow — the owner has asked repeatedly for no extra GitHub runs. A refused
+   press now also says so out loud (the `refuse` cue).
+8. **Sound has one vocabulary.** `SOUND_CUES` in `index.html` names every cue and
+   `playCue(name)` plays it; a call site may not choose a frequency of its own. Rising
+   = opened, falling = closed, two rising = accepted, three rising = work started, the
+   melody = work finished, one note = a step, a dull low pair = refused, a low pair =
+   warning. Scrub, heat-map sweep and section jumps keep their own ladders because
+   they are continuous, not discrete. Volumes stay at or below 0.025 so a cue reads as
+   feedback rather than a notification, and `TactileAudioTests` enforces all of it.
+9. **Motion computes nothing.** `playVisuals()` reads what the render pass already
    wrote and re-applies it. Reduced-motion readers get final values, no hidden
    cards, no animation.
-8. **A failed endpoint returns `None`, not a missing key.** `garmin_source` fills
+10. **A failed endpoint returns `None`, not a missing key.** `garmin_source` fills
    the fitness block with `None` when an endpoint answers with nothing, so every
    consumer must go through `_nullish` / `_truthy` / `_as_float`: a bare
    `.get(key, default)` sees the `None` and the default never applies. This took
@@ -263,6 +271,7 @@ These are not style preferences. Each one closed a real, user-visible bug.
 | #19 | The movement card becomes a week-and-month trend, built from the same daily channels the correlation lab uses, with the heart reading beside it and today's still-running day left out of the average |
 | #20 | Bars fill from their own edge (`scaleX(0)` from the left, `scaleY(0)` from the bottom) instead of springing at 92% of their width; the five-pillar bars are primed by class with a failsafe that fills them if the reveal never comes; the quadrant chart rains its points in from above the plot |
 | #21 | Every coaching card leads with its own reading drawn: seven finished days as bars (muted for a measured zero, dashed target line where policy has one) or a readiness level bar, empty stubs for a domain with no history. The coach's walking week moves to finished days so it quotes the same average as the movement trend card |
+| #26 | One sound vocabulary (`SOUND_CUES` + `playCue`) replaces the frequencies chosen at each call site, and the silent controls speak: heat-map enlarge, lock, arming the emergency lockout, a Refresh that started, one refused by its cooldown, and one that failed. Continuous interactions keep their pitch ladders |
 | #25 | The token field and its gear leave the header — a token now enters a browser through a one-time `#token=` link that stores it and strips itself (read on load and on `hashchange`), and `#token=` alone forgets it. The Refresh tooltip follows whichever trigger exists |
 | #24 | The sync relay (`relay/`): a worker secret holds the token, so Refresh can start a sync with nothing pasted, nothing committed and no gear in the header. Worker logic executed in CI against a stubbed GitHub (`tests/check_relay.mjs`, 13 checks) and proven in a browser |
 | #23 | Tactile audio is on for a first visit instead of off — the chirps are how a press reports back, and only an explicit `false` (the `M` toggle, or the header button) silences them |

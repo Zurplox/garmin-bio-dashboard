@@ -2554,7 +2554,7 @@
       const willOpen = panel.classList.contains('hidden');
       panel.classList.toggle('hidden', !willOpen);
       btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
-      playMicroChirp(willOpen ? 880 : 520, 0.025);
+      playCue(willOpen ? 'open' : 'close');
     }
 
     // ==========================================
@@ -2606,6 +2606,42 @@
       playMicroChirp(660, 0.04, 'sine', 0.02);
       setTimeout(() => playMicroChirp(880, 0.04, 'sine', 0.02), 50);
       setTimeout(() => playMicroChirp(1320, 0.07, 'sine', 0.025), 100);
+    }
+
+    // The sound vocabulary. One table names every cue so a press sounds like what it
+    // did, rather than like whichever frequency the call site happened to pick:
+    //
+    //   open / accept   rising     something opened or was accepted
+    //   close / lock    falling    something closed or was put away
+    //   refuse          low, dull  a press that was not allowed (cooldown, locked out)
+    //   warn            low pair   something failed or is consequential
+    //   step            one note   a step through a control (a filter, a timeframe)
+    //   start           three up   work accepted, before it finishes
+    //   done            the melody work finished and there is something new
+    //
+    // Each entry is [frequency, seconds, waveform, volume, delay-ms]. Volumes stay at
+    // or below 0.025 so a cue reads as feedback rather than as a notification, and
+    // continuous interactions (scrubbing a chart, sweeping the heat map) keep their
+    // own pitch ladders instead of firing a discrete cue per frame.
+    const SOUND_CUES = {
+      open: [[880, 0.025]],
+      accept: [[980, 0.03], [1240, 0.03, 'sine', 0.02, 45]],
+      close: [[520, 0.025]],
+      lock: [[420, 0.05], [300, 0.06, 'sine', 0.02, 70]],
+      refuse: [[190, 0.07, 'triangle', 0.02], [150, 0.06, 'triangle', 0.018, 80]],
+      warn: [[240, 0.06, 'triangle', 0.02], [200, 0.06, 'triangle', 0.018, 90]],
+      step: [[700, 0.03]],
+      start: [[560, 0.03], [660, 0.03, 'sine', 0.018, 60], [780, 0.04, 'sine', 0.02, 120]],
+      enlarge: [[660, 0.03], [990, 0.05, 'sine', 0.02, 60]],
+      print: [[1200, 0.06]],
+    };
+
+    function playCue(name) {
+      if (!isAudioEnabled || !SOUND_CUES[name]) return;
+      for (const [freq, duration, type, volume, delay] of SOUND_CUES[name]) {
+        if (delay) window.setTimeout(() => playMicroChirp(freq, duration, type, volume), delay);
+        else playMicroChirp(freq, duration, type, volume);
+      }
     }
 
     function toggleAudioSound() {
@@ -2671,7 +2707,7 @@
       const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
       try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* private mode */ }
       applyTheme(next);
-      if (typeof playMicroChirp === 'function') playMicroChirp(next === 'light' ? 880 : 520, 0.03);
+      if (typeof playMicroChirp === 'function')      playCue(next === 'light' ? 'open' : 'close');
     }
 
     function updateAudioUi() {
@@ -2693,7 +2729,7 @@
     }
 
     function printClinicalReport() {
-      playMicroChirp(1200, 0.06);
+      playCue('print');
       window.print();
     }
 
@@ -2707,7 +2743,7 @@
       const willShow = panel.classList.contains("hidden");
       panel.classList.toggle("hidden", !willShow);
       chip.setAttribute("aria-expanded", willShow ? "true" : "false");
-      playMicroChirp(willShow ? 900 : 560, 0.03);
+      playCue(willShow ? 'open' : 'close');
     }
 
     function renderDataProvenance(quality, isStale, staleHours) {
@@ -3116,12 +3152,16 @@
     function openMasterLockModal() {
       document.getElementById("masterLockModal").classList.remove("hidden");
       document.getElementById("masterPassInput").focus();
+      // Arming the emergency lockout is the most consequential button in the header,
+      // so it sounds like a warning rather than like a panel opening.
+      playCue('warn');
     }
 
     function closeMasterLockModal() {
       document.getElementById("masterLockModal").classList.add("hidden");
       document.getElementById("masterPassInput").value = "";
       document.getElementById("masterLockModalError").classList.add("hidden");
+      playCue('close');
     }
 
     async function handleArmMasterLock(event) {
@@ -3166,6 +3206,9 @@
     }
 
     function logout() {
+      // Locking purges the decrypted data, so it is announced as a lock rather than
+      // left to happen quietly; unlocking answers with the melody when the vault lands.
+      playCue('lock');
       purgeDecryptedData();
       localStorage.removeItem("garmin_vault_pass");
       document.getElementById("passInput").value = "";
@@ -4034,7 +4077,7 @@
       document.querySelectorAll('[data-sleep-tf]').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.sleepTf == days);
       });
-      playMicroChirp(700, 0.03);
+      playCue('step');
       updateSleepChart();
     }
 
@@ -4313,7 +4356,7 @@
       document.querySelectorAll('[data-hrv-tf]').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.hrvTf == days);
       });
-      playMicroChirp(700, 0.03);
+      playCue('step');
       updateHrvChart();
     }
 
@@ -4329,7 +4372,7 @@
           btn.innerHTML = `<span>⚡ Overlay RHR</span>`;
         }
       }
-      playMicroChirp(isRhrOverlayActive ? 1000 : 600, 0.04);
+      playCue(isRhrOverlayActive ? 'accept' : 'close');
       updateHrvChart();
     }
 
@@ -5234,6 +5277,9 @@
       const open = force === undefined ? modal.classList.contains('hidden') : force;
       modal.classList.toggle('hidden', !open);
       document.querySelector('[aria-controls="consistencyFocusModal"]')?.setAttribute('aria-expanded', String(open));
+      // Enlarging the heat map used to happen in silence; the tiles are the one visual
+      // worth hearing arrive.
+      playCue(open ? 'enlarge' : 'close');
       if (open) {
         target.innerHTML = source.innerHTML;
         target.style.gridTemplateColumns = source.style.gridTemplateColumns;
@@ -5462,7 +5508,7 @@
       document.querySelectorAll('[data-cat]').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.cat === cat);
       });
-      playMicroChirp(760, 0.03);
+      playCue('step');
       renderActivityTable();
     }
 
@@ -5694,22 +5740,31 @@
     async function refreshVault() {
       // Every entry point (button and the R shortcut) passes through the same
       // guards: one refresh at a time, and one per cooldown window.
+      // A press that will not be honoured says so out loud: the toast explains it and
+      // the refusal cue makes it feel like a button that is not ready rather than a
+      // button that is broken.
       if (refreshBusy) {
         showRefreshToast("A refresh is already running — it will report when it finishes.", "amber");
+        playCue('refuse');
         return;
       }
       const remaining = refreshCooldownRemaining();
       if (remaining > 0) {
         showRefreshToast(`Cooling down — try again in ${Math.ceil(remaining / 1000)}s.`, "amber");
+        playCue('refuse');
         return;
       }
       if (!globalBioData) {
         showRefreshToast("Unlock the vault first.", "amber");
+        playCue('refuse');
         return;
       }
 
       refreshBusy = true;
       refreshPollAbort = false;
+      // Work is underway: three rising notes acknowledge the press immediately, where
+      // before the button went quiet until the sync had already finished.
+      playCue('start');
       updateRefreshButton();
       const previousAt = globalBioData.updated_at;
       try {
@@ -5765,10 +5820,12 @@
           changed ? "green" : "slate"
         );
         if (changed) playSuccessMelody();
+        else playCue('step');
       } catch (err) {
         console.error(err);
         if (refreshPollAbort) return; // locked out mid-flight: nothing to report
         const passphraseMissing = /passphrase not in memory/.test(String(err.message));
+        playCue('warn');
         showRefreshToast(
           passphraseMissing
             ? "New data is available — unlock again to load it."

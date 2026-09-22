@@ -246,11 +246,29 @@ value is simply there.
 |:---:|:---|
 | `1` – `9` | Jump directly to sections 1 through 9 |
 | `O` | Toggle RHR dual-axis overlay on the HRV chart |
-| `M` | Toggle tactile audio sound feedback |
+| `M` | Toggle tactile audio sound feedback (on when you first arrive; your choice is remembered) |
 | `P` | Open one-click Clinical Report Print dialog (clean PDF styling) |
 | `R` | Refresh: re-read the published vault (and trigger a sync when a GitHub token is stored) |
 | `L` | Instantly lock vault and purge decrypted data from browser memory |
 | `ESC` | Dismiss any open modal |
+
+### What the dashboard sounds like
+
+Every cue is one sound with one meaning, so you can tell what happened without
+looking. Nothing is louder than a tap, and turning sound off silences all of it.
+
+| You hear | Meaning | Where |
+|:---|:---|:---|
+| Rising note | something opened | an ⓘ panel, the provenance chip, the heat map enlarged, day theme |
+| Falling note | something closed | the same controls, closing; night theme |
+| Two rising notes | accepted | RHR overlay switched on |
+| Three rising notes | work started | **Refresh** pressed, before the sync finishes |
+| A short melody | work finished | vault unlocked, a refresh that found new data, sound switched on |
+| One note | a step | sleep or HRV timeframe, activity filter, a press that found nothing new |
+| Low, dull double note | refused | Refresh pressed during its cooldown, or while one is already running |
+| Low pair | warning | a refresh that failed, opening the emergency lockout dialog |
+| Falling pair | locked | locking the vault |
+| A ladder of pitches | you are scanning | dragging across a chart, sweeping the heat map, `1`–`9` section jumps |
 
 ---
 *Maintained by Harvin (@Zurplox) // Meridian: device-recorded biometrics, a deterministic scoring engine, and an optional AI narrative layer whose closing plain-English sentence is always written by the rules.*
