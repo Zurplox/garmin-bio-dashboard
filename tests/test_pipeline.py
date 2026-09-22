@@ -1638,6 +1638,67 @@ class MotionDirectionTests(unittest.TestCase):
         self.assertIn("setTimeout", grow)
         self.assertIn("el.style[prop] = target;", grow)
 
+    def test_every_word_heavy_panel_staggers_its_own_children(self):
+        page = self._page()
+        # The five panels that are mostly readings and prose, plus the cards the
+        # render pass rebuilds, each hand their children to the reveal sweep.
+        for host in (
+            'data-stagger="90"',   # the briefing card
+            'data-stagger="70"',   # the glance strip and the two card grids
+            'data-stagger="80"',   # the signal cards and the dossier blocks
+            'data-stagger="30"',   # one activity row per step
+            "data-stagger-flip",
+        ):
+            with self.subTest(host=host):
+                self.assertIn(host, page)
+        stagger = page.split("function staggerChildren", 1)[1].split("\n    function ", 1)[0]
+        self.assertIn("Array.from(host.children)", stagger)
+        self.assertIn("motion-tilt", stagger)
+        # A long list must not wait minutes for its last row.
+        self.assertIn("Math.min(index, 8)", stagger)
+        # A stagger host animates its children, so the outer pass must leave it alone
+        # rather than fading the same block twice.
+        outer = page.split("document.querySelectorAll('section, .glass-card')", 1)[1].split("\n      // The panels", 1)[0]
+        self.assertIn("if (el.hasAttribute('data-stagger')) return;", outer)
+
+    def test_a_missing_frame_never_leaves_a_count_on_a_wrong_number(self):
+        page = self._page()
+        count = page.split("function primeCount", 1)[1].split("\n    function ", 1)[0]
+        # The interpolation is a frame loop; if the frames stop, the published value
+        # must be written back rather than an interpolated one left on screen.
+        self.assertIn("window.setTimeout(() => {", count)
+        self.assertIn("el.textContent === lastFrame) el.textContent = target;", count)
+
+    def test_a_missing_frame_never_leaves_a_reveal_invisible(self):
+        page = self._page()
+        sweep = page.split("function queueSweep", 1)[1].split("\n    window.addEventListener", 1)[0]
+        # The latch that debounces the sweep must also be cleared by a timer, or a
+        # throttled frame loop blocks every later reveal and the page shows nothing.
+        self.assertIn("requestAnimationFrame(run)", sweep)
+        self.assertIn("window.setTimeout(run, 250)", sweep)
+        self.assertIn("vizSweepQueued = false;", sweep)
+
+    def test_the_new_entrances_are_off_for_reduced_motion(self):
+        page = self._page()
+        reduce_block = page.split("@media (prefers-reduced-motion: reduce)", 1)[1].split("/* Clinical Report", 1)[0]
+        self.assertIn("#lockScreen .glass-card { animation: none !important; }", reduce_block)
+        self.assertIn(".motion-tilt { opacity: 1 !important; transform: none !important; }", reduce_block)
+        # The lock screen cannot wait for the motion-live marker: it is on screen
+        # before the dashboard exists, so its rise is plain CSS.
+        self.assertIn("#lockScreen .glass-card {\n        animation: lock-rise", page)
+
+    def test_a_signed_reading_counts_through_its_own_sign(self):
+        page = self._page()
+        count = page.split("function primeCount", 1)[1].split("\n    function ", 1)[0]
+        self.assertIn("const match = target.match(/^([+-]?)([0-9][0-9,]*(?:\\.[0-9]+)?)(.*)$/)", count)
+        self.assertIn("return `${sign}${shown}${suffix}`;", count)
+        # A comma-grouped reading keeps its grouping while it rolls.
+        self.assertIn("toLocaleString('en-SG')", count)
+        # The illness markers and the glance strip now roll too.
+        for el_id in ("markerDeltaRhr", "markerDeltaHrv", "markerRespRate", "markerSleepStress", "glanceSteps"):
+            with self.subTest(el_id=el_id):
+                self.assertIn(f"'{el_id}'", page)
+
     def test_the_scatter_animation_starts_every_point_above_the_plot(self):
         page = self._page()
         start = page.split("function scatterDropStart", 1)[1].split("\n    function ", 1)[0]

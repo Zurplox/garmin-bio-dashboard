@@ -249,6 +249,30 @@
         opacity: 1;
         transform: none;
       }
+      /* The same entrance with the near edge tipped away from the reader, for the
+         handful of tiles that should read as laid down onto the page rather than
+         only sliding up it. Transform and opacity only, so it stays on the
+         compositor and never reflows the tile's neighbours. */
+      .motion-live .motion-tilt {
+        opacity: 0;
+        transform: perspective(900px) rotateX(-12deg) translateY(12px);
+        transform-origin: center bottom;
+        transition: opacity 0.55s ease, transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        transition-delay: var(--motion-delay, 0s);
+      }
+      .motion-live .motion-tilt.is-revealed {
+        opacity: 1;
+        transform: none;
+      }
+      /* The lock screen is on screen before the dashboard exists, so it cannot wait
+         for the motion-live marker: it rises on load, in CSS alone. */
+      #lockScreen .glass-card {
+        animation: lock-rise 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      @keyframes lock-rise {
+        from { opacity: 0; transform: translateY(18px) scale(0.985); }
+        to { opacity: 1; transform: none; }
+      }
       /* Touch feedback borrowed from iOS: press in, spring back. */
       .tap-squish {
         transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -261,6 +285,8 @@
       .motion-gauge-bounce, .motion-chart-settle, .motion-bar-spring, .motion-bar-spring-y,
       .motion-heat-cell, .motion-heat-cell.is-revealed { animation: none !important; }
       .motion-heat-cell { opacity: 1 !important; transform: none !important; }
+      #lockScreen .glass-card { animation: none !important; }
+      .motion-tilt { opacity: 1 !important; transform: none !important; }
     }
     /* Clinical Report Print Styles */
     @media print {
@@ -749,7 +775,7 @@
           <span id="glanceWindow" class="text-[10px] text-slate-500 mono">--</span>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" data-stagger="70" data-stagger-flip>
           <!-- 1. Steps, against the goal that is set on the watch -->
           <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/70 border border-slate-800">
             <svg viewBox="0 0 48 48" class="w-12 h-12 shrink-0" role="img" aria-label="Steps taken today against the daily goal">
@@ -799,7 +825,7 @@
       </section>
 
       <!-- SECTION 0: AI DAILY BRIEFING (PERSONALIZED SUMMARY) -->
-      <section class="glass-card briefing-card rounded-2xl p-5 lg:p-6 border border-violet-500/20" style="background: linear-gradient(135deg, rgba(139,92,246,0.08) 0%, rgba(14,24,46,0.9) 60%);">
+      <section class="glass-card briefing-card rounded-2xl p-5 lg:p-6 border border-violet-500/20" data-stagger="90" style="background: linear-gradient(135deg, rgba(139,92,246,0.08) 0%, rgba(14,24,46,0.9) 60%);">
         <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
           <div class="flex items-center gap-2.5">
             <div class="p-2 rounded-xl bg-violet-500/15 border border-violet-500/30 text-violet-400">
@@ -1016,7 +1042,7 @@
         </div>
 
         <!-- 4 Bio-Markers Grid -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4" data-stagger="70">
           <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
             <div class="text-[10px] text-slate-400 uppercase font-semibold">Δ RHR vs Base</div>
             <div id="markerDeltaRhr" class="text-lg font-bold text-emerald-400 mono">+1.2 bpm</div>
@@ -1374,7 +1400,7 @@
           <span id="signalsCoverage" class="text-[11px] text-slate-500 mono">--</span>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4" data-stagger="80">
           <!-- CARD A: BLOOD OXYGEN -->
           <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
             <div class="flex items-center justify-between text-slate-400">
@@ -1518,7 +1544,7 @@
         </div>
 
         <!-- One card per domain, rendered from the payload -->
-        <div id="coachCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3"></div>
+        <div id="coachCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3" data-stagger="70"></div>
 
         <!-- What the athlete's own history says about them -->
         <div class="mt-2 p-4 rounded-xl bg-slate-900/80 border border-slate-800">
@@ -1706,7 +1732,7 @@
           </span>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1" data-stagger="80">
           <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5">
             <div class="text-xs font-bold text-cyan-400 uppercase tracking-wide flex items-center gap-1.5">
               <span>●</span> Autonomic Tone & Parasympathetic Vagal Modulation
@@ -2177,7 +2203,7 @@
                 <th class="py-2.5 px-3">Training Effect</th>
               </tr>
             </thead>
-            <tbody id="activityTableBody" class="divide-y divide-slate-800/60 text-slate-300">
+            <tbody id="activityTableBody" class="divide-y divide-slate-800/60 text-slate-300" data-stagger="30">
           <!-- Populated dynamically -->
               <!-- Populated dynamically -->
             </tbody>
@@ -2318,10 +2344,17 @@
     function queueSweep() {
       if (vizSweepQueued) return;
       vizSweepQueued = true;
-      requestAnimationFrame(() => {
+      // A frame is the cheap way to do this once per paint. A background tab or a
+      // throttled frame loop never delivers one, though, and every reveal still
+      // waiting on that frame would stay invisible -- a measured reading drawn as
+      // nothing. The timer clears the same latch, so the sweep happens either way.
+      const run = () => {
+        if (!vizSweepQueued) return;
         vizSweepQueued = false;
         sweepVisuals();
-      });
+      };
+      requestAnimationFrame(run);
+      window.setTimeout(run, 250);
     }
 
     window.addEventListener('scroll', queueSweep, { passive: true });
@@ -2394,11 +2427,20 @@
     function primeCount(el, duration = 1800) {
       if (!el || vizPlayed.has(el)) return;
       const target = el.textContent.trim();
-      const match = target.match(/^(-?[0-9]+(?:\.[0-9]+)?)(.*)$/);
+      // A signed reading counts up through its own sign, so "+8.5%" rolls through
+      // "+0.0%" rather than being skipped for the plus it carries.
+      const match = target.match(/^([+-]?)([0-9][0-9,]*(?:\.[0-9]+)?)(.*)$/);
       if (!match) return;
-      const value = Number(match[1]);
-      const suffix = match[2];
-      const frameFor = n => `${Number.isInteger(value) ? Math.round(n) : n.toFixed(1)}${suffix}`;
+      const sign = match[1];
+      const value = Number(match[2].replace(/,/g, ''));
+      if (!Number.isFinite(value)) return;
+      const grouped = match[2].includes(',');
+      const suffix = match[3];
+      const frameFor = n => {
+        const rounded = Number.isInteger(value) ? Math.round(n) : n.toFixed(match[2].split('.')[1].length);
+        const shown = grouped ? rounded.toLocaleString('en-SG') : String(rounded);
+        return `${sign}${shown}${suffix}`;
+      };
       playWhenSeen(el, () => {
         const started = performance.now();
         let lastFrame = frameFor(0);
@@ -2415,6 +2457,13 @@
         };
         el.textContent = lastFrame;
         requestAnimationFrame(tick);
+        // A stalled frame loop would leave the number sitting on an interpolated
+        // frame -- a measured reading shown as a different number. The timer writes
+        // the published value back, but only while our own last frame still holds the
+        // element, so a fresher render is never overwritten.
+        window.setTimeout(() => {
+          if (document.documentElement.contains(el) && el.textContent === lastFrame) el.textContent = target;
+        }, duration + 1500);
       });
     }
 
@@ -2425,18 +2474,43 @@
       playWhenSeen(el, () => requestAnimationFrame(() => el.classList.add('motion-gauge-bounce')));
     }
 
+    // A string of numbers is not a picture. A panel whose children are tiles, rows
+    // or paragraphs used to arrive as one opaque block -- the values were there but
+    // nothing inside them moved. A container marked data-stagger hands each child to
+    // the same reveal the cards use, one after the next, so the panel assembles
+    // instead of appearing. data-stagger-flip uses the tipped entrance. Nothing here
+    // reads or changes a value: only the timing of what the render pass already wrote.
+    function staggerChildren(host, step, tilt = false) {
+      Array.from(host.children).forEach((child, index) => {
+        if (vizPlayed.has(child)) return;
+        child.style.setProperty('--motion-delay', `${Math.min(index, 8) * step}ms`);
+        child.classList.add(tilt ? 'motion-tilt' : 'motion-reveal');
+        playWhenSeen(child, () => child.classList.add('is-revealed'));
+      });
+    }
+
     function playVisuals() {
       if (!motionAllows()) return;
       document.documentElement.classList.add('motion-live');
 
       // Cards and sections rise into place as they arrive, staggered by position
-      // in their row so a grid reads left to right instead of all at once.
+      // in their row so a grid reads left to right instead of all at once. A
+      // container carrying data-stagger animates its own children instead, so the
+      // two passes never fade the same block twice.
       document.querySelectorAll('section, .glass-card').forEach(el => {
         if (vizPlayed.has(el) || el.closest('#lockScreen, [data-no-motion]')) return;
+        if (el.hasAttribute('data-stagger')) return;
         const siblings = el.parentElement ? Array.from(el.parentElement.children) : [];
         el.style.setProperty('--motion-delay', `${Math.min(Math.max(siblings.indexOf(el), 0), 5) * 60}ms`);
         el.classList.add('motion-reveal');
         playWhenSeen(el, () => el.classList.add('is-revealed'));
+      });
+
+      // The panels that are mostly words and single readings: their tiles, rows and
+      // paragraphs assemble one after the next.
+      document.querySelectorAll('[data-stagger]').forEach(host => {
+        if (host.closest('#lockScreen, [data-no-motion]')) return;
+        staggerChildren(host, Number(host.dataset.stagger) || 60, host.hasAttribute('data-stagger-flip'));
       });
 
       // iOS-style press feedback on anything tappable.
@@ -2470,7 +2544,8 @@
       // final values remain in the DOM while off-screen, so the page never hides
       // a measured number behind an animation.
       ['recoveryScoreVal', 'strainScoreVal', 'kpiHrvValue', 'kpiRhrValue', 'kpiFitnessAge',
-       'kpiAcwrVal', 'movementRingPct', 'glanceSessions']
+       'kpiAcwrVal', 'movementRingPct', 'glanceSessions', 'glanceSteps',
+       'markerDeltaRhr', 'markerDeltaHrv', 'markerRespRate', 'markerSleepStress']
         .forEach(id => primeCount(document.getElementById(id)));
 
       // Charts draw themselves the first time the reader scrolls to them rather
