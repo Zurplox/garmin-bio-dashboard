@@ -1466,10 +1466,25 @@ class TodaySummaryTests(unittest.TestCase):
     def test_the_window_is_labelled_in_singapore_time(self):
         self.assertEqual(self._summary()["window_label"], "22 Sep, 08:55 SGT")
 
+    def test_a_few_steps_early_in_the_day_is_not_reported_as_zero_percent(self):
+        summary = self._summary(capacity={"day": {"steps": 45, "step_goal": 10000}})["steps"]
+
+        self.assertEqual(summary["pct"], 0)
+        self.assertEqual(summary["pct_display"], "under 1% of goal")
+
+    def test_one_session_reads_as_one_session(self):
+        summary = self._summary(activities=[
+            {"startTimeLocal": "2026-09-22 07:10:00", "category": "Walking", "duration_min": 20.0},
+        ])
+
+        self.assertEqual(summary["movement"]["sessions"], 1)
+        self.assertEqual(summary["movement"]["sessions_display"], "1 session")
+
     def test_steps_are_reported_against_the_goal_and_yesterdays_own_total(self):
         steps = self._summary()["steps"]
 
         self.assertEqual((steps["count"], steps["goal"], steps["pct"]), (8702, 10000, 87))
+        self.assertEqual(steps["pct_display"], "87% of goal")
         self.assertEqual((steps["yesterday_count"], steps["yesterday_goal"]), (9100, 10000))
 
     def test_last_night_is_measured_against_the_published_sleep_need(self):
@@ -1484,8 +1499,12 @@ class TodaySummaryTests(unittest.TestCase):
         summary = analytics.build_today_summary({}, [], {}, [], {}, None)
 
         self.assertIsNone(summary["window_label"])
-        self.assertEqual(summary["steps"], {"count": None, "goal": None, "pct": None,
-                                            "yesterday_count": None, "yesterday_goal": None})
+        self.assertEqual(
+            summary["steps"],
+            {"count": None, "goal": None, "pct": None, "pct_display": None,
+             "yesterday_count": None, "yesterday_goal": None},
+        )
+        self.assertEqual(summary["movement"]["sessions_display"], "0 sessions")
         self.assertEqual(summary["movement"]["sessions"], 0)
         self.assertIsNone(summary["movement"]["minutes"])
         self.assertIsNone(summary["movement"]["latest"])

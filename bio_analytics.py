@@ -891,11 +891,14 @@ def build_today_summary(today, activities, capacity, step_days, whoop, published
             "count": steps,
             "goal": step_goal,
             "pct": int(round(steps / step_goal * 100)) if steps is not None and step_goal else None,
+            # 45 steps of 10,000 is not "0%": it is a little, and the strip says so.
+            "pct_display": _step_share_display(steps, step_goal),
             "yesterday_count": yesterday_steps,
             "yesterday_goal": yesterday_goal,
         },
         "movement": {
             "sessions": len(sessions),
+            "sessions_display": f"{len(sessions)} session" if len(sessions) == 1 else f"{len(sessions)} sessions",
             "minutes": round(sum(entry["minutes"] for entry in sessions if entry["minutes"] is not None))
             if any(entry["minutes"] is not None for entry in sessions) else None,
             "categories": categories,
@@ -915,6 +918,18 @@ def build_today_summary(today, activities, capacity, step_days, whoop, published
             ),
         },
     }
+
+
+def _step_share_display(steps, goal):
+    """Today's step count as a share of the goal, in words a reader can trust."""
+    if steps is None or not goal:
+        return None
+    share = steps / goal * 100.0
+    if share <= 0:
+        return "0% of goal"
+    if share < 1:
+        return "under 1% of goal"
+    return f"{int(round(share))}% of goal"
 
 
 def _local_activity_time(value):

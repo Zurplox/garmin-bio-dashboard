@@ -767,7 +767,7 @@
               <div class="text-[10px] uppercase tracking-wider text-slate-500">Last 24 hours</div>
               <div class="flex items-baseline gap-1.5">
                 <span id="glanceSessions" class="text-2xl font-extrabold text-white mono">--</span>
-                <span class="text-[11px] text-slate-400">session(s)</span>
+                <span id="glanceSessionsUnit" class="text-[11px] text-slate-400"></span>
               </div>
               <div id="glanceMovementDetail" class="text-[10px] text-slate-500 leading-tight">--</div>
               <div id="glanceMovementLatest" class="text-[10px] text-slate-500 leading-tight">--</div>
@@ -3545,7 +3545,7 @@
 
       const steps = summary.steps || {};
       set("glanceSteps", measured(count(steps.count)));
-      set("glanceStepsPct", steps.pct == null ? "--" : `${steps.pct}% of goal`);
+      set("glanceStepsPct", measured(steps.pct_display));
       set("glanceStepsGoal", steps.goal == null ? "Goal --" : `Goal ${count(steps.goal)}`);
       set(
         "glanceStepsYesterday",
@@ -3563,6 +3563,8 @@
 
       const movement = summary.movement || {};
       set("glanceSessions", measured(movement.sessions));
+      // "1 session" / "2 sessions" is wording, so policy-side it travels with the count.
+      set("glanceSessionsUnit", movement.sessions_display == null ? "" : movement.sessions_display.replace(/^\d+\s*/, ""));
       const kinds = (movement.categories || []).join(", ");
       set(
         "glanceMovementDetail",
