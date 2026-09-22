@@ -2452,6 +2452,11 @@
       // right from zero width.
       document.querySelectorAll('.pillar-fill').forEach((el, index) => primeGrow(el, 'width', 80 * index));
 
+      // Coach cards are rebuilt per render too: their week bars rise from the baseline
+      // and the readiness level fills across its track.
+      document.querySelectorAll('.coach-bar').forEach((el, index) => primeGrow(el, 'height', 35 * index));
+      document.querySelectorAll('.coach-level').forEach(el => primeGrow(el, 'width', 0));
+
       ['recoveryGaugeCircle', 'strainGaugeCircle', 'readinessGauge', 'movementRingArc', 'glanceStepsRing']
         .forEach(id => primeGauge(document.getElementById(id)));
 
@@ -3708,12 +3713,67 @@
     // athlete's own history shows. Every string arrives written by the engine, so
     // this function lays out and never decides -- a card that was not measured is
     // rendered as unmeasured rather than dressed up with a generic tip.
+    // The tone names a Tailwind class may be built from. It lives here rather than
+    // inside one render pass because more than one of them draws a card.
+    function toneClass(value) {
+      return ['green', 'amber', 'rose', 'cyan', 'slate'].includes(value) ? value : 'slate';
+    }
+
+    // A coach card's own reading, drawn instead of described: seven finished days as
+    // bars, or one reading against its own ceiling. The engine publishes the share each
+    // bar is drawn at and whether a day was measured at all, so the page never decides
+    // what a missing day means. A card with no reading at all gets empty stubs rather
+    // than a chart of nothing.
+    function coachVisual(visual, cardTone) {
+      const unit = visual && visual.unit ? ` ${visual.unit}` : '';
+      if (!visual) {
+        const stubs = '<span class="coach-void w-full rounded-t bg-slate-800/70" style="height: 14%"></span>';
+        return `
+          <div class="pt-1" data-no-motion>
+            <div class="flex items-end gap-1 h-10">${stubs.repeat(7)}</div>
+            <div class="text-[10px] text-slate-500 mt-1">No reading in this window, so there is nothing to draw yet.</div>
+          </div>`;
+      }
+      const fill = toneClass(visual.tone || cardTone);
+      if (visual.kind === 'level') {
+        return `
+          <div class="pt-1">
+            <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+              <div class="coach-level h-2 rounded-full bg-${fill}-500" style="width: ${visual.pct}%"></div>
+            </div>
+            <div class="text-[10px] text-slate-500 mt-1">${esc(visual.caption)} — ${esc(String(visual.value))} of ${esc(String(visual.max))}</div>
+          </div>`;
+      }
+      const bars = (visual.bars || []).map(bar => bar.value === null
+        ? `<span class="coach-void w-full rounded-t bg-slate-800/70" style="height: 6%" title="${esc(bar.date)}: no reading"></span>`
+        // A measured zero is drawn muted: a day with no training should not look
+        // like a small amount of it.
+        : `<span class="coach-bar w-full rounded-t ${bar.value ? `bg-${fill}-500/80` : 'bg-slate-700'}" style="height: ${Math.max(bar.pct, 4)}%" title="${esc(bar.date)}: ${esc(String(bar.value))}${esc(unit)}"></span>`
+      ).join('');
+      const labels = (visual.bars || []).map(bar => `<span class="w-full text-center text-[9px] text-slate-500 mono">${esc(bar.label)}</span>`).join('');
+      const line = visual.target_pct !== null && visual.target_pct !== undefined
+        ? `<div class="absolute left-0 right-0 border-t border-dashed border-slate-500/70" style="bottom: ${Math.min(visual.target_pct, 100)}%"></div>`
+        : '';
+      const reference = visual.target !== null && visual.target !== undefined
+        ? ` · line at ${Number(visual.target).toLocaleString('en-SG')}${esc(unit)}`
+        : '';
+      return `
+        <div class="pt-1">
+          <div class="relative h-12">
+            ${line}
+            <div class="absolute inset-0 flex items-end gap-1">${bars}</div>
+          </div>
+          <div class="flex gap-1 mt-0.5">${labels}</div>
+          <div class="text-[10px] text-slate-500 mt-0.5">${esc(visual.caption)}${reference} · last 7 finished days</div>
+        </div>`;
+    }
+
     function renderCoaching(data) {
       const coach = data.coaching || {};
       const esc = (text) => String(text === null || text === undefined ? '' : text)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-      const tone = (value) => ['green', 'amber', 'rose', 'cyan', 'slate'].includes(value) ? value : 'slate';
+      const tone = toneClass;
       const week = coach.week || {};
 
       document.getElementById('coachWindow').textContent = coach.available
@@ -3766,6 +3826,7 @@
                 </div>
                 <span class="text-[10px] px-2 py-0.5 rounded font-semibold bg-${cardTone}-500/10 text-${cardTone}-400 whitespace-nowrap">${esc(badge)}</span>
               </div>
+              ${coachVisual(card.visual, cardTone)}
               <p class="text-[11px] text-slate-300 leading-relaxed">${esc(card.verdict)}</p>
               ${!card.measured ? '' : `<p class="text-[11px] text-slate-400 leading-relaxed">${esc(asSentence(card.plain))}</p>`}
               <div class="p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/20">

@@ -133,6 +133,13 @@ def domain_summary(activities, today):
     window = _recent(dated, today, policy.COACH_WINDOW_DAYS)
     week = _recent(dated, today, policy.COACH_RECENT_DAYS)
 
+    week_minutes = {}
+    for moment, session in week:
+        bucket = week_minutes.setdefault(_classify(session), {})
+        bucket[moment.isoformat()] = round(
+            bucket.get(moment.isoformat(), 0.0) + (_num(session.get("duration_min")) or 0.0), 1
+        )
+
     by_domain = {}
     for key, _, _ in policy.COACH_DOMAINS:
         if key in ("sleep", "recovery"):
@@ -144,6 +151,10 @@ def domain_summary(activities, today):
         by_domain[key] = {
             "sessions": len(in_window),
             "sessions_7d": len(in_week),
+            # Session minutes per finished day, for the card's own bars. A recorded
+            # day with no session really did hold zero training, so this is the one
+            # series where an empty day is a measurement rather than a gap.
+            "week_minutes": week_minutes.get(key, {}),
             "minutes": round(sum(_num(s.get("duration_min")) or 0.0 for s in in_window), 1),
             "distance_km": round(sum(distances), 2),
             "gain_m": round(sum(gains)),
@@ -201,10 +212,20 @@ def walking_summary(steps_history, today):
         if moment is not None:
             series.append((moment, value or 0.0))
     series.sort(key=lambda pair: pair[0])
-    week = [(d, v) for d, v in series if 0 <= (today - d).days < 7]
+    # Finished days only: the movement trend card reads the same window, so the two
+    # surfaces cannot quote two different "week averages" for the same steps.
+    week = [(d, v) for d, v in series if 0 < (today - d).days < 8]
     month = [(d, v) for d, v in series if 0 <= (today - d).days < policy.COACH_WINDOW_DAYS]
     return {
         "days_7d": len(week),
+        "bars": _week_bars(
+            today,
+            {d.isoformat(): v for d, v in series},
+            "steps",
+            "steps a day",
+            target=policy.WALKING_STEPS_TARGET,
+            tone="green" if sum(1 for _, v in week if v >= policy.WALKING_STEPS_TARGET) >= policy.WALKING_DAYS_MET_TARGET else "amber",
+        ),
         "days_28d": len(month),
         "mean_7d": round(_mean([v for _, v in week]) or 0.0) if week else None,
         "mean_28d": round(_mean([v for _, v in month]) or 0.0) if month else None,
@@ -215,7 +236,7 @@ def walking_summary(steps_history, today):
     }
 
 
-def sleep_summary(sleep_history, whoop, baselines):
+def sleep_summary(sleep_history, whoop, baselines, today=None):
     """Sleep length, debt, bedtime regularity and stage mix."""
     nights = []
     for night in sleep_history or []:
@@ -237,8 +258,18 @@ def sleep_summary(sleep_history, whoop, baselines):
     week = nights[-7:]
     bedtimes = [night["bedtime"] for night in nights[-14:] if night["bedtime"] is not None]
     median_bedtime = _median(bedtimes)
+    need_hours = _num((whoop or {}).get("baseline_sleep_need_hours"))
+    anchor = today or (nights[-1]["date"] if nights else None)
     return {
         "nights": len(nights),
+        "need_hours": need_hours,
+        "bars": _week_bars(
+            anchor,
+            {n["date"].isoformat(): round(n["hours"], 2) for n in nights},
+            "h",
+            "hours a night",
+            target=need_hours,
+        ),
         "mean_hours_7d": round(_mean([n["hours"] for n in week]) or 0.0, 2) if week else None,
         "debt_hours": _num((whoop or {}).get("accumulated_7d_debt_hours")),
         "recommended_bedtime": _num((whoop or {}).get("recommended_bedtime_minutes")),
@@ -279,16 +310,73 @@ def _card(key, **fields):
         "guardrail": "",
         "metrics": [],
         "evidence": [],
+        "visual": None,
     }
     card.update(fields)
     return card
+
+
+def _week_bars(today, values, unit, caption, target=None, tone="cyan", absent_is_zero=False):
+    """Seven finished days of one series, as bars the card can draw.
+
+    The day still running is left out, exactly as the movement trend card leaves it
+    out, so a partially recorded morning cannot read as a collapsed week. A day with
+    no entry is published as an absent bar rather than a zero one -- "not measured"
+    and "measured nothing" are different claims -- unless `absent_is_zero` says the
+    absence is itself the reading, as it is for a day on which no session was logged.
+
+    `pct` is the share of the scale each bar is drawn at, so the arithmetic lives in
+    one place and the page only draws what it was given.
+    """
+    if not values:
+        return None
+    bars = []
+    for offset in range(policy.MOVEMENT_WEEK_DAYS, 0, -1):
+        moment = today - timedelta(days=offset)
+        raw = values.get(moment.isoformat())
+        if raw is None and not absent_is_zero:
+            value = None
+        else:
+            value = round(float(raw or 0.0), 2)
+        bars.append({"date": moment.isoformat(), "label": moment.strftime("%a")[:1], "value": value})
+    measured = [bar["value"] for bar in bars if bar["value"] is not None]
+    if not measured:
+        return None
+    peak = max([max(measured)] + ([float(target)] if target else []))
+    for bar in bars:
+        bar["pct"] = (
+            None if bar["value"] is None or not peak else int(round(bar["value"] / peak * 100))
+        )
+    return {
+        "kind": "week",
+        "unit": unit,
+        "caption": caption,
+        "target": round(float(target), 2) if target else None,
+        "target_pct": int(round(float(target) / peak * 100)) if target and peak else None,
+        "bars": bars,
+        "tone": tone,
+    }
+
+
+def _level(value, maximum, caption, tone="cyan"):
+    """One reading against its own ceiling, for a card that has no daily series."""
+    if value is None or not maximum:
+        return None
+    return {
+        "kind": "level",
+        "value": value,
+        "max": maximum,
+        "pct": int(max(0, min(100, round(float(value) / float(maximum) * 100)))),
+        "caption": caption,
+        "tone": tone,
+    }
 
 
 def _metric(label, value, tone="slate"):
     return {"label": label, "value": value, "tone": tone}
 
 
-def strength_card(domain, lightest_day):
+def strength_card(domain, lightest_day, today):
     stats = domain["strength"]
     if not stats["sessions"]:
         return _card(
@@ -350,11 +438,17 @@ def strength_card(domain, lightest_day):
             _metric("Typical length", f"{stats['mean_minutes']:.0f} min" if stats["mean_minutes"] else "--"),
             _metric("Minutes trained", f"{stats['minutes']:.0f} min"),
         ],
+        # No reference line: the strength target is a weekly session count, and a daily
+        # minute threshold would be a number this dashboard invented.
+        visual=_week_bars(
+            today, stats["week_minutes"], "min", "minutes a day",
+            tone=tone, absent_is_zero=True,
+        ),
         evidence=policy.evidence("strength_frequency", "load_ratio", "hrv_guided"),
     )
 
 
-def endurance_card(domain, fitness):
+def endurance_card(domain, fitness, today):
     stats = domain["endurance"]
     band = (fitness or {}).get("acwr_band")
     band_label = (fitness or {}).get("acwr_band_label")
@@ -422,6 +516,12 @@ def endurance_card(domain, fitness):
             _metric("Distance", f"{stats['distance_km']:.1f} km"),
             _metric("Load ratio", str(acwr) if acwr is not None else "--", tone),
         ],
+        # The 150-minute floor is weekly and already in the sentence, so the bars carry
+        # no reference line of their own.
+        visual=_week_bars(
+            today, stats["week_minutes"], "min", "minutes a day",
+            tone=tone, absent_is_zero=True,
+        ),
         evidence=policy.evidence("load_ratio", "hrv_guided", "intensity_guideline"),
     )
 
@@ -460,6 +560,7 @@ def walking_card(walking):
     return _card(
         "walking",
         tone=tone,
+        visual=walking["bars"],
         basis=f"{walking['days_7d']} days of step totals",
         verdict=(
             f"You averaged {mean_7d:,.0f} steps a day over the last week, clearing "
@@ -488,7 +589,7 @@ def walking_card(walking):
     )
 
 
-def hiking_card(domain, environment):
+def hiking_card(domain, environment, today):
     stats = domain["hiking"]
     heat = (environment or {}).get("heat_label")
     acclimation = (environment or {}).get("heat_acclimation_pct")
@@ -543,6 +644,10 @@ def hiking_card(domain, environment):
         guardrail=(
             f"Heat adaptation reads {acclimation if acclimation is not None else '--'}% ({heat or '--'}): "
             "hike early, carry more fluid than feels necessary, and treat humidity as extra distance."
+        ),
+        visual=_week_bars(
+            today, stats["week_minutes"], "min", "minutes a day",
+            tone=tone, absent_is_zero=True,
         ),
         metrics=[
             _metric("Total climb", f"{stats['gain_m']:,} m"),
@@ -599,6 +704,7 @@ def sleep_card(sleep):
     return _card(
         "sleep",
         tone=tone,
+        visual=sleep["bars"],
         basis=f"{sleep['nights']} nights",
         verdict=(
             f"You averaged {mean_hours:.1f} h a night over the last week"
@@ -665,6 +771,7 @@ def recovery_card(fitness, readiness, today):
     return _card(
         "recovery",
         tone=tone,
+        visual=_level(score, 100, "readiness out of 100", tone),
         basis=f"readiness {score if score is not None else '--'} | ratio {acwr if acwr is not None else '--'}",
         verdict=(
             f"Readiness is {score if score is not None else '--'}"
@@ -937,7 +1044,7 @@ def build_coaching(
 
     domain = domain_summary(activities, today)
     walking = walking_summary(steps_history, today)
-    sleep = sleep_summary(sleep_history, whoop, baselines)
+    sleep = sleep_summary(sleep_history, whoop, baselines, today)
     patterns = personal_patterns(activities, sleep_history, hrv_history, steps_history, today)
 
     lightest = None
@@ -949,10 +1056,10 @@ def build_coaching(
     recovery = recovery_card(fitness, readiness, today_snapshot)
     cards = [
         recovery,
-        strength_card(domains, lightest),
-        endurance_card(domains, fitness),
+        strength_card(domains, lightest, today),
+        endurance_card(domains, fitness, today),
         walking_card(walking),
-        hiking_card(domains, environment),
+        hiking_card(domains, environment, today),
         sleep_card(sleep),
     ]
 

@@ -204,6 +204,14 @@ A comprehensive, plain-English reference manual for Harvin's personal bio-intell
 Three readings you can point at. Hover an arc, a cell or a day — or reach it with the
 Tab key — and the panel under it says what you are looking at in words.
 
+Every coaching card leads with its own reading drawn, not described: seven finished
+days as bars — one per day, muted grey for a measured zero, a dashed line where a
+target exists (your 8,000-step floor, your published sleep need) — or a single
+readiness bar out of 100. A domain with no history draws empty stubs and says so
+rather than charting a zero nobody recorded. Hover or tap a bar for its date and
+value; the bars rise from the baseline and the readiness bar fills across its track
+when the section reaches your screen.
+
 Everything that grows on this page — a dial closing, the movement ring drawing
 itself, the battery refuelling from the bottom, a bar filling **from its left edge
 towards the right**, the quadrant chart raining its nights in from above the plot —

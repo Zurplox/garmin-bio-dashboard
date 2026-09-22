@@ -2238,6 +2238,81 @@ class CoachCardTests(unittest.TestCase):
     def _card(self, result, key):
         return next(card for card in result["cards"] if card["key"] == key)
 
+    def test_every_card_carries_a_visual_of_its_own_reading(self):
+        """A card with measurement draws it; a card without one draws nothing.
+
+        The visual is built by the same module that writes the sentence, and it
+        publishes the share of the scale each bar is drawn at, so the page never
+        decides how a reading should look.
+        """
+        result = self._coach(
+            activities=[self._session("2026-09-15"), self._session("2026-09-18")],
+            steps=[{"calendarDate": f"2026-09-{d:02d}", "totalSteps": 9000} for d in range(15, 22)],
+            sleep=[make_sleep(f"2026-09-{d:02d}", bedtime=1380) for d in range(10, 22)],
+        )
+
+        measured = [card for card in result["cards"] if card["measured"]]
+        self.assertTrue(measured)
+        for card in measured:
+            with self.subTest(card=card["key"]):
+                visual = card["visual"]
+                self.assertIsNotNone(visual, card["key"])
+                if visual["kind"] == "level":
+                    self.assertTrue(0 <= visual["pct"] <= 100)
+                else:
+                    self.assertEqual(len(visual["bars"]), 7)
+                    for bar in visual["bars"]:
+                        if bar["value"] is not None:
+                            self.assertTrue(0 <= bar["pct"] <= 100)
+                        else:
+                            self.assertIsNone(bar["pct"])
+
+        # A domain with no history publishes no chart, rather than a chart of zeroes.
+        empty = self._coach()
+        for card in empty["cards"]:
+            if not card["measured"]:
+                self.assertIsNone(card["visual"], card["key"])
+
+    def test_a_missing_step_day_is_a_gap_and_a_sessionless_day_is_a_zero(self):
+        """The two absences mean different things and are published differently."""
+        result = self._coach(
+            activities=[self._session("2026-09-18")],
+            steps=[{"calendarDate": f"2026-09-{d:02d}", "totalSteps": 9000} for d in (15, 16, 17)],
+        )
+        walking = self._card(result, "walking")
+        strength = self._card(result, "strength")
+        dates = {bar["date"]: bar["value"] for bar in walking["visual"]["bars"]}
+        minutes = {bar["date"]: bar["value"] for bar in strength["visual"]["bars"]}
+
+        self.assertIsNone(dates["2026-09-18"])  # the device recorded no step total
+        self.assertEqual(minutes["2026-09-17"], 0.0)  # the day passed with no session
+        self.assertEqual(minutes["2026-09-18"], 40.0)
+
+    def test_the_coach_and_the_movement_card_quote_one_week_average(self):
+        """Both read the finished days, so they cannot disagree about the same steps.
+
+        The coach card and `bio_analytics.build_movement_trend` used to compute a
+        "week average" over slightly different windows, which is how one reading ends
+        up carrying two numbers on one page.
+        """
+        days = {15: 8384, 16: 4745, 17: 717, 18: 7804, 19: 116, 20: 8765, 21: 45}
+        steps = [{"calendarDate": f"2026-09-{day:02d}", "totalSteps": value} for day, value in days.items()]
+        walking = self._card(self._coach(steps=steps), "walking")
+        trend = analytics.build_movement_trend(
+            {"steps": {f"2026-09-{day:02d}": value for day, value in days.items()}},
+            self.TODAY,
+            10000,
+        )
+
+        bars = walking["visual"]["bars"]
+        measured = [bar["value"] for bar in bars if bar["value"] is not None]
+
+        # Same seven finished days, today's still-running count left out of both, and
+        # the same average to the digit.
+        self.assertEqual([bar["date"] for bar in bars], [f"2026-09-{day:02d}" for day in range(14, 21)])
+        self.assertEqual(round(sum(measured) / len(measured)), trend["week"]["mean_steps"])
+        self.assertIn(f"{trend['week']['mean_steps']:,} steps a day", walking["verdict"])
+
     def test_every_domain_publishes_a_card_with_all_five_parts(self):
         result = self._coach(
             activities=[self._session("2026-09-15"), self._session("2026-09-18")],
