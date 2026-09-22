@@ -82,6 +82,15 @@ frontend: that is how the page once displayed a recovery score of 68 labelled
 * **Render** — `renderDashboard(data)` walks the payload once and writes every value; each `render*` or `update*` helper owns one card. Values, bands and tones arrive resolved, so nothing here compares a metric with a threshold of its own.
 * **Motion** — `playVisuals()`, called at the end of `renderDashboard`, replays gauges, rings, bars and charts the first time they reach the fold. It reads each element's already-rendered target and re-applies it, so no value is computed twice and a re-render never animates a number the engine did not publish. `vizPlayed` keeps a replay to once per element; `motion-live` (added only when motion is allowed) is what arms the hidden start state, so a reduced-motion reader or a JavaScript-less load sees final values and no invisible cards. The helpers each own one shape of movement — `primeGauge` and `primeScale` (rings and the workload dial), `primeGrow` (bars and the battery, staggered by a delay per panel), `primeCount` (headline numbers, which stop writing the moment a render replaces their target), `animateHeatmap` (the heat map and its square enlarged view, one cell at a time) and the chart settle applied to every canvas — and the springs themselves live in CSS as `gauge-spring` / `bar-spring` / `chart-spring` / `heat-cell-spring`.
 
+  A panel that is mostly readings and prose opts in with `data-stagger` (plus
+  `data-stagger-flip` for the tipped entrance the glance strip uses): `staggerChildren`
+  gives each child the same reveal, one step apart, so the panel assembles instead of
+  appearing. It is opt-in per container rather than automatic because the stagger pass
+  only runs when a panel is first rendered, and because a grid and its cards should not
+  both fade. Every one of these paths is armed only by `motion-live`, and each has a
+  timer behind it — the sweep's frame latch, a primed bar, a counting number — so a
+  throttled frame loop can never leave a measured value sitting invisible or wrong.
+
 Analysis prose is split on `PLAIN_PARAGRAPH_SEPARATOR` into the clinical paragraph and the explanation beneath it; `asSentence()` stands policy's lowercase clauses alone on the lines that no longer carry an "In plain English:" label.
 
 ## Tests
