@@ -1611,7 +1611,9 @@ class MotionDirectionTests(unittest.TestCase):
 
     The bars once animated with a scale spring that started at 92% of their width,
     which reads as a wobble in place rather than a fill, and a primed bar whose
-    reveal never came rendered at zero width -- a measurement shown as nothing.
+    reveal never came rendered at zero width -- a measurement shown as nothing. The
+    quadrant matrix had the same shape of problem twice over: every night fell in from
+    above the plot, and tonight's diamond was painted behind every earlier night.
     """
 
     @staticmethod
@@ -1705,16 +1707,73 @@ class MotionDirectionTests(unittest.TestCase):
             with self.subTest(el_id=el_id):
                 self.assertIn(f"'{el_id}'", page)
 
-    def test_the_scatter_animation_starts_every_point_above_the_plot(self):
+    def test_tonight_is_drawn_in_front_of_every_earlier_night(self):
         page = self._page()
-        start = page.split("function scatterDropStart", 1)[1].split("\n    function ", 1)[0]
+        scatter = page.split("const scatterDatasets = [", 1)[1].split("];", 1)[0]
+        # Chart.js paints the lowest order last, so tonight's diamond needs one of its
+        # own or a busy cluster buries the reading the reader came for.
+        self.assertEqual(scatter.count("order: -1"), 1)
+        self.assertIn("order: -1", scatter.split("label: 'Today (Latest)'", 1)[1])
 
-        self.assertIn("chartArea", start)
-        self.assertIn("return top - ", start)
-        # The drop is pixel-space, which is why it reads the chart area and not the data.
-        self.assertIn("from: (ctx) => scatterDropStart(", page)
-        self.assertIn("easing: 'easeOutQuad'", page)
+    def test_every_night_arrives_from_depth_rather_than_from_above(self):
+        page = self._page()
+        # The measured sizes are read before the depth is applied, so every night is
+        # promoted back to the size this render measured, not to one it never had.
+        self.assertIn(
+            "const measuredPointSizes = scatterDatasets.map(dataset => dataset.pointRadius);", page
+        )
+        depth = page.split("const arriveFromDepth = motionAllows();", 1)[1].split(
+            "scatterChartInstance = new Chart", 1
+        )[0]
+        self.assertIn("dataset.pointRadius = SCATTER_DEPTH_POINT_RADIUS;", depth)
+        self.assertIn("const SCATTER_DEPTH_POINT_RADIUS = 0.5;", page)
+        # A point's x and y are where the reading was measured, so neither travels: the
+        # only thing that moves is the depth it comes forward from, and it arrives with
+        # the same overshoot-then-settle bounce the gauges and bars use.
+        animation = page.split("animation: motionAllows() ? {", 1)[1].split("} : false,", 1)[0]
+        self.assertIn("x: { duration: 0 }", animation)
+        self.assertIn("y: { duration: 0 }", animation)
+        self.assertIn("easing: 'easeOutBack'", animation)
+        # Chart.js re-uses an animation config for every later transition, so a `from`
+        # depth or a `delay` also replays on hover and collapses the point under the
+        # reader's cursor. The entrance is a staged size change instead.
+        self.assertNotIn("from:", animation)
+        self.assertNotIn("delay", animation)
+        self.assertNotIn("scatterDropStart", page)
+        self.assertNotIn("easeOutQuad", page)
 
+    def test_each_night_comes_forward_on_its_own_turn_and_a_stale_timer_stands_down(self):
+        page = self._page()
+        staged = page.split("      if (arriveFromDepth) {", 2)[2].split("if (todayPoint)", 1)[0]
+        # One owner for the arrival, played from the render and again from the reveal sweep.
+        self.assertIn("scatterChart.arriveFromDepth = () => {", staged)
+        self.assertIn("scatterChart.arriveFromDepth();", staged)
+        self.assertIn("const arrivalTimers = [];", staged)
+        # A replay restarts the wave instead of racing the one already in flight, and it
+        # starts every night back at its far depth rather than growing it twice the size.
+        self.assertIn("arrivalTimers.forEach(window.clearTimeout);", staged)
+        self.assertIn("arrivalTimers.length = 0;", staged)
+        self.assertIn("dataset.pointRadius = SCATTER_DEPTH_POINT_RADIUS;", staged)
+        self.assertIn("scatterChart.update('none');", staged)
+        # A timer left over from a render the page has already replaced must not drive
+        # the chart that replaced it.
+        self.assertIn("if (scatterChartInstance !== scatterChart) return;", staged)
+        self.assertIn("dataset.pointRadius = measuredPointSizes[index];", staged)
+        self.assertIn("scatterChart.update();", staged)
+        self.assertIn("}, SCATTER_ARRIVAL_STAGGER_MS * index));", staged)
+        self.assertIn("const SCATTER_ARRIVAL_STAGGER_MS = 180;", page)
+
+    def test_the_arrival_plays_when_the_reader_reaches_the_chart(self):
+        page = self._page()
+        # The reveal sweep is where a canvas chart arrives. Resetting a scatter whose points
+        # already sit where they were measured is a no-op -- measured as a single frame with
+        # every position and size unchanged -- so the matrix hands the sweep its own arrival
+        # and every other canvas still settles exactly as it did.
+        hand_off = "if (typeof live.arriveFromDepth === 'function') live.arriveFromDepth();"
+        self.assertIn(hand_off, page)
+        fallback = page.split(hand_off, 1)[1].split("});", 1)[0]
+        self.assertIn("live.reset();", fallback)
+        self.assertIn("live.update();", fallback)
 
 class ReRenderMotionTests(unittest.TestCase):
     """A panel a re-render rebuilds animates again, and nothing is left stranded.
@@ -2149,6 +2208,20 @@ class NoInventedMeasurementTests(unittest.TestCase):
         self.assertIn("function measured(", page)
         self.assertIn('measured(today.hrv_last_night)', page)
         self.assertIn('measured(fitness.acwr)', page)
+
+    def test_the_quadrant_chart_publishes_no_word_nobody_measured(self):
+        page = self._page()
+        scatter = page.split("function renderScatterMatrix", 1)[1].split(
+            "function getScatterQuadrantInfo", 1
+        )[0]
+        # Tonight's point used to carry `hrv_status || 'BALANCED'` -- a reassuring verdict
+        # for a field the payload may not have published. Nothing read it: the quadrant is
+        # decided by the two coordinates and their baselines, so the word is gone rather
+        # than defaulted. (The coordinates themselves still carry fallbacks of their own;
+        # that remaining debt is named in HANDOFF section 8.)
+        self.assertNotIn("hrv_status", scatter)
+        self.assertNotIn("'BALANCED'", scatter)
+        self.assertNotIn("status:", scatter)
 
 
 class UnmeasuredWorkloadTests(unittest.TestCase):

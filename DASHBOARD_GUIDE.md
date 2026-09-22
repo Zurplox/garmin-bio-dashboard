@@ -130,7 +130,7 @@ A comprehensive, plain-English reference manual for Harvin's personal bio-intell
 ---
 
 ### 13. 📊 2D Autonomic Nervous System Quadrant Matrix
-* **What it is:** A 186-night scatter plot mapping overnight HRV (vertical Y-axis) against Resting Heart Rate (horizontal X-axis). The legend leads with **Today (Latest)** and the sentence under the chart opens with tonight's coordinates, so the reading you came for is the first thing on screen rather than one dot lost in the cloud. Hover or touch any node for that night's numbers.
+* **What it is:** A 186-night scatter plot mapping overnight HRV (vertical Y-axis) against Resting Heart Rate (horizontal X-axis). The legend leads with **Today (Latest)** and the sentence under the chart opens with tonight's coordinates, so the reading you came for is the first thing on screen rather than one dot lost in the cloud. Tonight's diamond is drawn in front of every earlier night, so a busy cluster can never hide it, and hovering it grows it in place rather than sinking it. Hover or touch any node for that night's numbers.
 * **Why these two together:** RHR (resting heart rate — your pulse while still) says how hard your heart works at rest; HRV (heart rate variability — how much the gap between beats varies) says how much recovery your nervous system got. Lower RHR and higher HRV normally mean a stronger, better-recovered system. When both move the wrong way at once — HRV down *and* RHR up — that is the combination that tends to appear before illness, a stretch of heavy training, or broken sleep. Read against your own 30-day baselines (the dashed lines), not against other people.
 * **The 4 Recovery Quadrants:**
   * 🟢 **Q1: Peak Recovery (Top-Left):** High HRV + Low RHR. Nervous system relaxed, cardiovascular load low. Prime training state (84+ nights).
@@ -214,7 +214,7 @@ when the section reaches your screen.
 
 Everything that grows on this page — a dial closing, the movement ring drawing
 itself, the battery refuelling from the bottom, a bar filling **from its left edge
-towards the right**, the quadrant chart raining its nights in from above the plot —
+towards the right**, the quadrant chart bringing its nights forward out of the screen, one quadrant at a time —
 animates the first time it reaches your screen rather than finishing off-screen while
 the page loads, and again whenever a panel is rebuilt under you: filtering the activity
 table, pressing Refresh, or re-opening the enlarged heat map assembles those parts the

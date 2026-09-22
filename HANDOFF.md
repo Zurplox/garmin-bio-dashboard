@@ -271,6 +271,7 @@ These are not style preferences. Each one closed a real, user-visible bug.
 | #19 | The movement card becomes a week-and-month trend, built from the same daily channels the correlation lab uses, with the heart reading beside it and today's still-running day left out of the average |
 | #20 | Bars fill from their own edge (`scaleX(0)` from the left, `scaleY(0)` from the bottom) instead of springing at 92% of their width; the five-pillar bars are primed by class with a failsafe that fills them if the reveal never comes; the quadrant chart rains its points in from above the plot |
 | #21 | Every coaching card leads with its own reading drawn: seven finished days as bars (muted for a measured zero, dashed target line where policy has one) or a readiness level bar, empty stubs for a domain with no history. The coach's walking week moves to finished days so it quotes the same average as the movement trend card |
+| #29 | The quadrant scatter's newest night is drawn in front of every earlier night (`order: -1` -- Chart.js paints the lowest order last, so without it tonight's diamond was painted first and buried under the cluster) and every night arrives from **depth** instead of falling in from above: the chart is built with every point at a far radius and each dataset's measured size is promoted on its own turn (322/529/742/1095/1264 ms apart, measured on the running page) with the shared overshoot bounce. The size is promoted rather than animated from a `from` value because Chart.js re-uses an animation config for every later transition -- measured: a `from` depth collapsed a hovered point from 4 px back to 0.55 px under the cursor. The arrival has one owner (`chart.arriveFromDepth`) played from two places: at the render, so every night reaches its measured size even if the reveal never comes (a chart caught at depth would draw readings as pinpricks), and by the reveal sweep when the reader scrolls to the chart -- resetting this chart is a no-op, measured as a single frame with every position and size unchanged, so the sweep now asks a chart for its own arrival first. Its point data also stops carrying the `hrv_status || 'BALANCED'` word nobody read |
 | #28 | The heat map's tone moves off the focus view and onto the map itself: it sounds as the map loads while scrolling, the cue is renamed `reveal` to match when it plays, and opening or closing the enlarged view is silent |
 | #27 | A re-render replays the motion of the panel it rebuilt: `primeMotion(scope)` becomes the single owner every pass applies, a rebuilt panel replays itself (`replayMotion`) instead of being replaced by plain nodes, and a second `renderDashboard` forgets the played marks so the readings it rewrote (bars, gauges, counters, charts) replay too. Primitives stand down from a second prime in the same pass rather than reading back their own zero, every animation finishes on the newest published value, and `replayAnimation` restarts an existing spring for a bar the render rewrites in place. Found and fixed on the real page: a reveal captured a Chart instance at prime time, and a render that destroyed it made `reset()` throw out of the sweep, leaving every primable behind that canvas unrevealed |
 | #26 | One sound vocabulary (`SOUND_CUES` + `playCue`) replaces the frequencies chosen at each call site, and the silent controls speak: heat-map enlarge, lock, arming the emergency lockout, a Refresh that started, one refused by its cooldown, and one that failed. Continuous interactions keep their pitch ladders |
@@ -287,11 +288,12 @@ its data, and the published page loads the fresh vault.
 
 ## 8. Known open items (honest list)
 
-* **The quadrant scatter still fabricates a word.** Its point data uses
-  `data.today.hrv_status || 'BALANCED'`, one of the last two places on the page where
-  an absent field becomes a reassuring verdict. Every other surface was fixed in
-  PR #6/#9/#14; this chart was left deliberately out of scope. Small fix: the scatter's
-  callout should read the published band/delta like the HUD does.
+* **The quadrant scatter still invents tonight's coordinates.** Its point data falls
+  back to `data.today.rhr || 51` and `data.today.hrv_last_night || 60`, so a night the
+  payload did not publish is drawn as a plausible point instead of not being drawn. The
+  word it used to fabricate is gone as of #29 -- `hrv_status || 'BALANCED'` was never
+  read, so deleting it closed that fallback rather than renaming it. The remaining fix
+  is to skip the point and say so, the way the other cards do.
 * **The engine's own fallbacks are still fallbacks.** `intel.recovery_score || 76`
   and `today.hrv_last_night || 60` feed gauges and chart coordinates when a field is
   missing, and the sleep-stage seconds still default inside the doughnut's own
