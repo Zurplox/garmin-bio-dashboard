@@ -106,6 +106,17 @@ fluid replacement (ACSM 2007) and the WHO activity floor. Each anchor publishes 
 the study found **and what it does not settle**, so a recommendation can be argued
 with rather than merely obeyed.
 
+## 🧭 Today at a glance
+
+The first card on the page is three readings and nothing else: **today's steps**
+against the goal your device holds (with yesterday's own total underneath), **what
+was trained in the last 24 hours** (one pip per session, the minutes and the
+activity types, and how long ago the last one finished), and **last night** against
+your own sleep need. Every value is resolved by the engine and published in the
+`today_summary` group, the 24-hour window is labelled with the moment it ends so
+"the last 24 hours" is never ambiguous, and a reading that was not measured reads
+`--` like every other absent number on the page.
+
 ## 🎛️ Instruments you can point at
 
 The **Load, Movement & Consistency** section turns three readings into things you can

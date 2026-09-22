@@ -806,6 +806,127 @@ def build_environment_signal(location_days, weather, heat_acclimation_pct, hydra
     }
 
 
+def build_today_summary(today, activities, capacity, step_days, whoop, published_at):
+    """The three readings a reader wants first, in the smallest honest form.
+
+    Everything here is measured or absent -- there is no plausible default to fall
+    back on -- and the window is stated on the page, so "the last 24 hours" means
+    the 24 hours ending when this payload was published rather than whenever the
+    reader happens to open it.
+    """
+    today = today or {}
+    day = (capacity or {}).get("day") or {}
+    steps = day.get("steps")
+    step_goal = day.get("step_goal")
+
+    window_end = None
+    window_label = None
+    if published_at:
+        try:
+            moment = datetime.datetime.fromisoformat(published_at)
+            if moment.tzinfo is None:
+                moment = moment.replace(tzinfo=datetime.timezone.utc)
+            window_end = moment.astimezone(
+                datetime.timezone(datetime.timedelta(minutes=policy.SGT_OFFSET_MINUTES))
+            )
+            window_label = window_end.strftime("%d %b, %H:%M SGT")
+            # Activity stamps are local wall-clock strings, so the window is compared
+            # in the same naive SGT terms rather than across time zones.
+            window_end = window_end.replace(tzinfo=None)
+        except (TypeError, ValueError):
+            window_end = None
+
+    sessions = []
+    for activity in activities or []:
+        started = _local_activity_time(activity.get("startTimeLocal"))
+        if started is None:
+            continue
+        if window_end and not (window_end - datetime.timedelta(hours=24) <= started <= window_end):
+            continue
+        sessions.append({
+            "category": activity.get("category") or activity.get("activityType"),
+            "minutes": activity.get("duration_min"),
+            "started": started,
+        })
+    sessions.sort(key=lambda entry: entry["started"], reverse=True)
+    categories = []
+    for entry in sessions:
+        if entry["category"] and entry["category"] not in categories:
+            categories.append(entry["category"])
+
+    latest = None
+    if sessions and window_end:
+        newest = sessions[0]
+        hours = round((window_end - newest["started"]).total_seconds() / 3600.0)
+        latest = {
+            "category": newest["category"],
+            "minutes": round(newest["minutes"]) if newest["minutes"] is not None else None,
+            "hours_ago": hours,
+        }
+
+    # Yesterday's own total, from the daily step records rather than from a guess.
+    yesterday_steps = yesterday_goal = None
+    steps_by_date = {}
+    for record in step_days or []:
+        date = record.get("calendarDate")
+        if date:
+            steps_by_date[date] = record
+    date = today.get("date")
+    if date:
+        try:
+            previous = (datetime.date.fromisoformat(str(date)[:10]) - datetime.timedelta(days=1)).isoformat()
+            record = steps_by_date.get(previous) or {}
+            yesterday_steps = record.get("totalSteps")
+            yesterday_goal = record.get("stepGoal")
+        except ValueError:
+            pass
+
+    night_seconds = today.get("sleep_time_seconds")
+    baseline_hours = (whoop or {}).get("baseline_sleep_need_hours")
+    night_hours = round(night_seconds / 3600.0, 1) if night_seconds else None
+
+    return {
+        "window_label": window_label,
+        "steps": {
+            "count": steps,
+            "goal": step_goal,
+            "pct": int(round(steps / step_goal * 100)) if steps is not None and step_goal else None,
+            "yesterday_count": yesterday_steps,
+            "yesterday_goal": yesterday_goal,
+        },
+        "movement": {
+            "sessions": len(sessions),
+            "minutes": round(sum(entry["minutes"] for entry in sessions if entry["minutes"] is not None))
+            if any(entry["minutes"] is not None for entry in sessions) else None,
+            "categories": categories,
+            "latest": latest,
+        },
+        "sleep": {
+            "score": today.get("sleep_score"),
+            "hours": night_hours,
+            "formatted": (
+                f"{night_seconds // 3600}h {(night_seconds % 3600) // 60:02d}m"
+                if night_seconds else None
+            ),
+            "baseline_hours": baseline_hours,
+            "pct_of_baseline": (
+                int(round(min(night_hours / baseline_hours, 2.0) * 100))
+                if night_hours and baseline_hours else None
+            ),
+        },
+    }
+
+
+def _local_activity_time(value):
+    """An activity's local start ("2026-09-21 20:01:02") as a naive SGT datetime."""
+    if not isinstance(value, str) or len(value) < 19:
+        return None
+    try:
+        return datetime.datetime.strptime(value[:19], "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+
+
 def build_capacity_signal(profile, race_predictions, intensity, daily_activity, today_str):
     """Training capacity from the athlete's own profile and forecasts.
 

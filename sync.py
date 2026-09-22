@@ -204,6 +204,12 @@ def build_payload(client, fetched, dq):
         all_hrv,
     )
 
+    # The three readings a reader wants before anything else: today's movement,
+    # what was trained in the last 24 hours, and last night's sleep.
+    today_summary = analytics.build_today_summary(
+        today_snapshot, activities, capacity, fetched["steps"], whoop_data, utc_now_iso()
+    )
+
     quality = dq.as_dict()
     if not dq.publishable():
         print("\n" + "!" * 65)
@@ -258,6 +264,7 @@ def build_payload(client, fetched, dq):
             "activities": activities,
         },
         "clinical_intelligence": intelligence,
+        "today_summary": today_summary,
         # Measured signal groups. Each one carries whether it was measured and, where
         # the data is sparse by nature, how sparse.
         "oxygen": oxygen,

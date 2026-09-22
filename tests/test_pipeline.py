@@ -1100,6 +1100,14 @@ class PayloadAssemblyTests(unittest.TestCase):
         self.assertNotIn("acwr_band", payload["fitness"])
         self.assertNotIn("None", payload["clinical_intelligence"]["workload_and_biological_age"])
 
+    def test_the_payload_carries_the_top_strip(self):
+        payload = sync.build_payload(self.client, self.fetched, self._dq())
+        summary = payload["today_summary"]
+
+        self.assertEqual(summary["movement"]["sessions"], 0)  # the fixture logs no activity
+        self.assertEqual(summary["sleep"]["baseline_hours"], payload["whoop"]["baseline_sleep_need_hours"])
+        self.assertTrue(summary["window_label"].endswith("SGT"))
+
     def test_payload_ships_resolved_bands_and_computed_scores(self):
         payload = sync.build_payload(self.client, self.fetched, self._dq())
 
@@ -1415,6 +1423,100 @@ class FitnessFallbackTests(unittest.TestCase):
 
         self.assertEqual(result["chronological_age"], 29)
         self.assertEqual(result["device_name"], "fenix 6S ASIA Sapphire")
+
+
+class TodaySummaryTests(unittest.TestCase):
+    """The top strip reports the published window, and invents nothing.
+
+    It answers three questions -- today's steps, what was trained in the last 24
+    hours, and last night -- so it has to be exact about the window it covers and
+    quiet about anything the payload did not measure.
+    """
+
+    PUBLISHED = "2026-09-22T00:55:04+00:00"  # 08:55 SGT
+
+    def _summary(self, **overrides):
+        activities = overrides.pop("activities", [
+            {"startTimeLocal": "2026-09-22 07:10:00", "category": "Walking", "duration_min": 20.0},
+            {"startTimeLocal": "2026-09-22 00:30:00", "category": "Gym", "duration_min": 45.0},
+            # Outside the 24-hour window: 08:55 SGT on the 20th is 48 hours back.
+            {"startTimeLocal": "2026-09-20 08:00:00", "category": "Running", "duration_min": 30.0},
+        ])
+        today = overrides.pop("today", {
+            "date": "2026-09-22", "sleep_time_seconds": 24300, "sleep_score": 80,
+        })
+        capacity = overrides.pop("capacity", {"day": {"steps": 8702, "step_goal": 10000}})
+        step_days = overrides.pop("step_days", [
+            {"calendarDate": "2026-09-21", "totalSteps": 9100, "stepGoal": 10000},
+            {"calendarDate": "2026-09-22", "totalSteps": 45, "stepGoal": 10000},
+        ])
+        whoop = overrides.pop("whoop", {"baseline_sleep_need_hours": 7.5})
+        published = overrides.pop("published_at", self.PUBLISHED)
+        return analytics.build_today_summary(today, activities, capacity, step_days, whoop, published)
+
+    def test_the_window_is_the_24_hours_ending_at_publication(self):
+        movement = self._summary()["movement"]
+
+        self.assertEqual(movement["sessions"], 2)  # the 20th is outside it
+        self.assertEqual(movement["minutes"], 65)
+        self.assertEqual(movement["categories"], ["Walking", "Gym"])
+        self.assertEqual(movement["latest"]["category"], "Walking")
+        self.assertEqual(movement["latest"]["hours_ago"], 2)
+
+    def test_the_window_is_labelled_in_singapore_time(self):
+        self.assertEqual(self._summary()["window_label"], "22 Sep, 08:55 SGT")
+
+    def test_steps_are_reported_against_the_goal_and_yesterdays_own_total(self):
+        steps = self._summary()["steps"]
+
+        self.assertEqual((steps["count"], steps["goal"], steps["pct"]), (8702, 10000, 87))
+        self.assertEqual((steps["yesterday_count"], steps["yesterday_goal"]), (9100, 10000))
+
+    def test_last_night_is_measured_against_the_published_sleep_need(self):
+        sleep = self._summary()["sleep"]
+
+        self.assertEqual(sleep["formatted"], "6h 45m")
+        self.assertEqual(sleep["score"], 80)
+        self.assertEqual(sleep["baseline_hours"], 7.5)
+        self.assertEqual(sleep["pct_of_baseline"], 91)
+
+    def test_an_empty_payload_reports_nothing_rather_than_a_number(self):
+        summary = analytics.build_today_summary({}, [], {}, [], {}, None)
+
+        self.assertIsNone(summary["window_label"])
+        self.assertEqual(summary["steps"], {"count": None, "goal": None, "pct": None,
+                                            "yesterday_count": None, "yesterday_goal": None})
+        self.assertEqual(summary["movement"]["sessions"], 0)
+        self.assertIsNone(summary["movement"]["minutes"])
+        self.assertIsNone(summary["movement"]["latest"])
+        self.assertIsNone(summary["sleep"]["formatted"])
+        self.assertIsNone(summary["sleep"]["pct_of_baseline"])
+
+    def test_the_page_renders_absent_values_as_absent(self):
+        page = (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+        body = page.split("function renderTodaySummary", 1)[1].split("\n    function ", 1)[0]
+
+        for element_id in ("glanceWindow", "glanceSteps", "glanceSessions", "glanceSleep",
+                           "glanceStepsPct", "glanceSleepNeed"):
+            with self.subTest(element=element_id):
+                self.assertIn(f'"{element_id}"', body)
+                # Each display line reports a measurement or "--", never a number.
+                window = body.split(f'"{element_id}"', 1)[1].split(";", 1)[0]
+                self.assertNotRegex(window, r'\|\|\s*[0-9"]', window)
+        self.assertIn("measured(", body)
+
+    def test_every_strip_value_starts_as_absent(self):
+        page = (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+        strip = page.split("id=\"glanceWindow\"", 1)[1].split("<!-- SECTION 0", 1)[0]
+
+        for element_id in ("glanceSteps", "glanceSessions", "glanceSleep"):
+            with self.subTest(element=element_id):
+                tag = strip.split(f'id="{element_id}"', 1)[1].split("</", 1)[0]
+                self.assertTrue(tag.rstrip().endswith("--"), tag)
 
 
 class FitnessAgeOwnerTests(unittest.TestCase):

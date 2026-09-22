@@ -126,6 +126,13 @@ diff.
 
 ---
 
+`today_summary` is the top strip's owner: `build_today_summary(today, activities, capacity,
+step_days, whoop, published_at)` resolves today's steps against the device's own goal,
+the sessions inside the 24 hours ending at publication (with their categories and how
+long ago the last one finished), and last night against the published sleep need. It
+reads a `None` as absent — the strip prints `--` rather than a plausible number — and the
+window it covers is published as `window_label` so the page never has to imply one.
+
 ## 5. What the payload carries
 
 Top-level keys emitted by `sync.build_payload()`:
@@ -217,6 +224,7 @@ These are not style preferences. Each one closed a real, user-visible bug.
 | #13 | `None` from a failed endpoint no longer crashes the pipeline; an unmeasured workload ratio is reported as unmeasured instead of assumed |
 | #14 | Every card renders `--` for an absent measurement instead of a plausible number; the fitness-age advantage badge gets a policy owner |
 | #15 | Night mode is the default for a first visit; the operating system no longer picks the theme |
+| #16 | **Today at a glance** strip: steps vs goal, the last 24 hours of training, and last night vs sleep need, all resolved by `build_today_summary` |
 
 Since the last merge, `daily_sync.yml` has been dispatch-verified on `main`: the
 runner fetches with the real key, publishes from the deterministic engine, commits
