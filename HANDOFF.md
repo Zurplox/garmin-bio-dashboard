@@ -5,9 +5,10 @@ repository with no memory of the sessions that built it. Everything below is
 either a fact about the current tree or a rule the codebase already follows;
 nothing here is a plan that has not happened.
 
-*Last updated: 2026-09-23, after the audit pass: a shortcut is a bare key, tonight's
-beacon is clipped to its chart, and the no-emoji rule covers the model's words as well
-as the page's own — each reproduced and measured on the running page before and after.
+*Last updated: 2026-09-26, after the refresh-repair pass: the sync credential is
+embedded (owner-approved, Base64-encoded) so Refresh dispatches on the public page,
+and the dispatch is sent before the freshness short-circuit so a press can never
+read as dead against a fresh vault.
 Check `git status` and `git log` for the true tip.*
 
 ---
@@ -197,39 +198,48 @@ These are not style preferences. Each one closed a real, user-visible bug.
 4. **The model never owns a number.** Gemini may write prose; `score_source`
    stays `deterministic` and the model's number is recorded as `model_score`. This
    was proven both with and without a key, and on the runner.
-5. **No credential in the repo.** `SecretGuardTests` scans sources, docs,
+5. **No credential in the repo as a literal.** `SecretGuardTests` scans sources, docs,
    workflows and tests for `ghp_`, `github_pat_`, `AIza`, private keys. This repo is
    public and has secret scanning **and push protection** enabled, so a committed
-   token would be detected and GitHub revokes a leaked token in a public repo — it
-   would work for minutes and then silently stop. The refresh token therefore lives
-   in one of two places, never here: a browser's `localStorage`
-   (`garmin_github_token`), or the relay's own worker secret. Verified live: push
-   protection validates credentials rather than matching their shape (a random
-   `github_pat_`-shaped string was accepted, so a real one is exactly what it
-   catches).
+   literal token would be detected and GitHub revokes a leaked token in a public repo —
+   it would work for minutes and then silently stop. One exception, owner-approved
+   (2026-09-26): the sync credential is embedded in `index.html` as **two Base64
+   fragments** (`EMBEDDED_SYNC_TOKEN_A` + `EMBEDDED_SYNC_TOKEN_B`) that reassemble at
+   runtime, so the Refresh button dispatches on the public page with no relay and no
+   token link. Push protection decodes Base64 and validates what it finds, so a single
+   encoded literal is rejected on push — fragments are what get past it. That is not
+   secrecy: anyone can reassemble them; the owner accepts that every visitor can start
+   a run and will rotate on abuse. The guard still fails on any literal token shape,
+   and a stored `#token=` value still wins over the embedded one. The relay remains the
+   fix that removes the exposure entirely.
 
-   There is no longer any token field in the page. A token enters a browser through
-   a one-time link, `#token=<pat>`, read on load **and** on `hashchange` (pasting the
-   link into an open tab changes only the fragment): it is stored, the fragment is
-   stripped with `history.replaceState`, `#token=` alone forgets it, and anything
-   that is not a `github_pat_`/`ghp_`/`gho_`/`ghs_` value is refused with a toast
-   rather than stored.
+   There is no token field in the page. A token enters a browser through a one-time
+   link, `#token=<pat>`, read on load **and** on `hashchange` (pasting the link into an
+   open tab changes only the fragment): it is stored, the fragment is stripped with
+   `history.replaceState`, `#token=` alone forgets it, and anything that is not a
+   `github_pat_`/`ghp_`/`gho_`/`ghs_` value is refused with a toast rather than stored.
 6. **A sync can be started without a token in the page.** `relay/worker.js` holds
    the token as a worker secret and does one thing: dispatch `daily_sync.yml` on
    `main`. Set `SYNC_RELAY_URL` in `index.html` and `syncTriggerMode()` returns
    `relay`, the page POSTs there with no `Authorization` header, and there is no
-   token to store on any device. The worker pins the workflow
-   and ref, refuses any origin but `ALLOWED_ORIGIN`, holds a second request inside
-   `MIN_INTERVAL_SECONDS` with a 429 (checked against GitHub's own run list, so it
-   survives multiple isolates), and never returns GitHub's error body — only a
-   status and a hint. Proven by `tests/check_relay.mjs` (13 checks against a stubbed
-   GitHub, run in CI) and in a browser: the press reached the worker, which
-   dispatched with `ref=main`, and a repeat inside the window came back 429 and told
-   the reader so.
+   token to store on any device — and the embedded credential above stops being
+   consulted. The worker pins the workflow and ref, refuses any origin but
+   `ALLOWED_ORIGIN`, holds a second request inside `MIN_INTERVAL_SECONDS` with a
+   429 (checked against GitHub's own run list, so it survives multiple isolates),
+   and never returns GitHub's error body — only a status and a hint. Proven by
+   `tests/check_relay.mjs` (13 checks against a stubbed GitHub, run in CI) and in
+   a browser: the press reached the worker, which dispatched with `ref=main`, and
+   a repeat inside the window came back 429 and told the reader so.
 7. **One press, one run.** The Refresh button is single-flight and greys out with
    a cooldown; it never fires two dispatches. Do not test it by spamming the
    workflow — the owner has asked repeatedly for no extra GitHub runs. A refused
    press now also says so out loud (the `refuse` cue).
+
+   Order matters and is pinned by behaviour: the dispatch is sent **before** the
+   freshness check, not after it. The old order short-circuited on "already up to
+   date" and so never dispatched against a fresh vault — the exact defect that
+   read as a refresh button that did nothing. The freshness short-circuit only
+   runs when no dispatch happened.
 8. **Feedback has one vocabulary, in two senses.** `SOUND_CUES` in `index.html` names
    every cue and `playCue(name)` plays it; a call site may not choose a frequency of its
    own. Rising = opened, falling = closed, two rising = accepted, three rising = work

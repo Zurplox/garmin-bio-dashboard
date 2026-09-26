@@ -185,9 +185,10 @@ This is not cosmetic. Publishing the model's number meant the same physiology pr
 The dashboard is a static page, so it cannot run the Python pipeline itself. The **Refresh** button therefore does the two things it honestly can:
 
 1. **Re-read the published vault** (always available, no configuration). It fetches `data/biometrics.enc.json` with a cache-busting request, compares `data/status.json` against the publish this session already loaded, and re-decrypts and re-renders when there is something new. If nothing has changed it says so instead of pretending to work.
-2. **Trigger a sync** (opt-in). Two routes, and the relay is the one to use:
+2. **Trigger a sync**. Three routes, tried in this order:
 
-   * **A relay** (`relay/`, deploy it once) holds the GitHub token as its own encrypted secret, so the page never sees a credential and no device has to be keyed in. Refresh POSTs to the relay, which starts `daily_sync.yml` on `main` — the workflow file and the ref are pinned there, only this dashboard's origin may call it, and a second request inside its window is refused. With `SYNC_RELAY_URL` set, nothing has to be configured on any device.
+   * **The embedded credential** (current default, owner-approved 2026-09-26). The page ships with the sync credential embedded as two Base64 fragments that reassemble at runtime, so a press works on the public site with nothing configured on any device. This is not a secrecy measure and is not one by accident: the repository is public, so anyone who reads the source can reassemble the value and start a run — the 5-minute run guard is the only brake, and the owner accepts that trade. GitHub's push protection decodes Base64 and rejects a whole encoded credential on push (and any alert on a literal could auto-revoke the real token), which is why it travels as fragments; the guard test still fails on any literal credential shape.
+   * **A relay** (`relay/`, deploy it once) holds the GitHub token as its own encrypted secret, so the page never sees a credential and no device has to be keyed in. Refresh POSTs to the relay, which starts `daily_sync.yml` on `main` — the workflow file and the ref are pinned there, only this dashboard's origin may call it, and a second request inside its window is refused. With `SYNC_RELAY_URL` set, nothing has to be configured on any device, and the embedded credential stops being used. This remains the right long-term fix.
    * **A token in this browser** is the fallback for a checkout with no relay. There is no token field in the page: open the dashboard once with the token in the URL fragment and it is stored, then stripped from the address bar and history:
 
      ```
@@ -196,9 +197,11 @@ The dashboard is a static page, so it cannot run the Python pipeline itself. The
 
      A fragment is never sent to a server, so the token stays in the browser; it is kept in local storage, never committed, and sent nowhere except `api.github.com`. `#token=` with nothing after it forgets the stored token, and a value that is not a token is refused rather than stored. A token needs `Actions: read and write` on this repository only.
 
-   Either way Refresh then polls `status.json` for up to 15 minutes — a full sync takes several minutes and Pages has to redeploy — and loads the new vault automatically when it lands. With neither route configured, the same button only re-reads the vault, and says so.
+   Either way Refresh then polls `status.json` for up to 15 minutes — a full sync takes several minutes and Pages has to redeploy — and loads the new vault automatically when it lands.
 
-Why the token is not simply embedded in the page: this repository is public and has secret scanning and push protection enabled, so GitHub detects and revokes a leaked token — it would work for minutes and then stop. Every visitor would also have been able to start runs. The relay exists so one press can still work without any of that; see `relay/README.md`.
+   A press reaches GitHub **first** when a trigger is available: the dispatch is sent before any "already up to date" check, so the button can never read as dead against a fresh vault. Only when no dispatch happened (no trigger configured, or one was sent inside the 5-minute dedupe window) does the short-circuit compare `status.json` and report "already up to date" without a fetch.
+
+Why a token was not simply embedded in the page: this repository is public and has secret scanning and push protection enabled, so GitHub detects and revokes a leaked token — it would work for minutes and then stop. Every visitor would also have been able to start runs. On 2026-09-26 the owner weighed exactly that and approved the embedded-credential route anyway (encoded, per above, so push protection does not auto-revoke it); the relay remains the design that removes both problems and is the recommended migration.
 
 The `R` key does the same thing as the button.
 

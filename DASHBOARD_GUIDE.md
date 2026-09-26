@@ -250,7 +250,7 @@ value is simply there.
 | `O` | Toggle RHR dual-axis overlay on the HRV chart |
 | `M` | Toggle tactile audio sound feedback (on when you first arrive; your choice is remembered) |
 | `P` | Open one-click Clinical Report Print dialog (clean PDF styling) |
-| `R` | Refresh: re-read the published vault (and trigger a sync when a GitHub token is stored) |
+| `R` | Refresh: re-read the published vault and trigger a fresh sync on GitHub (the page ships with the owner-approved sync credential, so this works out of the box) |
 | `L` | Instantly lock vault and purge decrypted data from browser memory |
 | `ESC` | Dismiss any open modal |
 
