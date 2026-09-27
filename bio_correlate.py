@@ -243,7 +243,16 @@ def night_contrasts(activities, sleep_history, hrv_history):
     sleeps = [r for r in sleep_history or [] if r.get("date")]
     if not sleeps:
         return None
-    hrv = {r.get("date"): r.get("lastNightAvg") for r in hrv_history or [] if r.get("date")}
+    # HRV summaries reach this function in Garmin's raw shape, which dates them
+    # with `calendarDate`; the stored history renames that to `date`. Read either
+    # so the live pipeline and the vault's own history agree -- keying on `date`
+    # alone silently wiped every HRV contrast in production, since a raw record
+    # has no `date` to join on.
+    hrv = {}
+    for r in hrv_history or []:
+        key = r.get("date") or r.get("calendarDate")
+        if key:
+            hrv[key] = r.get("lastNightAvg")
 
     sessions = {}
     for a in activities or []:

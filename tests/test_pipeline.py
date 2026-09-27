@@ -3282,6 +3282,38 @@ class NightContrastTests(unittest.TestCase):
         # Deep sleep rides the same split, so one contrast per metric.
         self.assertIn("after_training_deep", by_key)
 
+    @staticmethod
+    def _raw_hrv(day, value=58):
+        """Garmin's own HRV summary shape: dated by `calendarDate`, not `date`."""
+        return {"calendarDate": day, "lastNightAvg": value, "weeklyAvg": value}
+
+    def test_a_raw_calendar_date_hrv_still_joins_its_night(self):
+        # The running pipeline hands night_contrasts Garmin's raw summaries,
+        # which date themselves with `calendarDate`; only the stored history
+        # renames that field to `date`. A join keyed on `date` alone publishes
+        # no HRV contrast at all against raw input -- the exact failure the live
+        # vault showed, where the deep-sleep contrast survived but all three
+        # HRV ones vanished. This holds the join production actually depends on.
+        days = self._days()
+        sleeps, hrvs, sessions = [], [], []
+        for i, day in enumerate(days):
+            late = i >= 26
+            sleeps.append(self._sleep(day, bed_minutes=(180 if late else 1410)))
+            hrvs.append(self._raw_hrv(day, 54 if late else 60))
+            if i < len(days) - 1 and i % 2 == 0:
+                sessions.append(self._session(day, minutes=60.0))
+        result = bio_correlate.night_contrasts(sessions, sleeps, hrvs)
+
+        by_key = {c["key"]: c for c in result["contrasts"]}
+        # The bedtime split needs no sessions, so it isolates the join itself.
+        self.assertIn("late_bedtime_hrv", by_key)
+        self.assertEqual(by_key["late_bedtime_hrv"]["mean_a"], 54.0)
+        self.assertEqual(by_key["late_bedtime_hrv"]["mean_b"], 60.0)
+        self.assertEqual(by_key["late_bedtime_hrv"]["nights_a"], 14)
+        self.assertEqual(by_key["late_bedtime_hrv"]["nights_b"], 26)
+        # The join holds under the session split too, not only the bedtime one.
+        self.assertIn("after_training_hrv", by_key)
+
     def test_no_sleeps_publishes_nothing(self):
         self.assertIsNone(bio_correlate.night_contrasts([], [], []))
 
