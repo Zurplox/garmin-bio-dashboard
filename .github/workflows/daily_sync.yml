@@ -63,7 +63,22 @@ jobs:
           git add data/biometrics.enc.json data/status.json
           if git diff --staged --quiet; then
             echo "No biometric changes to commit."
-          else
-            git commit -m "Auto-sync biometrics [$(date -u +'%Y-%m-%d %H:%M UTC')]"
-            git push
+            exit 0
           fi
+          git commit -m "Auto-sync biometrics [$(date -u +'%Y-%m-%d %H:%M UTC')]"
+          # The schedules, the catch-up and a manual dispatch can still race the
+          # push despite the concurrency group (seen 2026-09-27 02:16 UTC: two
+          # runs started seconds apart and the loser failed the whole run with
+          # "fetch first"). Rebase onto whatever landed meanwhile and retry:
+          # both runs rewrite the same two data files wholesale, so on conflict
+          # the fresher vault -- the commit being replayed, i.e. "theirs" in
+          # rebase terms -- wins, and a run never dies to a race it can absorb.
+          for attempt in 1 2 3; do
+            if git pull --rebase -X theirs origin main && git push; then
+              exit 0
+            fi
+            echo "push race on attempt $attempt; retrying"
+            git rebase --abort 2>/dev/null || true
+            sleep $((attempt * 15))
+          done
+          exit 1

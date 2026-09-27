@@ -5,10 +5,10 @@ repository with no memory of the sessions that built it. Everything below is
 either a fact about the current tree or a rule the codebase already follows;
 nothing here is a plan that has not happened.
 
-*Last updated: 2026-09-26, after the refresh-repair pass: the sync credential is
-embedded (owner-approved, Base64-encoded) so Refresh dispatches on the public page,
-and the dispatch is sent before the freshness short-circuit so a press can never
-read as dead against a fresh vault.
+*Last updated: 2026-09-27, after the same-day session pass: the session-domain week
+bars now include the running day (this morning's lift was counted by the verdict but
+drew as flat zeros), and `daily_sync.yml` rebases and retries a push that loses a
+race instead of failing the run.
 Check `git status` and `git log` for the true tip.*
 
 ---
@@ -153,10 +153,13 @@ Top-level keys emitted by `sync.build_payload()`:
   analyses. Never contains a bare `plain_english` field; it is inside the string.
 * `coaching` — `focus`, `cards` (one per training domain), `patterns`,
   `week`, `window_days`, `pattern_caveat`, `available`. Each card also carries the
-  `visual` its words are about: seven finished days as bars (with `pct` already
-  computed, an optional target line, and `null` for a day the device never recorded)
-  or one `level` reading against its ceiling, and `null` when the domain has no
-  history, which the page draws as empty stubs.
+  `visual` its words are about: seven days as bars (with `pct` already computed, an
+  optional target line, and `null` for a day the device never recorded) or one
+  `level` reading against its ceiling, and `null` when the domain has no history,
+  which the page draws as empty stubs. The session domains (strength, running,
+  hiking) include the **running day** — a logged session is a completed event, so
+  hiding it misstated the training week — while accumulating series (steps,
+  sleep) still end at yesterday, because a mid-morning total reads as a collapse.
 * `correlations` — `findings`, `tested_pairs`, `skipped`, `caveat`, the floors
   (`min_days`, `min_r`), the window, and `location` (home/away from device logs).
 * `capacity.trend` — the movement card's owner: the seven **finished** days' average

@@ -18,7 +18,7 @@ import base64
 import json
 import re
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import bio_analytics as analytics
@@ -3516,6 +3516,47 @@ class CoachCardTests(unittest.TestCase):
 
     def _card(self, result, key):
         return next(card for card in result["cards"] if card["key"] == key)
+
+    def test_a_session_logged_today_draws_on_its_domain_card(self):
+        """A completed session is a fact the moment it is logged.
+
+        This morning's lift was counted by the card's own verdict (the 28-day
+        rate) yet invisible on the card: the week bars enumerated only finished
+        days, so a session logged today drew as flat zeros and the training week
+        read as empty on the very day it was trained. The bars of the session
+        domains now include the running day -- a session is over when it is
+        saved, not a partial total like steps -- while the window still holds
+        seven bars drawn oldest to newest.
+        """
+        result = self._coach(activities=[self._session(self.TODAY, minutes=37.6)])
+        visual = self._card(result, "strength")["visual"]
+        bars = visual["bars"]
+
+        self.assertEqual(len(bars), 7)
+        # Oldest to newest: time reads left to right as before.
+        self.assertEqual([bar["date"] for bar in bars], sorted(bar["date"] for bar in bars))
+        # The window slides so the running day is the newest bar, not a dropped one.
+        self.assertEqual(bars[-1]["date"], self.TODAY)
+        self.assertEqual(bars[-1]["value"], 37.6)
+        self.assertGreater(bars[-1]["pct"], 0)
+
+    def test_accumulating_series_still_leave_out_the_running_day(self):
+        """The default bar window is the seven finished days, unchanged.
+
+        Steps and the other accumulating totals keep the old semantics: captured
+        mid-morning they would read as a collapsed week, which is the defect the
+        finished-day window exists to prevent.
+        """
+        today = date.fromisoformat(self.TODAY)
+        visual = bio_coach._week_bars(
+            today, {self.TODAY: 5000.0, "2026-09-20": 8000.0}, "steps", "steps a day"
+        )
+        dates = [bar["date"] for bar in visual["bars"]]
+
+        self.assertEqual(len(dates), 7)
+        self.assertNotIn(self.TODAY, dates)
+        self.assertEqual(dates[-1], "2026-09-20")
+        self.assertEqual(visual["bars"][-1]["value"], 8000.0)
 
     def test_every_card_carries_a_visual_of_its_own_reading(self):
         """A card with measurement draws it; a card without one draws nothing.

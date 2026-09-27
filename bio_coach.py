@@ -153,7 +153,10 @@ def domain_summary(activities, today):
             "sessions_7d": len(in_week),
             # Session minutes per finished day, for the card's own bars. A recorded
             # day with no session really did hold zero training, so this is the one
-            # series where an empty day is a measurement rather than a gap.
+            # series where an empty day is a measurement rather than a gap. The day
+            # still running is included: a session is logged the moment it is
+            # finished, so its minutes are complete fact, not a partial total --
+            # dropping it made this morning's lift invisible on its own card.
             "week_minutes": week_minutes.get(key, {}),
             "minutes": round(sum(_num(s.get("duration_min")) or 0.0 for s in in_window), 1),
             "distance_km": round(sum(distances), 2),
@@ -316,14 +319,26 @@ def _card(key, **fields):
     return card
 
 
-def _week_bars(today, values, unit, caption, target=None, tone="cyan", absent_is_zero=False):
-    """Seven finished days of one series, as bars the card can draw.
+def _week_bars(today, values, unit, caption, target=None, tone="cyan", absent_is_zero=False,
+               include_today=False):
+    """Seven days of one series, as bars the card can draw.
 
-    The day still running is left out, exactly as the movement trend card leaves it
-    out, so a partially recorded morning cannot read as a collapsed week. A day with
-    no entry is published as an absent bar rather than a zero one -- "not measured"
-    and "measured nothing" are different claims -- unless `absent_is_zero` says the
-    absence is itself the reading, as it is for a day on which no session was logged.
+    With the default (`include_today=False`) the window is the seven **finished**
+    days and the day still running is left out -- exactly as the movement trend
+    card leaves it out -- because an accumulating total (steps, sleep, hydration)
+    captured mid-morning would read as a collapsed week. A day with no entry is
+    published as an absent bar rather than a zero one -- "not measured" and
+    "measured nothing" are different claims -- unless `absent_is_zero` says the
+    absence is itself the reading, as it is for a day on which no session was
+    logged.
+
+    `include_today=True` is for series of **completed events**: a logged session is
+    over the moment it is saved, so its minutes are not a partial total and hiding
+    them would misstate the training week. The window slides to today minus six
+    through today, so the week still holds seven bars and no bar is dropped -- the
+    oldest slides out instead. Values that arrive for a day outside the window
+    (e.g. `week_minutes` may key today even when the bars end yesterday) are
+    filtered by the enumeration itself, never assumed present.
 
     `pct` is the share of the scale each bar is drawn at, so the arithmetic lives in
     one place and the page only draws what it was given.
@@ -331,7 +346,11 @@ def _week_bars(today, values, unit, caption, target=None, tone="cyan", absent_is
     if not values:
         return None
     bars = []
-    for offset in range(policy.MOVEMENT_WEEK_DAYS, 0, -1):
+    # Offsets count back from today, so the window is drawn oldest day first and
+    # time reads left to right: the seven finished days end at yesterday, and a
+    # window that includes today ends at today.
+    first_offset = 0 if include_today else 1
+    for offset in range(first_offset + policy.MOVEMENT_WEEK_DAYS - 1, first_offset - 1, -1):
         moment = today - timedelta(days=offset)
         raw = values.get(moment.isoformat())
         if raw is None and not absent_is_zero:
@@ -442,7 +461,7 @@ def strength_card(domain, lightest_day, today):
         # minute threshold would be a number this dashboard invented.
         visual=_week_bars(
             today, stats["week_minutes"], "min", "minutes a day",
-            tone=tone, absent_is_zero=True,
+            tone=tone, absent_is_zero=True, include_today=True,
         ),
         evidence=policy.evidence("strength_frequency", "load_ratio", "hrv_guided"),
     )
@@ -520,7 +539,7 @@ def endurance_card(domain, fitness, today):
         # no reference line of their own.
         visual=_week_bars(
             today, stats["week_minutes"], "min", "minutes a day",
-            tone=tone, absent_is_zero=True,
+            tone=tone, absent_is_zero=True, include_today=True,
         ),
         evidence=policy.evidence("load_ratio", "hrv_guided", "intensity_guideline"),
     )
@@ -647,7 +666,7 @@ def hiking_card(domain, environment, today):
         ),
         visual=_week_bars(
             today, stats["week_minutes"], "min", "minutes a day",
-            tone=tone, absent_is_zero=True,
+            tone=tone, absent_is_zero=True, include_today=True,
         ),
         metrics=[
             _metric("Total climb", f"{stats['gain_m']:,} m"),
