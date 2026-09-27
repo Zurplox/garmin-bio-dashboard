@@ -238,6 +238,10 @@
       .motion-hud-swap { animation: hud-swap 0.42s cubic-bezier(0.16, 1, 0.3, 1) both; }
       .quadrant-chip.is-hot { animation: chip-pop 0.5s cubic-bezier(0.22, 1.28, 0.36, 1) both; }
       .motion-callout-in { animation: callout-in 0.42s cubic-bezier(0.22, 1.28, 0.36, 1); }
+      /* A contrast card's headline difference settles the way the quadrant chip does:
+         the same chip-pop primitive rather than a second pop invented for one badge,
+         so the number lands just after the card carrying it arrives. */
+      .motion-delta-pop { animation: chip-pop 0.5s cubic-bezier(0.22, 1.28, 0.36, 1) both; }
       /* Two rings on one beat: the second is an echo of the first, so the beacon reads
          as a pulse leaving the diamond rather than as one thing blinking. */
       .scatter-beacon.is-live { animation: beacon-out 1.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
@@ -384,7 +388,7 @@
     @media (prefers-reduced-motion: reduce) {
       .motion-gauge-bounce, .motion-chart-settle, .motion-bar-spring, .motion-bar-spring-y,
       .motion-heat-cell, .motion-heat-cell.is-revealed, .motion-fill-sheen, .motion-hud-swap,
-      .quadrant-chip.is-hot, .motion-callout-in { animation: none !important; }
+      .quadrant-chip.is-hot, .motion-callout-in, .motion-delta-pop { animation: none !important; }
       .motion-heat-cell { opacity: 1 !important; transform: none !important; }
       .fill-sheen { display: none !important; }
       .quadrant-chip { transition: none !important; }
@@ -1522,7 +1526,7 @@
             </div>
             <span id="corrSummary" class="text-[11px] text-slate-500 mono">--</span>
           </div>
-          <ul id="corrList" class="space-y-2 text-xs text-slate-300 font-medium"></ul>
+          <ul id="corrList" class="space-y-2 text-xs text-slate-300 font-medium" data-stagger="60"></ul>
           <p id="corrTravel" class="mt-2 text-xs text-slate-300 leading-relaxed font-medium"></p>
           <p id="corrCaveat" class="mt-2 text-[11px] text-slate-500 leading-relaxed"></p>
           <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
@@ -1541,7 +1545,7 @@
               </div>
               <span id="nightContrastMeta" class="text-[11px] text-slate-500 mono">--</span>
             </div>
-            <div id="nightContrastList" class="space-y-2 text-xs text-slate-300 font-medium"></div>
+            <div id="nightContrastList" class="space-y-2 text-xs text-slate-300 font-medium" data-stagger="60"></div>
             <p id="nightContrastCaveat" class="mt-2 text-[11px] text-slate-500 leading-relaxed"></p>
             <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
               <span>ⓘ How to read a night contrast</span>
@@ -4528,20 +4532,42 @@
       ncWrap.classList.remove('hidden');
       ncMeta.textContent = `median bedtime ${nc.median_bedtime} · a group needs n≥${nc.min_nights} nights`;
       ncCaveat.textContent = nc.caveat || '';
-      ncList.innerHTML = contrasts.map(c => `
-        <div class="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-          <div class="text-[11px] text-slate-400 mb-1.5">${esc(c.question)}</div>
-          <div class="flex items-baseline gap-3 flex-wrap">
-            <span class="mono font-bold text-cyan-300 text-sm">${c.delta > 0 ? '+' : ''}${c.delta}</span>
-            <span class="text-slate-300"><strong class="text-white">${esc(c.label_a)}</strong>: ${c.mean_a} ${esc(c.metric_label)} <span class="text-slate-500">(${c.nights_a} nights)</span></span>
-            <span class="text-slate-600">vs</span>
-            <span class="text-slate-300"><strong class="text-white">${esc(c.label_b)}</strong>: ${c.mean_b} ${esc(c.metric_label)} <span class="text-slate-500">(${c.nights_b} nights)</span></span>
+      ncList.innerHTML = contrasts.map(c => {
+        // The headline difference read as a direction rather than a signed digit:
+        // group A above group B rises, below it falls, and the same sign picks the
+        // tint. It is group A minus group B -- a comparison of two groups of nights,
+        // not a verdict on which side is good, which is why the caveat still travels
+        // beneath the whole panel.
+        const delta = Number(c.delta) || 0;
+        const heading = delta > 0
+          ? { arrow: '&#8593;', cls: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' }
+          : delta < 0
+            ? { arrow: '&#8595;', cls: 'bg-rose-500/10 border-rose-500/30 text-rose-300' }
+            : { arrow: '&#8594;', cls: 'bg-slate-500/10 border-slate-500/30 text-slate-300' };
+        const diffLabel = `${esc(c.label_a)} minus ${esc(c.label_b)}`;
+        return `
+        <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 transition-colors duration-500 hover:border-cyan-500/40">
+          <div class="flex items-start justify-between gap-3">
+            <div class="text-[11px] text-slate-400 leading-snug">${esc(c.question)}</div>
+            <span class="motion-delta-pop shrink-0 mono font-bold text-[11px] px-2 py-0.5 rounded-full border ${heading.cls}" title="${diffLabel}, in ${esc(c.metric_label)}" aria-label="${diffLabel}, in ${esc(c.metric_label)}"><span aria-hidden="true">${heading.arrow}</span>${Math.abs(delta)}</span>
           </div>
+          <div class="mt-2.5 space-y-1">
+            <div class="flex items-baseline justify-between gap-3">
+              <span class="text-[11px] text-slate-300 leading-snug"><strong class="text-white">${esc(c.label_a)}</strong></span>
+              <span class="shrink-0 mono text-sm font-bold text-cyan-200">${c.mean_a}</span>
+            </div>
+            <div class="flex items-baseline justify-between gap-3">
+              <span class="text-[11px] text-slate-300 leading-snug"><strong class="text-white">${esc(c.label_b)}</strong></span>
+              <span class="shrink-0 mono text-sm font-bold text-slate-200">${c.mean_b}</span>
+            </div>
+          </div>
+          <div class="mt-1.5 text-[10px] text-slate-500">${esc(c.metric_label)} · ${c.nights_a} nights vs ${c.nights_b} nights</div>
           ${(c.evidence || []).map(ev => `
             <div class="mt-1.5 text-[10px] text-slate-500 leading-relaxed"><strong class="text-cyan-400/80">Evidence:</strong> ${esc(ev.claim)} — ${esc(ev.finding)} <span class="text-slate-600">(${esc(ev.source)})</span>${ev.caveat ? ` <span class="text-slate-600">${esc(ev.caveat)}</span>` : ''}</div>
           `).join('')}
         </div>
-      `).join('');
+      `;
+      }).join('');
     }
 
     // 5-PILLAR VITALS MATRIX GENERATOR
