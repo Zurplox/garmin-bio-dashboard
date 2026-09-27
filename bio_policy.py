@@ -380,6 +380,74 @@ CORRELATION_MIN_DAYS = 14
 CORRELATION_MIN_R = 0.35
 CORRELATION_MAX_FINDINGS = 4
 
+# Night contrasts: descriptive group comparisons on the athlete's own nights.
+# A correlation coefficient is the wrong lens for "what does a late bedtime cost
+# tonight?" -- the honest reading is two group means and how far apart they sit,
+# with each group's night count travelling beside it. A group needs this many
+# nights before its mean is a measurement rather than an anecdote, the same floor
+# the correlation lab applies to paired days.
+NIGHT_CONTRAST_MIN_NIGHTS = 14
+# "Late" is measured against the athlete's own median bedtime, not a clock time
+# some guideline invented: this many minutes past it makes a night late, and
+# within this many minutes of it makes a night on time.
+NIGHT_CONTRAST_LATE_MINUTES = 45
+NIGHT_CONTRAST_ONTIME_MINUTES = 30
+# A day with at least this many logged session minutes is a training day for the
+# night-after contrast; a day with none is a rest day.
+NIGHT_CONTRAST_TRAINING_MINUTES = 20
+# A session starting at or after this hour is an evening session.
+NIGHT_CONTRAST_EVENING_HOUR = 18
+
+NIGHT_CONTRAST_CAVEAT = (
+    "Groups of your own nights compared side by side, not an experiment: everything else that "
+    "differed between those nights travels with the comparison. The night counts sit beside "
+    "every mean so you can judge how much each number is carrying, and a difference here is a "
+    "pattern to test on yourself, never proof of cause."
+)
+
+# The contrasts worth drawing out of the athlete's own nights. `metric` names the
+# reading compared; `group` picks which two groups of nights are compared. Labels
+# carry the thresholds in words because the numbers they come from live in the
+# constants above -- one owner.
+NIGHT_CONTRASTS = (
+    {
+        "key": "late_bedtime_hrv",
+        "metric": "hrv",
+        "metric_label": "Overnight HRV (ms)",
+        "question": "What does a late bedtime cost the same night?",
+        "label_a": "Late bedtime (45+ min past your median)",
+        "label_b": "On time (within 30 min of your median)",
+        "evidence": ("sleep_regularity",),
+    },
+    {
+        "key": "after_training_hrv",
+        "metric": "hrv",
+        "metric_label": "Overnight HRV (ms)",
+        "question": "What does a training day do to the following night?",
+        "label_a": "Night after a training day (20+ min)",
+        "label_b": "Night after a rest day",
+        "evidence": (),
+    },
+    {
+        "key": "after_training_deep",
+        "metric": "deep",
+        "metric_label": "Deep sleep (min)",
+        "question": "Does a training day change how deep you sleep?",
+        "label_a": "Night after a training day (20+ min)",
+        "label_b": "Night after a rest day",
+        "evidence": (),
+    },
+    {
+        "key": "evening_session_hrv",
+        "metric": "hrv",
+        "metric_label": "Overnight HRV (ms)",
+        "question": "Does an evening session spoil the night that follows it?",
+        "label_a": "Night after an evening session (start 18:00+)",
+        "label_b": "Night after a day with no evening session",
+        "evidence": ("evening_exercise",),
+    },
+)
+
 # The caveat published with every pattern and correlation. It is wording, so it
 # lives here: one sentence with one owner, so the coach panel and the correlation
 # lab cannot drift into telling the reader two different things.
@@ -540,6 +608,12 @@ EVIDENCE = {
         "source": "Windred DP et al. Sleep regularity is a stronger predictor of mortality risk than sleep duration. Sleep 2024;47(1):zsad253.",
         "finding": "Across ~60,000 UK Biobank participants, sleep regularity predicted all-cause mortality more strongly than sleep duration did.",
         "caveat": "Observational: regular sleepers differ in other ways that no model fully removes.",
+    },
+    "evening_exercise": {
+        "claim": "An evening session is not a sleep problem by default.",
+        "source": "Stutz J, Eiholzer R, Spengler CM. Effects of evening exercise on sleep in healthy participants: a systematic review and meta-analysis. Sports Med 2019;49(2):269-287.",
+        "finding": "Across 23 controlled studies, evening exercise did not harm sleep on average; sleep onset and architecture were largely unchanged or slightly better after evening work.",
+        "caveat": "Trials ending under an hour before bedtime and the highest-intensity protocols were the only consistent exceptions; your own nights, contrasted here, are the arbiter for you.",
     },
     "strength_frequency": {
         "claim": "Train each major muscle group at least twice a week.",

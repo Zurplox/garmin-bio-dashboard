@@ -3163,6 +3163,129 @@ class LocationComparisonTests(unittest.TestCase):
         self.assertEqual(result["comparisons"][0]["away_mean"], 55.0)  # both places, not just Quan 1
 
 
+# ---------------------------------------------------------------------------
+# Night contrasts - groups of the athlete's own nights compared side by side
+# ---------------------------------------------------------------------------
+
+class NightContrastTests(unittest.TestCase):
+    """A published contrast is two measured group means with their night counts.
+
+    The thresholds (late, on time, training day, evening) are policy's; these
+    tests hold the sorting honest and the floors honest.
+    """
+
+    @staticmethod
+    def _sleep(day, bed_minutes=1425, deep_seconds=5400):
+        return {"date": day, "total_seconds": 25920, "deep_seconds": deep_seconds,
+                "rem_seconds": 6300, "light_seconds": 12000, "awake_seconds": 1200,
+                "avg_stress": 15.0, "avg_respiration": 13.0,
+                "bedtime_minutes": bed_minutes}
+
+    @staticmethod
+    def _hrv(day, value=58):
+        return {"date": day, "lastNightAvg": value}
+
+    @staticmethod
+    def _session(day, minutes=45.0, hour=8):
+        return {"startTimeLocal": f"{day} {hour:02d}:00:00", "activityType": "walking",
+                "category": "Walking", "duration_min": minutes}
+
+    @staticmethod
+    def _days(n=40):
+        """`n` consecutive real dates, so tests never invent the 32nd of August."""
+        from datetime import date as _date, timedelta as _td
+        start = _date(2026, 6, 1)
+        return [(start + _td(days=i)).isoformat() for i in range(n)]
+
+    def test_a_late_bedtime_is_sorted_and_published_with_both_counts(self):
+        days = self._days()
+        # A reality-shaped distribution: 26 nights within 30 minutes of the
+        # on-time cluster (23:30) and 14 late nights (03:00 on the shifted
+        # clock). The median must sit inside the on-time cluster -- a 50/50
+        # bimodal split would put it between the clusters, where neither group
+        # qualifies, and that is the sorting's honest failure mode.
+        sleeps, hrvs = [], []
+        for i, day in enumerate(days):
+            late = i >= 26
+            sleeps.append(self._sleep(day, bed_minutes=(180 if late else 1410)))
+            hrvs.append(self._hrv(day, 54 if late else 60))
+        result = bio_correlate.night_contrasts(
+            [self._session(days[0])], sleeps, hrvs
+        )
+
+        by_key = {c["key"]: c for c in result["contrasts"]}
+        late = by_key["late_bedtime_hrv"]
+        self.assertEqual(late["mean_a"], 54.0)
+        self.assertEqual(late["mean_b"], 60.0)
+        self.assertEqual(late["delta"], -6.0)
+        self.assertEqual(late["nights_a"], 14)
+        self.assertEqual(late["nights_b"], 26)
+        # The median is computed on the shifted clock, so past-midnight bedtimes
+        # cannot drag it to noon: it reads as the on-time cluster, 23:30.
+        self.assertEqual(result["median_bedtime"], "23:30")
+        # Windred rides beside the contrast it supports.
+        self.assertIn("sleep_regularity", [ev["id"] for ev in late["evidence"]])
+
+    def test_a_thin_group_is_refused_while_others_still_publish(self):
+        days = self._days()
+        sleeps, hrvs, sessions = [], [], []
+        for i, day in enumerate(days):
+            # Only 5 late nights: below the floor, so that one contrast is
+            # refused rather than shown as a smaller number.
+            late = i < 5
+            sleeps.append(self._sleep(day, bed_minutes=(180 if late else 1410)))
+            hrvs.append(self._hrv(day, 54 if late else 60))
+            if i < len(days) - 1 and i % 2 == 0:
+                sessions.append(self._session(day, minutes=60.0))
+        result = bio_correlate.night_contrasts(sessions, sleeps, hrvs)
+
+        by_key = {c["key"]: c for c in result["contrasts"]}
+        self.assertNotIn("late_bedtime_hrv", by_key)
+        # The night-after-training contrast still publishes from the same nights.
+        self.assertIn("after_training_hrv", by_key)
+
+    def test_an_evening_session_contrast_uses_the_session_start_hour(self):
+        days = self._days()
+        sleeps = [self._sleep(day) for day in days]
+        hrvs = [self._hrv(day) for day in days]
+        # Evening (19:00) sessions on even-indexed days, morning (09:00) on odd
+        # ones. Nights follow their own previous day, so 20 evening-following
+        # nights against 19 morning-following ones across 39 sessions.
+        sessions = [
+            self._session(day, hour=(19 if i % 2 == 0 else 9))
+            for i, day in enumerate(days[:-1])
+        ]
+        result = bio_correlate.night_contrasts(sessions, sleeps, hrvs)
+
+        by_key = {c["key"]: c for c in result["contrasts"]}
+        evening = by_key["evening_session_hrv"]
+        self.assertEqual(evening["nights_a"], 20)
+        self.assertEqual(evening["nights_b"], 19)
+        # Stutz rides beside the contrast it supports.
+        self.assertIn("evening_exercise", [ev["id"] for ev in evening["evidence"]])
+
+    def test_the_night_after_training_contrast_sorts_by_logged_minutes(self):
+        days = self._days()
+        sleeps = [self._sleep(day) for day in days]
+        hrvs = [self._hrv(day) for day in days]
+        # Training days (60 min) alternate with rest days (no session at all).
+        sessions = [
+            self._session(day, minutes=60.0)
+            for i, day in enumerate(days[:-1]) if i % 2 == 0
+        ]
+        result = bio_correlate.night_contrasts(sessions, sleeps, hrvs)
+
+        by_key = {c["key"]: c for c in result["contrasts"]}
+        after = by_key["after_training_hrv"]
+        self.assertEqual(after["nights_a"], 20)
+        self.assertEqual(after["nights_b"], 19)
+        # Deep sleep rides the same split, so one contrast per metric.
+        self.assertIn("after_training_deep", by_key)
+
+    def test_no_sleeps_publishes_nothing(self):
+        self.assertIsNone(bio_correlate.night_contrasts([], [], []))
+
+
 class ChannelSeriesTests(unittest.TestCase):
     """The correlation window is built from measured days only."""
 

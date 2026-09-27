@@ -22,6 +22,7 @@ footnote, because the sentence is the part that gets read.
 """
 
 import bio_policy as policy
+from datetime import date, timedelta
 
 
 def pearson(series_a, series_b):
@@ -199,3 +200,157 @@ def home_location(location_days):
     if not counts:
         return None
     return max(counts, key=lambda name: (counts[name], name))
+
+
+def _bedtime_shifted(bed_minutes):
+    """A bedtime as minutes after the previous noon, so past-midnight times sort.
+
+    Garmin publishes a bedtime as minutes of day, so 23:45 is 1425 but 00:30 is
+    30 -- and a plain median over the two reads as an athlete who sleeps at
+    noon. Shifting times before noon into the previous day's tail keeps the
+    arithmetic honest for anyone who regularly crosses midnight.
+    """
+    if bed_minutes is None:
+        return None
+    value = float(bed_minutes)
+    if value < 720:  # before noon: really the tail of the previous day
+        value += 1440
+    return value
+
+
+def _format_clock(minutes):
+    minutes = int(round(minutes)) % 1440
+    return f"{minutes // 60:02d}:{minutes % 60:02d}"
+
+
+def night_contrasts(activities, sleep_history, hrv_history):
+    """Groups of the athlete's own nights compared side by side.
+
+    A correlation coefficient is the wrong lens for the questions worth asking
+    here -- "what does a late bedtime cost tonight?", "what does a training day
+    do to the following night?" -- because the honest reading is two group means
+    and how far apart they sit, each with its night count travelling beside it.
+    The contrasts and their thresholds are policy's (`NIGHT_CONTRASTS`); this
+    function only sorts nights into those groups and measures them. A contrast
+    whose thinner group is below `NIGHT_CONTRAST_MIN_NIGHTS` is refused, the
+    same floor the correlation lab applies to paired days.
+
+    A sleep record is labelled by its wake date, so "the night after a training
+    day" groups by the day before the wake date, and an HRV reading joins the
+    night it summarises. An evening session is one that *started* at or after
+    `NIGHT_CONTRAST_EVENING_HOUR`, from the device's own start times.
+    """
+    sleeps = [r for r in sleep_history or [] if r.get("date")]
+    if not sleeps:
+        return None
+    hrv = {r.get("date"): r.get("lastNightAvg") for r in hrv_history or [] if r.get("date")}
+
+    sessions = {}
+    for a in activities or []:
+        start = str(a.get("startTimeLocal") or "")
+        if len(start) < 13:
+            continue
+        day = start[:10]
+        entry = sessions.setdefault(day, {"minutes": 0.0, "evening": False})
+        entry["minutes"] += float(a.get("duration_min") or 0.0)
+        try:
+            if int(start[11:13]) >= policy.NIGHT_CONTRAST_EVENING_HOUR:
+                entry["evening"] = True
+        except ValueError:
+            continue
+
+    beds = [_bedtime_shifted(r.get("bedtime_minutes")) for r in sleeps]
+    beds = [b for b in beds if b is not None]
+    if not beds:
+        return None
+    beds.sort()
+    middle = len(beds) // 2
+    median_bed = (
+        beds[middle] if len(beds) % 2 else (beds[middle - 1] + beds[middle]) / 2.0
+    )
+
+    def night_metric(record, metric):
+        if metric == "hrv":
+            return hrv.get(record.get("date"))
+        if metric == "deep":
+            seconds = record.get("deep_seconds")
+            return None if seconds is None else seconds / 60.0
+        return None
+
+    # Days before the first wake date are outside the measured window: their
+    # "previous day" is unknown, so nights can inherit from them. A day inside
+    # the window with no logged session really was a rest day -- the device was
+    # worn the next morning, so its absence is a measurement.
+    window_start = min(date.fromisoformat(r["date"]) for r in sleeps)
+
+    def sort_night(record, spec):
+        """Which of the contrast's two groups this night belongs to, or None."""
+        wake = date.fromisoformat(record.get("date"))
+        previous_day = wake - timedelta(days=1)
+        previous = sessions.get(previous_day.isoformat()) or {"minutes": 0.0, "evening": False}
+        key = spec["key"]
+        if key == "late_bedtime_hrv":
+            bed = _bedtime_shifted(record.get("bedtime_minutes"))
+            if bed is None:
+                return None
+            if bed - median_bed >= policy.NIGHT_CONTRAST_LATE_MINUTES:
+                return "a"
+            if abs(bed - median_bed) <= policy.NIGHT_CONTRAST_ONTIME_MINUTES:
+                return "b"
+            return None
+        if key in ("after_training_hrv", "after_training_deep"):
+            if previous_day < window_start:
+                return None
+            if previous.get("minutes", 0.0) >= policy.NIGHT_CONTRAST_TRAINING_MINUTES:
+                return "a"
+            return "b"
+        if key == "evening_session_hrv":
+            if previous_day < window_start:
+                return None
+            return "a" if previous.get("evening") else "b"
+        return None
+
+    published = []
+    for spec in policy.NIGHT_CONTRASTS:
+        groups = {"a": [], "b": []}
+        for record in sleeps:
+            side = sort_night(record, spec)
+            if side is None:
+                continue
+            value = night_metric(record, spec["metric"])
+            if value is not None:
+                groups[side].append(value)
+        if len(groups["a"]) < policy.NIGHT_CONTRAST_MIN_NIGHTS:
+            continue
+        if len(groups["b"]) < policy.NIGHT_CONTRAST_MIN_NIGHTS:
+            continue
+        mean_a = sum(groups["a"]) / len(groups["a"])
+        mean_b = sum(groups["b"]) / len(groups["b"])
+        published.append(
+            {
+                "key": spec["key"],
+                "question": spec["question"],
+                "metric_label": spec["metric_label"],
+                "label_a": spec["label_a"],
+                "label_b": spec["label_b"],
+                "mean_a": round(mean_a, 1),
+                "mean_b": round(mean_b, 1),
+                "delta": round(mean_a - mean_b, 1),
+                "nights_a": len(groups["a"]),
+                "nights_b": len(groups["b"]),
+                "evidence": policy.evidence(*spec["evidence"]),
+            }
+        )
+
+    if not published:
+        return None
+    return {
+        "median_bedtime": _format_clock(median_bed),
+        "min_nights": policy.NIGHT_CONTRAST_MIN_NIGHTS,
+        "late_minutes": policy.NIGHT_CONTRAST_LATE_MINUTES,
+        "ontime_minutes": policy.NIGHT_CONTRAST_ONTIME_MINUTES,
+        "training_minutes": policy.NIGHT_CONTRAST_TRAINING_MINUTES,
+        "evening_hour": policy.NIGHT_CONTRAST_EVENING_HOUR,
+        "caveat": policy.NIGHT_CONTRAST_CAVEAT,
+        "contrasts": published,
+    }

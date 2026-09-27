@@ -5,10 +5,10 @@ repository with no memory of the sessions that built it. Everything below is
 either a fact about the current tree or a rule the codebase already follows;
 nothing here is a plan that has not happened.
 
-*Last updated: 2026-09-27, after the same-day session pass: the session-domain week
-bars now include the running day (this morning's lift was counted by the verdict but
-drew as flat zeros), and `daily_sync.yml` rebases and retries a push that loses a
-race instead of failing the run.
+*Last updated: 2026-09-27, after the night-contrasts pass: the correlation section
+gains group contrasts on the athlete's own nights (late bedtime, night after
+training, evening session), and `daily_sync.yml` rebases and retries a push that
+loses a race instead of failing the run.
 Check `git status` and `git log` for the true tip.*
 
 ---
@@ -161,7 +161,16 @@ Top-level keys emitted by `sync.build_payload()`:
   hiding it misstated the training week — while accumulating series (steps,
   sleep) still end at yesterday, because a mid-morning total reads as a collapse.
 * `correlations` — `findings`, `tested_pairs`, `skipped`, `caveat`, the floors
-  (`min_days`, `min_r`), the window, and `location` (home/away from device logs).
+  (`min_days`, `min_r`), the window, `location` (home/away from device logs), and
+  `night_contrasts` — groups of the athlete's own nights compared side by side
+  (`bio_correlate.night_contrasts`): late bedtime (45+ min past the athlete's own
+  median, computed on a clock that treats post-midnight times as the previous
+  evening's tail) versus on time, night after a training day (20+ logged minutes)
+  versus after a rest day, for both overnight HRV and deep sleep, and night after
+  an evening session (start 18:00+) versus after a day without one. A group below
+  `NIGHT_CONTRAST_MIN_NIGHTS` (14) is refused, not shown smaller; the thresholds
+  and their wording live in `policy.NIGHT_CONTRASTS`, and the anchor studies ride
+  beside the contrasts they support (Windred 2024, Stutz 2019).
 * `capacity.trend` — the movement card's owner: the seven **finished** days' average
   steps against the device's goal, the 30-day average, days that reached the goal,
   the change against the week before, the window it covers (`window.label`), the heart

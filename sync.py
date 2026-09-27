@@ -158,6 +158,12 @@ def build_payload(client, fetched, dq):
         "location": bio_correlate.location_breakdown(
             fetched["location"]["location_days"], channels
         ),
+        # Groups of the athlete's own nights compared side by side (late bedtime
+        # vs on time, the night after training vs after rest), from the same
+        # history the correlation lab reads.
+        "night_contrasts": bio_correlate.night_contrasts(
+            activities, sleep_history, all_hrv
+        ),
     }
 
     intelligence = clinical_engine.synthesize(

@@ -1533,6 +1533,25 @@
             <p>Only pairings with at least 14 paired days and an <span class="mono">r</span> of 0.35 or stronger are shown, and only pairings with a plausible physiological reason are tested at all. Testing every combination would eventually produce a strong-looking number by chance.</p>
             <p>A correlation is a pattern in your own data, never proof that one thing caused the other. If you change one habit and the pattern holds, that is when it becomes worth trusting.</p>
           </div>
+          <!-- NIGHT CONTRASTS: groups of the athlete's own nights compared side by side -->
+          <div id="nightContrasts" class="mt-4 pt-3 border-t border-slate-800/80">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+              <div class="text-xs font-bold text-cyan-400 uppercase tracking-wide flex items-center gap-1.5">
+                <span>●</span> Night contrasts — your nights, grouped and compared
+              </div>
+              <span id="nightContrastMeta" class="text-[11px] text-slate-500 mono">--</span>
+            </div>
+            <div id="nightContrastList" class="space-y-2 text-xs text-slate-300 font-medium"></div>
+            <p id="nightContrastCaveat" class="mt-2 text-[11px] text-slate-500 leading-relaxed"></p>
+            <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+              <span>ⓘ How to read a night contrast</span>
+            </button>
+            <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+              <p>Each line compares two groups of <strong class="text-cyan-400">your own nights</strong> — for example nights after a late bedtime against nights you went to bed on time — and reads the average of each group beside its night count. The thresholds (what counts as "late", a "training day", an "evening session") come from the dashboard's own policy, measured against <strong class="text-cyan-400">your median bedtime</strong>, not a clock time someone invented.</p>
+              <p>A group needs at least 14 nights before its average is shown at all. A smaller group is not a number, it is an anecdote.</p>
+              <p>This is a comparison, not an experiment: everything else that differed between those nights travels with the comparison. A late bedtime usually brings a later evening with it. If you shift one habit and the contrast holds, that is when it becomes worth acting on.</p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -4493,6 +4512,36 @@
           `. "Away" denotes a session the device recorded away from ${travel.home_location}; it does not indicate where you slept.`
         : '';
       document.getElementById('corrCaveat').textContent = corr.caveat || '';
+
+      // --- night contrasts: groups of the athlete's own nights, side by side ---
+      const nc = corr.night_contrasts || null;
+      const ncWrap = document.getElementById('nightContrasts');
+      const ncList = document.getElementById('nightContrastList');
+      const ncMeta = document.getElementById('nightContrastMeta');
+      const ncCaveat = document.getElementById('nightContrastCaveat');
+      if (!ncWrap || !ncList || !ncMeta || !ncCaveat) return;
+      const contrasts = (nc && nc.contrasts) || [];
+      if (!nc || !contrasts.length) {
+        ncWrap.classList.add('hidden');
+        return;
+      }
+      ncWrap.classList.remove('hidden');
+      ncMeta.textContent = `median bedtime ${nc.median_bedtime} · a group needs n≥${nc.min_nights} nights`;
+      ncCaveat.textContent = nc.caveat || '';
+      ncList.innerHTML = contrasts.map(c => `
+        <div class="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
+          <div class="text-[11px] text-slate-400 mb-1.5">${esc(c.question)}</div>
+          <div class="flex items-baseline gap-3 flex-wrap">
+            <span class="mono font-bold text-cyan-300 text-sm">${c.delta > 0 ? '+' : ''}${c.delta}</span>
+            <span class="text-slate-300"><strong class="text-white">${esc(c.label_a)}</strong>: ${c.mean_a} ${esc(c.metric_label)} <span class="text-slate-500">(${c.nights_a} nights)</span></span>
+            <span class="text-slate-600">vs</span>
+            <span class="text-slate-300"><strong class="text-white">${esc(c.label_b)}</strong>: ${c.mean_b} ${esc(c.metric_label)} <span class="text-slate-500">(${c.nights_b} nights)</span></span>
+          </div>
+          ${(c.evidence || []).map(ev => `
+            <div class="mt-1.5 text-[10px] text-slate-500 leading-relaxed"><strong class="text-cyan-400/80">Evidence:</strong> ${esc(ev.claim)} — ${esc(ev.finding)} <span class="text-slate-600">(${esc(ev.source)})</span>${ev.caveat ? ` <span class="text-slate-600">${esc(ev.caveat)}</span>` : ''}</div>
+          `).join('')}
+        </div>
+      `).join('');
     }
 
     // 5-PILLAR VITALS MATRIX GENERATOR
