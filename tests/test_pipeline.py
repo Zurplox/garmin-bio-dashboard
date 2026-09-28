@@ -1827,6 +1827,76 @@ class MotionDirectionTests(unittest.TestCase):
         self.assertIn("live.reset();", fallback)
         self.assertIn("live.update();", fallback)
 
+class ChartRefitTests(unittest.TestCase):
+    """A viewport change re-fits the charts even where the frame loop stalls.
+
+    Chart.js re-fits a chart from a ResizeObserver on the chart's own box, and that
+    callback is throttled to the next animation frame; a resize that arrives while
+    the chart is animating is held for its next draw, which rides the same loop. So
+    on a view that never delivers a frame every canvas kept the width it was last
+    measured at -- measured as a canvas 653.6px wide inside a box of 1166px, and the
+    same canvas overflowing a 390px phone, each until a reload. The refit therefore
+    also lands from a timer, and paints the canvas itself rather than leaving the
+    correctly sized box empty.
+    """
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+
+    @staticmethod
+    def _fn(page, name):
+        return page.split(f"function {name}(", 1)[1].split("\n    function ", 1)[0]
+
+    def test_a_missing_frame_still_re_fits_the_charts(self):
+        queue = self._fn(self._page(), "queueChartRefit")
+        # The latch that debounces the refit must also be cleared by a timer, or a
+        # throttled frame loop leaves every canvas at its old width.
+        self.assertIn("requestAnimationFrame(run)", queue)
+        self.assertIn("window.setTimeout(run, CHART_REFIT_GRACE_MS)", queue)
+        self.assertIn("chartRefitQueued = false;", queue)
+
+    def test_the_refit_is_asked_for_on_a_viewport_change(self):
+        self.assertIn("window.addEventListener('resize', queueChartRefit);", self._page())
+
+    def test_the_refit_measures_the_box_and_paints_what_it_fitted(self):
+        body = self._fn(self._page(), "refitChart")
+        self.assertIn("chart.canvas.parentElement", body)
+        self.assertIn("box.clientWidth", body)
+        self.assertIn("box.clientHeight", body)
+        # A chart already the size of its box is left alone, so a resize that does
+        # not touch a chart costs no repaint.
+        self.assertIn("Math.abs(chart.width - width) < 1", body)
+        self.assertIn("chart.resize(width, height)", body)
+        # Chart.js holds a resize that arrives mid animation for the next draw, and
+        # that draw rides the frame loop: the refit draws the canvas itself.
+        self.assertIn("chart.draw()", body)
+
+    def test_a_chart_with_no_box_to_fit_is_left_alone(self):
+        body = self._fn(self._page(), "refitChart")
+        # A destroyed chart has had its canvas taken away, and a hidden panel has a
+        # zero-sized box; neither may be measured and fitted.
+        self.assertIn("if (!chart || !chart.canvas) return;", body)
+        self.assertIn("if (width < 1 || height < 1) return;", body)
+
+    def test_every_chart_the_page_mounts_is_covered(self):
+        body = self._fn(self._page(), "refitCharts")
+        for instance in ("sleepChartInstance", "hrvChartInstance", "rhrChartInstance",
+                         "doughnutChartInstance", "scatterChartInstance"):
+            with self.subTest(instance=instance):
+                self.assertIn(instance, body)
+
+    def test_a_rebuild_asks_for_the_refit(self):
+        # A rebuild mounts the charts while their cards are still scaled down by the
+        # entrance, and a card measured through that scale is 1.5% narrow -- 18px on a
+        # wide card -- for as long as no frame re-measures it.
+        render = self._fn(self._page(), "renderDashboard")
+        self.assertIn("queueChartRefit();", render)
+        self.assertLess(render.index("playVisuals();"), render.index("queueChartRefit();"))
+
+
 class ReRenderMotionTests(unittest.TestCase):
     """A panel a re-render rebuilds animates again, and nothing is left stranded.
 

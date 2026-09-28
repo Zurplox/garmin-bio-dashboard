@@ -2442,6 +2442,54 @@
     window.addEventListener('scroll', queueSweep, { passive: true });
     window.addEventListener('resize', queueSweep);
 
+    // Chart.js re-fits a chart on its own schedule: a ResizeObserver on the chart's
+    // own box, whose callback is throttled to the next animation frame. A frame is not
+    // guaranteed -- a suspended tab, or a view that never composites, throttles the
+    // frame loop -- and a chart whose frame never arrives keeps the width it was last
+    // measured at while its card moves on: a chart drawn a third of the way across a
+    // wide card until the page is reloaded. A resize that lands while the chart is
+    // animating is held for its next draw, which rides that same frame loop, so asking
+    // Chart.js again is not enough on its own. The reveals already answer a missing
+    // frame with a timer; the charts get the same failsafe, so a viewport change lands
+    // either way.
+    const CHART_REFIT_GRACE_MS = 250;
+
+    // A destroyed chart has had its canvas taken away, and a chart inside a hidden
+    // panel has no box to fit: both keep the size they already have.
+    function refitChart(chart) {
+      if (!chart || !chart.canvas) return;
+      const box = chart.canvas.parentElement;
+      if (!box) return;
+      const width = box.clientWidth;
+      const height = box.clientHeight;
+      if (width < 1 || height < 1) return;
+      if (Math.abs(chart.width - width) < 1 && Math.abs(chart.height - height) < 1) return;
+      chart.resize(width, height);
+      // The canvas has already been re-measured by the call above, so draw here rather
+      // than leave a chart that is the right size and empty inside.
+      chart.draw();
+    }
+
+    function refitCharts() {
+      [sleepChartInstance, hrvChartInstance, rhrChartInstance, doughnutChartInstance, scatterChartInstance]
+        .forEach(refitChart);
+    }
+
+    let chartRefitQueued = false;
+    function queueChartRefit() {
+      if (chartRefitQueued) return;
+      chartRefitQueued = true;
+      const run = () => {
+        if (!chartRefitQueued) return;
+        chartRefitQueued = false;
+        refitCharts();
+      };
+      requestAnimationFrame(run);
+      window.setTimeout(run, CHART_REFIT_GRACE_MS);
+    }
+
+    window.addEventListener('resize', queueChartRefit);
+
     function playWhenSeen(el, replay) {
       if (!el || !motionAllows()) return;
       vizPending.push({ el, replay });
@@ -4068,6 +4116,13 @@
 
       // 13. Replay every growing visual the first time it is on screen.
       playVisuals();
+
+      // A rebuild mounts the charts while their cards are still scaled down by the
+      // entrance, and Chart.js measures a card's box through that scale: a chart
+      // built 1.5% narrow, which only the frame loop's own observer notices. Ask for
+      // a refit here instead, so a rebuild lands on the real box even where the frame
+      // loop is throttled.
+      queueChartRefit();
     }
 
     // The four risk contributors used to be static markup, so they kept reading
