@@ -276,6 +276,17 @@
          clipping changes where the ring is seen and never where it lands. */
       overflow: hidden;
     }
+    /* The workload dial and its reading sit side by side while the line can hold both: the
+       dial is fixed at 144px, the gap takes 16px, and the value with its "ratio" label needs
+       85px of its own. Below a 243px card the two cannot share the line, and the reading was
+       drawn past the card -- and, on a 280px-class screen, past the page itself, which scrolled
+       sideways while a card that fits its own box sat over the edge of it. The card is the query
+       container, so the wrap answers the width the card actually has rather than the page's guess
+       at it from the window, and the dial keeps its own size: the reading moves under it. */
+    .acwr-dial-card { container-type: inline-size; }
+    @container (max-width: 242px) {
+      .acwr-dial-row { flex-wrap: wrap; }
+    }
     /* The callout is a popover, so it is the size of what it says rather than the width of
        the page: as a plain block in <body> it stretched to the document's width and read as
        a bar across the window instead of a panel beside the node it describes. Its own
@@ -1641,12 +1652,12 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <!-- A. The workload dial: policy's own four bands, drawn on their real edges. -->
-          <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
+          <div class="acwr-dial-card p-4 rounded-xl bg-slate-900/80 border border-slate-800">
             <div class="flex items-center justify-between mb-1.5">
               <span class="text-[10px] font-bold tracking-wider text-cyan-400 uppercase">Workload balance dial</span>
               <span class="text-[10px] text-slate-500 mono">ACWR</span>
             </div>
-            <div class="flex items-center gap-4">
+            <div class="acwr-dial-row flex items-center gap-4">
               <svg id="acwrDial" viewBox="0 0 200 116" class="w-36 sm:w-44 shrink-0" role="group" aria-label="Acute to chronic workload ratio dial"></svg>
               <div class="min-w-0">
                 <div class="flex items-baseline gap-2">

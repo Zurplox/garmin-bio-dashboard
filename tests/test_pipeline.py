@@ -1897,6 +1897,45 @@ class ChartRefitTests(unittest.TestCase):
         self.assertLess(render.index("playVisuals();"), render.index("queueChartRefit();"))
 
 
+class NarrowDialRowTests(unittest.TestCase):
+    """The workload dial and its reading never widen the page.
+
+    The dial is a fixed 144px instrument and the reading beside it needs 85px of its
+    own, so below a 243px card the two cannot share a line. They were laid out on one
+    anyway: the reading was drawn past the card and, on a 280px-class screen, past the
+    page, which scrolled sideways -- measured at a 296px window (279px of usable width)
+    as scrollWidth 301 against clientWidth 279, with the dial row's own value label
+    the widest thing on the page. The wrap is gated on the card's own width rather than
+    the window's, so a wide card is laid out exactly as it was, and the dial is never
+    squeezed or clipped to make room: the reading moves under it instead.
+    """
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+
+    def test_the_dial_and_its_reading_share_a_line_while_they_fit(self):
+        page = self._page()
+        # No unconditional wrap: the row is side by side at 390, 1024 and 1440.
+        self.assertIn('<div class="acwr-dial-row flex items-center gap-4">', page)
+        # And the clamp is the card's own width, not the window's guess at it.
+        self.assertIn(".acwr-dial-card { container-type: inline-size; }", page)
+        self.assertIn('<div class="acwr-dial-card p-4 rounded-xl bg-slate-900/80 border border-slate-800">', page)
+        query = page.split("@container (max-width: 242px)", 1)[1].split("\n}", 1)[0]
+        self.assertIn(".acwr-dial-row { flex-wrap: wrap; }", query)
+
+    def test_the_dial_keeps_its_size_and_the_reading_moves(self):
+        page = self._page()
+        # Nothing is squeezed or clipped to make room: the dial keeps its own width --
+        # and with it its value -- and the wrap hands the reading a line of its own.
+        self.assertIn('id="acwrDial" viewBox="0 0 200 116" class="w-36 sm:w-44 shrink-0"', page)
+        self.assertIn('id="acwrDialValue"', page)
+        self.assertIn('<span class="text-[11px] text-slate-400">ratio</span>', page)
+        self.assertIn('id="acwrDialBand"', page)
+
+
 class ReRenderMotionTests(unittest.TestCase):
     """A panel a re-render rebuilds animates again, and nothing is left stranded.
 
