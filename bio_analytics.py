@@ -219,6 +219,12 @@ def calculate_baselines(all_rhr, all_hrv, sleep_history):
     total_secs_30 = [s["total_seconds"] for s in recent_30_sleep if s.get("total_seconds")]
     avg_duration_30 = round((sum(total_secs_30) / len(total_secs_30)) / 3600.0, 1) if total_secs_30 else 7.0
 
+    # A 7-day mirror of the 30-day average, so the dashboard can show the
+    # week against the month without inventing a second methodology.
+    recent_7_sleep = sleep_history[-7:] if len(sleep_history) >= 7 else sleep_history
+    total_secs_7 = [s["total_seconds"] for s in recent_7_sleep if s.get("total_seconds")]
+    avg_duration_7 = round((sum(total_secs_7) / len(total_secs_7)) / 3600.0, 1) if total_secs_7 else avg_duration_30
+
     deep_pcts_30 = [
         (s["deep_seconds"] / s["total_seconds"] * 100.0)
         for s in recent_30_sleep if s.get("total_seconds") and s.get("deep_seconds")
@@ -263,6 +269,7 @@ def calculate_baselines(all_rhr, all_hrv, sleep_history):
         "sleep_score_30d": avg_score_30d,
         "sleep_score_180d": avg_score_180d,
         "sleep_duration_avg_30d_hours": avg_duration_30,
+        "sleep_duration_avg_7d_hours": avg_duration_7,
         "sleep_duration_avg_180d_hours": avg_duration_180d,
         "deep_sleep_pct_30d": avg_deep_30,
         "deep_sleep_pct_180d": avg_deep_180d,

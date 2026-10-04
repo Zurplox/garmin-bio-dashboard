@@ -295,6 +295,17 @@ class BaselineTests(unittest.TestCase):
         self.assertEqual(baselines["rhr_30d"], 50.0)
         self.assertEqual(baselines["hrv_30d"], 56.0)
 
+    def test_sleep_duration_7d_uses_the_same_method_as_30d(self):
+        sleep = [make_sleep(f"2026-08-{day:02d}", hours=6.0 + (day % 3) * 0.5) for day in range(1, 16)]
+        baselines, _ = analytics.calculate_baselines([], [], sleep)
+        last_7 = sleep[-7:]
+        expected = round(sum(s["total_seconds"] for s in last_7) / len(last_7) / 3600.0, 1)
+        self.assertEqual(baselines["sleep_duration_avg_7d_hours"], expected)
+        # Fewer nights than a week falls back to the 30-day window rather than
+        # averaging three nights and calling it a week.
+        baselines_short, _ = analytics.calculate_baselines([], [], sleep[:3])
+        self.assertEqual(baselines_short["sleep_duration_avg_7d_hours"], baselines_short["sleep_duration_avg_30d_hours"])
+
     def test_latest_record_ignores_input_order(self):
         records = make_rhr("2026-08-01", 5)
         self.assertEqual(analytics.latest_record(records, "calendarDate"), records[-1])

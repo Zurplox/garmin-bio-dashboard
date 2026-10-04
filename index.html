@@ -1125,6 +1125,10 @@
               <span>Strain Recovery Need:</span>
               <span id="needStrain" class="mono text-cyan-400">+12m</span>
             </div>
+            <div class="flex justify-between text-slate-400 text-[11px]">
+              <span>Last 7 Nights Avg:</span>
+              <span id="needWeekDuration" class="mono text-slate-200">--</span>
+            </div>
             <div class="pt-1.5 border-t border-slate-800 flex justify-between items-center text-sm font-bold">
               <span class="text-white">Total Sleep Need:</span>
               <span id="needTotal" class="mono text-violet-400 text-base font-extrabold">8h 37m</span>
@@ -1469,9 +1473,15 @@
             <span class="text-xs text-slate-400 font-medium">ms</span>
             <span id="kpiHrvStatus" class="ml-auto text-xs px-2 py-0.5 rounded bg-slate-500/10 text-slate-400 font-semibold">--</span>
           </div>
-          <div class="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400 flex justify-between">
-            <span>30d Baseline: <strong id="kpiHrvBaseline" class="text-slate-200">55.3 ms</strong></span>
-            <span>Band: <strong id="kpiHrvRange" class="text-slate-300">54 - 73 ms</strong></span>
+          <div class="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400">
+            <div class="flex justify-between">
+              <span>30d Baseline: <strong id="kpiHrvBaseline" class="text-slate-200">55.3 ms</strong></span>
+              <span>Band: <strong id="kpiHrvRange" class="text-slate-300">54 - 73 ms</strong></span>
+            </div>
+            <div class="mt-1.5 flex justify-between">
+              <span>7d Avg: <strong id="kpiHrv7d" class="text-slate-200">--</strong></span>
+              <span>vs 30d: <strong id="kpiHrv7dDelta" class="text-slate-300">--</strong></span>
+            </div>
           </div>
           <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
             <span>ⓘ What is HRV?</span>
@@ -1496,9 +1506,15 @@
             <span class="text-xs text-slate-400 font-medium">bpm</span>
             <span id="kpiRhrTier" class="ml-auto text-xs px-2 py-0.5 rounded bg-slate-500/10 text-slate-400 font-semibold">--</span>
           </div>
-          <div class="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400 flex justify-between">
-            <span>30d Avg: <strong id="kpiRhr30d" class="text-slate-200">49.8 bpm</strong></span>
-            <span>4y Baseline: <strong id="kpiRhrAllTime" class="text-slate-300">-- bpm</strong></span>
+          <div class="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400">
+            <div class="flex justify-between">
+              <span>30d Avg: <strong id="kpiRhr30d" class="text-slate-200">49.8 bpm</strong></span>
+              <span>4y Baseline: <strong id="kpiRhrAllTime" class="text-slate-300">-- bpm</strong></span>
+            </div>
+            <div class="mt-1.5 flex justify-between">
+              <span>7d Avg: <strong id="kpiRhr7d" class="text-slate-200">--</strong></span>
+              <span>vs 30d: <strong id="kpiRhr7dDelta" class="text-slate-300">--</strong></span>
+            </div>
           </div>
           <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
             <span>ⓘ What is RHR?</span>
@@ -3971,6 +3987,7 @@
       document.getElementById("needDebt").textContent = measured(whoop.sleep_debt_minutes, 'm', '+');
       document.getElementById("needStrain").textContent = measured(whoop.strain_sleep_need_minutes, 'm', '+');
       document.getElementById("needTotal").textContent = measured(whoop.total_sleep_need_formatted);
+      document.getElementById("needWeekDuration").textContent = measured(baselines.sleep_duration_avg_7d_hours, 'h');
       document.getElementById("targetBedtime").textContent = measured(whoop.recommended_bedtime);
       document.getElementById("targetWake").textContent = measured(whoop.recommended_wake_time);
 
@@ -4063,6 +4080,18 @@
         `ml-auto text-xs px-2 py-0.5 rounded bg-${hrvStatusTone}-500/10 text-${hrvStatusTone}-400 font-semibold`;
       document.getElementById("infoHrvWatchStatus").textContent = today.hrv_status || "--";
       document.getElementById("kpiHrvBaseline").textContent = measured(baselines.hrv_30d, ' ms');
+      document.getElementById("kpiHrv7d").textContent = measured(baselines.hrv_7d, ' ms');
+      // The week-vs-month trend on the same card. HRV rising is a good sign,
+      // so the direction of the number decides the colour, never the other way round.
+      const hrvDeltaEl = document.getElementById("kpiHrv7dDelta");
+      if (baselines.hrv_7d != null && baselines.hrv_30d != null) {
+        const d = Math.round((baselines.hrv_7d - baselines.hrv_30d) * 10) / 10;
+        hrvDeltaEl.textContent = (d > 0 ? '+' : '') + d + ' ms';
+        hrvDeltaEl.className = d > 0 ? 'text-emerald-400' : (d < 0 ? 'text-rose-400' : 'text-slate-300');
+      } else {
+        hrvDeltaEl.textContent = '--';
+        hrvDeltaEl.className = 'text-slate-300';
+      }
       // One personal corridor, read by the KPI, the chart and the HUD; absent unless
       // both edges were measured, so the three can never show different ranges.
       const corridor = (today.hrv_baseline_low == null || today.hrv_baseline_high == null)
@@ -4086,6 +4115,18 @@
         `ml-auto text-xs px-2 py-0.5 rounded bg-${rhrTierTone}-500/10 text-${rhrTierTone}-400 font-semibold`;
       document.getElementById("kpiRhr30d").textContent = measured(baselines.rhr_30d, ' bpm');
       document.getElementById("kpiRhrAllTime").textContent = measured(baselines.rhr_all_time, ' bpm');
+      document.getElementById("kpiRhr7d").textContent = measured(baselines.rhr_7d, ' bpm');
+      // Resting heart rate trends the other way from HRV: lower is better,
+      // so a rising week-vs-month delta reads rose, not green.
+      const rhrDeltaEl = document.getElementById("kpiRhr7dDelta");
+      if (baselines.rhr_7d != null && baselines.rhr_30d != null) {
+        const d = Math.round((baselines.rhr_7d - baselines.rhr_30d) * 10) / 10;
+        rhrDeltaEl.textContent = (d > 0 ? '+' : '') + d + ' bpm';
+        rhrDeltaEl.className = d < 0 ? 'text-emerald-400' : (d > 0 ? 'text-rose-400' : 'text-slate-300');
+      } else {
+        rhrDeltaEl.textContent = '--';
+        rhrDeltaEl.className = 'text-slate-300';
+      }
 
       // 8. AI Diagnostic Dossier
       // The rule engine and Gemini both produce this analysis, so the UI now
