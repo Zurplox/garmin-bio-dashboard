@@ -2055,7 +2055,8 @@ class ReRenderMotionTests(unittest.TestCase):
             re.findall(r"@keyframes ([\w-]+)", page),
             ["gauge-spring", "chart-spring", "bar-spring", "bar-spring-y", "heat-cell-spring",
              "fill-sheen", "hud-swap", "chip-pop", "callout-in", "beacon-out",
-             "pulse-dot", "meridian-spin", "spin", "lock-rise"],
+             "pulse-dot", "meridian-spin", "spin", "lock-rise",
+             "aurora-a", "aurora-b", "aurora-c"],
         )
         # Replay re-runs the primitives; it never adds an effect of its own.
         self.assertNotIn("replayMotion", self._fn(page, "primeGrow"))

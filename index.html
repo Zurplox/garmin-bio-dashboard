@@ -406,6 +406,85 @@
       #lockScreen .glass-card { animation: none !important; }
       .motion-tilt { opacity: 1 !important; transform: none !important; }
     }
+
+    /* ---- Motion pass extras -------------------------------------------
+       Ambient life for the page: an aurora that drifts behind the cards,
+       a soft instrument light that follows the pointer, a scroll progress
+       meter and a lift when a card is hovered. */
+    #scrollProgress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      z-index: 60;
+      pointer-events: none;
+      background: linear-gradient(90deg, #22d3ee, #8b5cf6 60%, #10b981);
+      transform-origin: left center;
+      transform: scaleX(0);
+    }
+    .aurora { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+    .aurora-blob {
+      position: absolute;
+      border-radius: 9999px;
+      filter: blur(90px);
+      opacity: 0.55;
+      will-change: transform;
+    }
+    .aurora-blob-a {
+      width: 55vw; height: 55vw; left: -15vw; top: -18vh;
+      background: radial-gradient(circle at center, rgba(34, 211, 238, 0.16), transparent 60%);
+      animation: aurora-a 26s ease-in-out infinite alternate;
+    }
+    .aurora-blob-b {
+      width: 60vw; height: 60vw; right: -20vw; top: 28vh;
+      background: radial-gradient(circle at center, rgba(139, 92, 246, 0.14), transparent 60%);
+      animation: aurora-b 32s ease-in-out infinite alternate;
+    }
+    .aurora-blob-c {
+      width: 50vw; height: 50vw; left: 8vw; bottom: -25vh;
+      background: radial-gradient(circle at center, rgba(16, 185, 129, 0.10), transparent 60%);
+      animation: aurora-c 38s ease-in-out infinite alternate;
+    }
+    @keyframes aurora-a { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(10vw, 9vh, 0) scale(1.15); } }
+    @keyframes aurora-b { from { transform: translate3d(0, 0, 0) scale(1.1); } to { transform: translate3d(-9vw, -7vh, 0) scale(0.95); } }
+    @keyframes aurora-c { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(7vw, -10vh, 0) scale(1.2); } }
+    [data-theme="light"] .aurora-blob { opacity: 0.35; }
+    #cursorGlow {
+      position: fixed;
+      top: 0; left: 0;
+      width: 480px; height: 480px;
+      border-radius: 9999px;
+      pointer-events: none;
+      z-index: 1;
+      background: radial-gradient(circle at center, rgba(34, 211, 238, 0.07), rgba(139, 92, 246, 0.04) 45%, transparent 70%);
+      transform: translate(-9999px, -9999px);
+      will-change: transform;
+    }
+    [data-theme="light"] #cursorGlow { opacity: 0.5; }
+    @media (prefers-reduced-motion: no-preference) {
+      #scrollProgress { transition: transform 0.08s linear; }
+      .motion-live .glass-card.motion-reveal.is-revealed:hover,
+      .motion-live .glass-card.motion-tilt.is-revealed:hover {
+        transform: translateY(-4px);
+        border-color: rgba(34, 211, 238, 0.28);
+        box-shadow: 0 14px 40px -12px rgba(2, 6, 23, 0.9), 0 0 24px -6px rgba(34, 211, 238, 0.18);
+        transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease, border-color 0.35s ease;
+      }
+      [data-theme="light"] .motion-live .glass-card.motion-reveal.is-revealed:hover,
+      [data-theme="light"] .motion-live .glass-card.motion-tilt.is-revealed:hover {
+        box-shadow: 0 14px 34px -14px rgba(15, 23, 42, 0.25);
+        border-color: rgba(14, 116, 144, 0.35);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .aurora-blob { animation: none; }
+      #scrollProgress { transition: none; }
+      #cursorGlow { display: none; }
+    }
+    @media print {
+      .aurora, #cursorGlow, #scrollProgress { display: none !important; }
+    }
     /* Clinical Report Print Styles */
     @media print {
       body {
@@ -462,6 +541,15 @@
   </style>
 </head>
 <body class="min-h-screen flex flex-col bg-bio-bg selection:bg-cyan-500 selection:text-black">
+
+  <!-- Ambient motion layer: scroll meter, drifting aurora, pointer light. -->
+  <div id="scrollProgress" aria-hidden="true"></div>
+  <div class="aurora" aria-hidden="true">
+    <div class="aurora-blob aurora-blob-a"></div>
+    <div class="aurora-blob aurora-blob-b"></div>
+    <div class="aurora-blob aurora-blob-c"></div>
+  </div>
+  <div id="cursorGlow" aria-hidden="true"></div>
 
   <!--
     The identity mark, defined once and referenced wherever it appears: a heart
@@ -2501,6 +2589,52 @@
 
     window.addEventListener('resize', queueChartRefit);
 
+    // The scroll meter at the top of the window: one bar, filled by how far
+    // down the page the reader has come. Painted from scroll position only --
+    // no number, no re-render.
+    const scrollProgressEl = document.getElementById('scrollProgress');
+    function updateScrollProgress() {
+      if (!scrollProgressEl) return;
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      const ratio = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+      scrollProgressEl.style.transform = `scaleX(${ratio})`;
+    }
+    window.addEventListener('scroll', updateScrollProgress, { passive: true });
+    window.addEventListener('resize', updateScrollProgress);
+    updateScrollProgress();
+    // The scroll event is the fast path; the interval is the failsafe. A
+    // throttled or missing scroll/rAF delivery (a suspended tab, a WebView
+    // that never fires scroll) would otherwise strand the bar behind the
+    // position the reader has actually reached, and so would the paint
+    // after the dashboard's reveal, which changes the document height.
+    window.setInterval(updateScrollProgress, 500);
+
+    // A soft instrument light that follows the pointer. It lerps toward the
+    // pointer rather than snapping, so it drifts instead of teleporting, and
+    // it stands down on touch-first devices, which have no pointer to follow.
+    const cursorGlowEl = document.getElementById('cursorGlow');
+    if (cursorGlowEl && motionAllows() && !window.matchMedia('(pointer: coarse)').matches) {
+      let targetX = -9999, targetY = -9999, curX = -9999, curY = -9999, rafPending = false;
+      const step = () => {
+        rafPending = false;
+        curX += (targetX - curX) * 0.12;
+        curY += (targetY - curY) * 0.12;
+        cursorGlowEl.style.transform = `translate(${curX - 240}px, ${curY - 240}px)`;
+        if (Math.abs(targetX - curX) > 0.5 || Math.abs(targetY - curY) > 0.5) {
+          rafPending = true;
+          requestAnimationFrame(step);
+        }
+      };
+      window.addEventListener('pointermove', (e) => {
+        targetX = e.clientX;
+        targetY = e.clientY;
+        if (!rafPending) {
+          rafPending = true;
+          requestAnimationFrame(step);
+        }
+      }, { passive: true });
+    }
+
     function playWhenSeen(el, replay) {
       if (!el || !motionAllows()) return;
       vizPending.push({ el, replay });
@@ -2748,7 +2882,7 @@
       ['recoveryScoreVal', 'strainScoreVal', 'kpiHrvValue', 'kpiRhrValue', 'kpiFitnessAge',
        'kpiAcwrVal', 'movementRingPct', 'glanceSessions', 'glanceSteps',
        'markerDeltaRhr', 'markerDeltaHrv', 'markerRespRate', 'markerSleepStress',
-       'bbLevelPct']
+       'bbLevelPct', 'readinessVal', 'injuryRiskPct']
         .forEach(id => {
           const el = document.getElementById(id);
           if (inScope(el)) primeCount(el);
