@@ -314,6 +314,54 @@ class BaselineTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Muscle coverage from the watch's exercise sets
+# ---------------------------------------------------------------------------
+
+class MuscleGroupTests(unittest.TestCase):
+    @staticmethod
+    def _session(date_str, sets):
+        return {"startTimeLocal": f"{date_str}T08:00:00", "exercise_sets": sets}
+
+    def test_sets_credit_every_mapped_group(self):
+        activities = [self._session("2026-10-02", [
+            {"category": "BENCH_PRESS", "set_type": "ACTIVE"},
+            {"category": "BENCH_PRESS", "set_type": "ACTIVE"},
+            {"category": "CURL", "set_type": "ACTIVE"},
+            {"category": "PUSH_UP", "set_type": "REST"},  # rest sets never count
+        ])]
+        cover = analytics.build_muscle_groups(activities, "2026-10-04")
+        self.assertTrue(cover["available"])
+        by_key = {g["key"]: g for g in cover["groups"]}
+        self.assertEqual(by_key["chest"]["sets"], 2)
+        self.assertEqual(by_key["triceps"]["sets"], 2)
+        self.assertEqual(by_key["shoulders"]["sets"], 2)
+        self.assertEqual(by_key["biceps"]["sets"], 1)
+        self.assertEqual(by_key["biceps"]["sessions"], 1)
+        self.assertEqual(by_key["chest"]["days_since"], 2)
+        self.assertEqual(by_key["chest"]["band"], "recent")
+        self.assertEqual(by_key["hamstrings"]["band"], "unmeasured")
+        self.assertEqual(cover["session_days"], 1)
+
+    def test_unclassified_sets_are_counted_not_guessed(self):
+        activities = [self._session("2026-10-02", [
+            {"category": "UNKNOWN", "set_type": "ACTIVE"},
+            {"category": "TRICEPS_EXTENSION", "set_type": "ACTIVE"},
+        ])]
+        cover = analytics.build_muscle_groups(activities, "2026-10-04")
+        self.assertEqual(cover["sets_unclassified"], 1)
+        self.assertEqual(cover["sets_classified"], 1)
+        # No phantom group is invented for an UNKNOWN category.
+        self.assertEqual([g["sets"] for g in cover["groups"] if g["sets"]], [1])
+
+    def test_age_of_last_session_sets_the_band(self):
+        activities = [self._session("2026-08-20", [{"category": "ROW", "set_type": "ACTIVE"}])]
+        cover = analytics.build_muscle_groups(activities, "2026-10-04")
+        back = next(g for g in cover["groups"] if g["key"] == "back")
+        self.assertEqual(back["days_since"], 45)
+        self.assertEqual(back["band"], "stale")
+
+
+# ---------------------------------------------------------------------------
 # Circadian architecture
 # ---------------------------------------------------------------------------
 

@@ -1732,6 +1732,81 @@
         </div>
       </section>
 
+      <!-- SECTION 4C2: MUSCLE COVERAGE — each major group, coloured by how
+           recently the watch's own exercise sets say it was loaded. -->
+      <section class="glass-card rounded-2xl p-6 border border-slate-800 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-3">
+            <div class="p-2 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/30">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v6a5 5 0 0010 0V4M7 4h2m0 0V2m6 2h-2m2 0V2m-8 16v2m6-2v2m-6-2h6"/>
+              </svg>
+            </div>
+            <div>
+              <span class="text-[10px] font-bold tracking-wider text-violet-400 uppercase">Strength Detail</span>
+              <h3 class="text-base font-bold text-white tracking-tight">Muscle Coverage</h3>
+              <p class="text-[11px] text-slate-400 leading-tight mt-0.5">Which muscles your strength sessions load, and how recently — from the watch's own set data.</p>
+            </div>
+          </div>
+          <span id="muscleSummary" class="text-xs px-2.5 py-1 rounded-full bg-slate-800/60 border border-slate-700 text-slate-300 font-mono text-[11px]">--</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+          <div class="flex flex-col items-center">
+            <div class="flex items-start gap-4">
+              <figure class="text-center">
+                <svg id="muscleMapFront" viewBox="0 0 200 470" class="w-36 h-auto" role="img" aria-label="Front-view muscle map">
+                  <circle cx="100" cy="26" r="13" fill="#263348"/>
+                  <rect x="45" y="80" width="14" height="38" rx="7" data-group="biceps" fill="#263348"/>
+                  <rect x="141" y="80" width="14" height="38" rx="7" data-group="biceps" fill="#263348"/>
+                  <ellipse cx="61" cy="70" rx="13" ry="10" data-group="shoulders" fill="#263348"/>
+                  <ellipse cx="139" cy="70" rx="13" ry="10" data-group="shoulders" fill="#263348"/>
+                  <ellipse cx="86" cy="88" rx="16" ry="19" data-group="chest" fill="#263348"/>
+                  <ellipse cx="114" cy="88" rx="16" ry="19" data-group="chest" fill="#263348"/>
+                  <rect x="80" y="112" width="40" height="42" rx="10" data-group="core" fill="#263348"/>
+                  <rect x="43" y="126" width="13" height="40" rx="6" fill="#263348"/>
+                  <rect x="144" y="126" width="13" height="40" rx="6" fill="#263348"/>
+                  <rect x="76" y="168" width="21" height="82" rx="9" data-group="quads" fill="#263348"/>
+                  <rect x="103" y="168" width="21" height="82" rx="9" data-group="quads" fill="#263348"/>
+                  <rect x="78" y="262" width="16" height="46" rx="8" data-group="calves" fill="#263348"/>
+                  <rect x="106" y="262" width="16" height="46" rx="8" data-group="calves" fill="#263348"/>
+                  <rect x="76" y="318" width="20" height="10" rx="5" fill="#263348"/>
+                  <rect x="104" y="318" width="20" height="10" rx="5" fill="#263348"/>
+                </svg>
+                <figcaption class="text-[10px] text-slate-500">Front</figcaption>
+              </figure>
+              <figure class="text-center">
+                <svg id="muscleMapBack" viewBox="0 0 200 470" class="w-36 h-auto" role="img" aria-label="Back-view muscle map">
+                  <circle cx="100" cy="26" r="13" fill="#263348"/>
+                  <rect x="45" y="80" width="14" height="38" rx="7" data-group="triceps" fill="#263348"/>
+                  <rect x="141" y="80" width="14" height="38" rx="7" data-group="triceps" fill="#263348"/>
+                  <rect x="72" y="66" width="56" height="78" rx="14" data-group="back" fill="#263348"/>
+                  <rect x="43" y="126" width="13" height="40" rx="6" fill="#263348"/>
+                  <rect x="144" y="126" width="13" height="40" rx="6" fill="#263348"/>
+                  <ellipse cx="86" cy="166" rx="16" ry="13" data-group="glutes" fill="#263348"/>
+                  <ellipse cx="114" cy="166" rx="16" ry="13" data-group="glutes" fill="#263348"/>
+                  <rect x="76" y="184" width="21" height="74" rx="9" data-group="hamstrings" fill="#263348"/>
+                  <rect x="103" y="184" width="21" height="74" rx="9" data-group="hamstrings" fill="#263348"/>
+                  <rect x="78" y="268" width="16" height="46" rx="8" data-group="calves" fill="#263348"/>
+                  <rect x="106" y="268" width="16" height="46" rx="8" data-group="calves" fill="#263348"/>
+                  <rect x="76" y="324" width="20" height="10" rx="5" fill="#263348"/>
+                  <rect x="104" y="324" width="20" height="10" rx="5" fill="#263348"/>
+                </svg>
+                <figcaption class="text-[10px] text-slate-500">Back</figcaption>
+              </figure>
+            </div>
+            <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-400">
+              <span><span class="inline-block w-2 h-2 rounded-full" style="background:#10b981"></span> This week</span>
+              <span><span class="inline-block w-2 h-2 rounded-full" style="background:#22d3ee"></span> This month</span>
+              <span><span class="inline-block w-2 h-2 rounded-full" style="background:#f59e0b"></span> Over a month</span>
+              <span><span class="inline-block w-2 h-2 rounded-full" style="background:#263348"></span> Not measured</span>
+            </div>
+          </div>
+          <div id="muscleGroupList" class="grid grid-cols-2 gap-2" data-stagger="60"></div>
+        </div>
+        <p id="muscleNote" class="text-[11px] text-slate-500 leading-relaxed"></p>
+      </section>
+
       <!-- SECTION 4D: INTERACTIVE INSTRUMENTS — the load, movement and consistency
            readings as things you can point at. Every value and every tone arrives
            resolved from the engine; a reading that was never measured stays absent. -->
@@ -4038,6 +4113,7 @@
       // capacity and forecast, then the correlations between the channels.
       renderMeasuredSignals(data);
       renderCoaching(data);
+      renderMuscles(data);
       renderInstruments(data);
 
       // 7. Biological Fitness Age & Workload
@@ -4642,6 +4718,52 @@
       // The cards and their week bars were rebuilt just now, so the panel assembles
       // again instead of arriving as plain rows.
       replayMotion(document.getElementById('coachCards'));
+    }
+
+    // ---- Muscle coverage ---------------------------------------------------
+    // Each major group is coloured by how recently the watch's own exercise
+    // sets say it was loaded. A set credits every group its exercise maps to,
+    // so a set shows in each derived row but is counted once per category.
+    const MUSCLE_BAND_COLORS = { recent: '#10b981', month: '#22d3ee', stale: '#f59e0b' };
+
+    function renderMuscles(data) {
+      const m = data.muscles || {};
+      const byKey = {};
+      (m.groups || []).forEach(g => { byKey[g.key] = g; });
+
+      document.querySelectorAll('#muscleMapFront [data-group], #muscleMapBack [data-group]').forEach(el => {
+        const g = byKey[el.dataset.group];
+        const fill = g && MUSCLE_BAND_COLORS[g.band];
+        if (fill) {
+          el.setAttribute('fill', fill);
+            el.setAttribute('fill-opacity', g.band === 'recent' ? '0.95' : '0.75');
+        }
+        const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        title.textContent = g
+          ? `${g.label}: ${g.band_label} — ${g.sets} sets, ${g.sessions} session${g.sessions === 1 ? '' : 's'}${g.last_date ? ', last ' + g.last_date : ''}`
+          : 'Not measured in the published window';
+        el.appendChild(title);
+      });
+
+      const list = document.getElementById('muscleGroupList');
+      list.innerHTML = (m.groups || []).map(g => `
+        <div class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full" style="background:${MUSCLE_BAND_COLORS[g.band] || '#475569'}"></span>
+            <span class="text-xs font-bold ${g.sets ? 'text-white' : 'text-slate-500'}">${esc(g.label)}</span>
+          </div>
+          <div class="mt-0.5 text-[10px] text-slate-500 mono">
+            ${g.sets ? `${g.sets} sets · ${g.sessions} session${g.sessions === 1 ? '' : 's'}${g.days_since != null ? ` · ${g.days_since}d ago` : ''}` : 'no sets'}
+          </div>
+        </div>`).join('');
+
+      document.getElementById('muscleSummary').textContent = m.available
+        ? `${m.session_days} strength days · ${m.sets_classified} sets classified`
+        : 'No strength set data yet';
+      document.getElementById('muscleNote').textContent = m.available
+        ? `Coloured by your last session touching each group. Totals across groups exceed the raw set count because one exercise set serves every group its movement targets. ${m.sets_unclassified} set${m.sets_unclassified === 1 ? '' : 's'} had no classifiable exercise category.`
+        : 'Strength sessions in the window did not carry exercise detail, so nothing is published rather than guessed.';
+      replayMotion(list);
     }
 
     function renderMeasuredSignals(data) {

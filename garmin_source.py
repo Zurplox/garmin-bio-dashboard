@@ -250,7 +250,7 @@ def fetch_recent_activities(client, limit=60, dq=None):
             elif "strength" in type_key or "training" in type_key or "cardio" in type_key:
                 category = "Gym"
 
-            clean_acts.append({
+            entry = {
                 "activityId": a.get("activityId"),
                 "activityName": a.get("activityName"),
                 "activityType": type_key,
@@ -270,10 +270,44 @@ def fetch_recent_activities(client, limit=60, dq=None):
                 "maxHR": a.get("maxHR"),
                 "aerobicTrainingEffect": a.get("aerobicTrainingEffect"),
                 "anaerobicTrainingEffect": a.get("anaerobicTrainingEffect"),
-            })
+            }
+
+            # A strength session's exercise sets are its own endpoint: which
+            # lifts, how many reps, what weight. Without this only the session
+            # count and duration are known -- never which muscle actually worked.
+            if "strength" in type_key:
+                try:
+                    exercise_sets = client.get_activity_exercise_sets(a.get("activityId")) or {}
+                    trimmed = []
+                    for s in exercise_sets.get("exerciseSets", []) or []:
+                        for ex in s.get("exercises") or []:
+                            if not ex.get("category"):
+                                continue
+                            trimmed.append({
+                                "category": ex.get("category"),
+                                "reps": s.get("repetitionCount"),
+                                "weight_kg": round(s["weight"] / 1000.0, 1) if s.get("weight") else None,
+                                "duration_s": round(s.get("duration") or 0, 1),
+                                "set_type": s.get("setType"),
+                            })
+                    entry["exercise_sets"] = trimmed
+                except Exception as exc:
+                    # The session itself was measured; its exercise detail was not.
+                    # Keep the session and record the gap instead of dropping both.
+                    print(f"   ⚠️  exercise sets unavailable for {a.get('activityId')}: {exc}")
+                    entry["exercise_sets"] = None
+
+            clean_acts.append(entry)
         print(f"   ✅ Fetched {len(clean_acts)} activities")
         if dq:
             dq.record("activities", True, f"{len(clean_acts)} activities")
+            strength_sessions = len([a for a in clean_acts if a.get("exercise_sets")])
+            dq.record(
+                "muscles",
+                strength_sessions > 0,
+                (f"{strength_sessions} strength sessions with exercise sets"
+                 if strength_sessions else "no strength exercise sets in the feed"),
+            )
         return clean_acts
     except Exception as e:
         print(f"   ⚠️ Error fetching activities: {e}")

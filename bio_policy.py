@@ -561,6 +561,64 @@ SLEEP_LATE_NIGHT_MINUTES = 45
 HEAT_DECAY_PER_DAY = 0.025
 HEAT_INDUCTION_DAYS = 5
 
+# --- muscle coverage --------------------------------------------------------
+# The strength card tells you *how often* you train; this map tells you *where*.
+# The exercise categories come from Garmin's exerciseSets endpoint (the names
+# are Garmin's own keys, observed live for this athlete), and each is credited
+# to the major group it primarily loads. A category missing from the map is
+# reported as unclassified rather than guessed at.
+MUSCLE_GROUPS = (
+    ("chest", "Chest"),
+    ("back", "Back"),
+    ("shoulders", "Shoulders"),
+    ("biceps", "Biceps"),
+    ("triceps", "Triceps"),
+    ("core", "Core & Abs"),
+    ("glutes", "Glutes"),
+    ("quads", "Quadriceps"),
+    ("hamstrings", "Hamstrings"),
+    ("calves", "Calves"),
+)
+
+EXERCISE_TO_MUSCLES = {
+    "BENCH_PRESS": ("chest", "triceps", "shoulders"),
+    "PUSH_UP": ("chest", "triceps", "shoulders"),
+    "FLYE": ("chest",),
+    "ROW": ("back", "biceps"),
+    "PULL_UP": ("back", "biceps"),
+    "SHOULDER_PRESS": ("shoulders", "triceps"),
+    "LATERAL_RAISE": ("shoulders",),
+    "CURL": ("biceps",),
+    "TRICEPS_EXTENSION": ("triceps",),
+    "SIT_UP": ("core",),
+    "CRUNCH": ("core",),
+    "SQUAT": ("quads", "glutes", "hamstrings"),
+    "DEADLIFT": ("hamstrings", "glutes", "back"),
+}
+
+# Recency bands for a muscle group, days since its last measured session.
+MUSCLE_BANDS = {
+    "recent": {"label": "Trained this week", "tone": "emerald"},
+    "month": {"label": "Trained this month", "tone": "cyan"},
+    "stale": {"label": "Over a month", "tone": "amber"},
+    "unmeasured": {"label": "Not measured", "tone": "slate"},
+}
+
+
+def muscle_recency_band(days_since):
+    if days_since is None:
+        return "unmeasured"
+    if days_since <= 7:
+        return "recent"
+    if days_since <= 30:
+        return "month"
+    return "stale"
+
+
+def muscle_band_meta(key):
+    return MUSCLE_BANDS[key]
+
+
 # A personal pattern is only published once this many paired days support it.
 PATTERN_MIN_PAIRS = 12
 PATTERN_MIN_RUNS = 6

@@ -284,6 +284,8 @@ def build_payload(client, fetched, dq):
         "correlations": correlations,
         "coaching": coaching,
         "data_quality": quality,
+        # Muscle coverage, derived from the watch's own exercise sets.
+        "muscles": analytics.build_muscle_groups(activities, today_str),
     }
 
 

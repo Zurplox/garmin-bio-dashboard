@@ -751,6 +751,70 @@ def build_oxygen_signal(days):
     }
 
 
+def build_muscle_groups(activities, today_str):
+    """Per-muscle-group recency and volume from strength exercise sets.
+
+    Every figure comes from the watch's own exercise-set telemetry, credited to
+    the documented group map (policy owns that map). An exercise category the
+    map does not know is counted separately rather than guessed at, so the
+    heat map never claims a muscle was trained when that is not known.
+    Returns available: False when nothing was classified at all.
+    """
+    sets_by_group = {}
+    dates_by_group = {}
+    classified_sets = 0
+    unclassified_sets = 0
+
+    for act in activities or []:
+        date_str = (act.get("startTimeLocal") or "")[:10]
+        if not date_str:
+            continue
+        for s in act.get("exercise_sets") or []:
+            if s.get("set_type") and s["set_type"] != "ACTIVE":
+                continue
+            groups = policy.EXERCISE_TO_MUSCLES.get(s.get("category") or "")
+            if not groups:
+                unclassified_sets += 1
+                continue
+            classified_sets += 1
+            for g in groups:
+                sets_by_group[g] = sets_by_group.get(g, 0) + 1
+                dates_by_group.setdefault(g, set()).add(date_str)
+
+    try:
+        today = datetime.date.fromisoformat(today_str)
+    except (ValueError, TypeError):
+        today = datetime.date.today()
+
+    groups = []
+    for key, label in policy.MUSCLE_GROUPS:
+        dates = sorted(dates_by_group.get(key, ()), reverse=True)
+        last = dates[0] if dates else None
+        days_since = (today - datetime.date.fromisoformat(last)).days if last else None
+        band = policy.muscle_recency_band(days_since)
+        meta = policy.muscle_band_meta(band)
+        groups.append({
+            "key": key,
+            "label": label,
+            "sessions": len(dates),
+            "sets": sets_by_group.get(key, 0),
+            "last_date": last,
+            "days_since": days_since,
+            "band": band,
+            "band_label": meta["label"],
+            "tone": meta["tone"],
+        })
+
+    session_days = len({d for dates in dates_by_group.values() for d in dates})
+    return {
+        "available": classified_sets > 0,
+        "sets_classified": classified_sets,
+        "sets_unclassified": unclassified_sets,
+        "session_days": session_days,
+        "groups": groups,
+    }
+
+
 def build_environment_signal(location_days, weather, heat_acclimation_pct, hydration):
     """Where the training happened, what the air was doing, and heat adaptation.
 
