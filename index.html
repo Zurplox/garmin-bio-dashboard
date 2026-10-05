@@ -5228,7 +5228,7 @@
             return `
             <li class="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 transition-colors duration-500 hover:border-violet-500/40">
               <div class="flex items-center justify-between gap-3">
-                <span class="mono font-bold text-[11px] px-2 py-0.5 rounded-full border bg-violet-500/10 border-violet-500/30 text-violet-300 shrink-0">r=${f.r}</span>
+                <span class="mono font-bold text-[11px] px-2 py-0.5 rounded-full border bg-violet-500/10 border-violet-500/30 text-violet-300 shrink-0">r=${Number(f.r).toFixed(2)}</span>
                 <span class="text-[10px] text-slate-500 mono shrink-0">${f.days} paired days · ${esc(f.strength)}</span>
               </div>
               <!-- Each side keeps its own arrow, so a narrow window wraps the

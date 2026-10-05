@@ -4497,7 +4497,9 @@ class CorrelationRowTests(unittest.TestCase):
         row = self._row()
         # The coefficient and the days behind it stay in view, and the direction
         # is drawn both ways from the finding's own sign.
-        self.assertIn("r=${f.r}", row)
+        # Two decimals always: the engine rounds the coefficient, and `r=0.5`
+        # beside `r=-0.69` reads as a different precision rather than the same scale.
+        self.assertIn("r=${Number(f.r).toFixed(2)}", row)
         self.assertIn("${f.days} paired days", row)
         self.assertIn("const bArrow = f.direction === 'lower' ? '&#8595;' : '&#8593;';", row)
         self.assertIn("&#8593;", row)
