@@ -4403,5 +4403,41 @@ class ChartDeckTests(unittest.TestCase):
         self.assertIn("getElementById('consistencySummary')", deck)
 
 
+# ---------------------------------------------------------------------------
+# A coach card's advice stays in view; only its explanation collapses
+# ---------------------------------------------------------------------------
+
+class CoachAdviceVisibilityTests(unittest.TestCase):
+    """The glance pass collapses explanations, not prescriptions. Collapsing a
+    card's `Progress` / `Back off when` lines with the prose hid the actionable
+    half of the card, so the expander holds the explanatory sentence alone and
+    the advice reads in view."""
+
+    @staticmethod
+    def _card_template():
+        page = (Path(__file__).resolve().parent.parent / "index.html").read_text(encoding="utf-8")
+        return page.split("const cardsHost = document.getElementById('coachCards');", 1)[1].split("const patterns = coach.patterns", 1)[0]
+
+    def test_the_panel_holds_the_explanation_and_the_advice_sits_after_it(self):
+        card = self._card_template()
+        # One paragraph of prose inside the collapsed panel, the panel closed, and
+        # only then the visible advice block -- in that order, in one snippet.
+        self.assertIn(
+            '<p>${esc(asSentence(card.plain))}</p>\n'
+            '              </div>\n'
+            '              <div class="text-[10px] text-slate-400 leading-relaxed">\n'
+            '                <div><span class="text-slate-500 font-bold">Progress:</span> ${esc(card.progression)}</div>',
+            card,
+        )
+        self.assertIn('<div class="mt-1"><span class="text-slate-500 font-bold">Back off when:</span> ${esc(card.guardrail)}</div>', card)
+
+    def test_the_advice_is_not_part_of_the_collapsed_panel(self):
+        card = self._card_template()
+        panel = card.split('<div class="hidden mt-1 p-2 rounded-lg bg-slate-950/80 border border-slate-800 text-[10px] text-slate-400 leading-relaxed space-y-1">', 1)[1]
+        panel = panel.split("</div>", 1)[0]
+        self.assertNotIn("card.progression", panel)
+        self.assertNotIn("card.guardrail", panel)
+
+
 if __name__ == "__main__":
     unittest.main()

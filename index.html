@@ -5036,12 +5036,14 @@
               </div>
               ${card.measured ? `
               <button onclick="toggleInfo(this)" aria-expanded="false" class="block text-left text-[10px] text-cyan-400/70 hover:text-cyan-400 transition cursor-pointer">
-                ⓘ Why this prescription, and how to progress it
+                ⓘ Why this prescription
               </button>
               <div class="hidden mt-1 p-2 rounded-lg bg-slate-950/80 border border-slate-800 text-[10px] text-slate-400 leading-relaxed space-y-1">
                 <p>${esc(asSentence(card.plain))}</p>
-                <p><span class="text-slate-500 font-bold">Progress:</span> ${esc(card.progression)}</p>
-                <p><span class="text-slate-500 font-bold">Back off when:</span> ${esc(card.guardrail)}</p>
+              </div>
+              <div class="text-[10px] text-slate-400 leading-relaxed">
+                <div><span class="text-slate-500 font-bold">Progress:</span> ${esc(card.progression)}</div>
+                <div class="mt-1"><span class="text-slate-500 font-bold">Back off when:</span> ${esc(card.guardrail)}</div>
               </div>` : ''}
               ${metrics ? `<div class="pt-1 border-t border-slate-800/60">${metrics}</div>` : ''}
               ${evidence ? `<div class="space-y-1 pt-1">${evidence}</div>` : ''}

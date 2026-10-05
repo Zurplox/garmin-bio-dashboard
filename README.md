@@ -427,8 +427,10 @@ running page before the fix and measured again after it, and each is now pinned 
   — the illness marker meanings, the Body Battery / Stress Architecture / circadian narratives, the
   oxygen note, travel, humidity and hydration lines, the correlation location check, the night
   contrast caveat, the muscle counting note, the sleep benchmark captions, and each coaching card's
-  progression and guardrail — now lives in that card's explanation panel, so the cards read as
-  readings first. A placeholder that never resolved is gone rather than left looking busy.
+  plain-language sentence — now lives in that card's explanation panel, so the cards read as readings
+  first. The card's own advice is not an explanation and stays in view: a coaching card keeps its
+  `Progress` and `Back off when` lines, and the expander holds only the prose. A placeholder that
+  never resolved is gone rather than left looking busy.
 * **The sleep pipeline was reading March.** The sleep fetch walks backwards from today while the HRV
   and RHR fetches walk forwards, so the published sleep series arrived newest-first while every
   "recent N nights" window slices from the end: the sleep debt and the 7D/14D/30D chart views were
