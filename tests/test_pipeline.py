@@ -4513,5 +4513,145 @@ class CorrelationRowTests(unittest.TestCase):
         self.assertIn("${esc(f.note)}", panel)
 
 
+# ---------------------------------------------------------------------------
+# Night contrasts read before they explain; and nothing scrolls sideways
+# ---------------------------------------------------------------------------
+
+class NightContrastReadingTests(unittest.TestCase):
+    """A contrast used to lead with the question it was asking, so the reader had
+    to compare two means and work out the direction for themselves. Each row now
+    states what the comparison came out as, in words policy wrote for the
+    direction actually measured -- a comparison can land either way in a real
+    history, and this athlete's evening-session nights already measure above the
+    quiet ones."""
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(encoding="utf-8")
+
+    @staticmethod
+    def _sleep(day, bed_minutes=1410, deep_minutes=90):
+        return {"date": day, "bedtime_minutes": bed_minutes, "deep_seconds": deep_minutes * 60}
+
+    @staticmethod
+    def _hrv(day, value):
+        return {"date": day, "lastNightAvg": value}
+
+    @staticmethod
+    def _session(day, minutes=45.0, hour=8):
+        return {"startTimeLocal": f"{day} {hour:02d}:00:00", "activityType": "walking",
+                "category": "Walking", "duration_min": minutes}
+
+    @staticmethod
+    def _days(n=40):
+        from datetime import date as _date, timedelta as _td
+        start = _date(2026, 6, 1)
+        return [(start + _td(days=i)).isoformat() for i in range(n)]
+
+    def _contrasts(self):
+        # A reality-shaped distribution: 26 nights on time (23:30) and 14 late
+        # (03:00 on the shifted clock), each group clearing the 14-night floor.
+        days = self._days()
+        sleeps, hrvs = [], []
+        for i, day in enumerate(days):
+            late = i >= 26
+            sleeps.append(self._sleep(day, bed_minutes=(180 if late else 1410),
+                                      deep_minutes=(80 if late else 95)))
+            hrvs.append(self._hrv(day, 54 if late else 60))
+        return bio_correlate.night_contrasts([self._session(days[0])], sleeps, hrvs)
+
+    def test_every_contrast_spec_writes_both_directions(self):
+        for spec in policy.NIGHT_CONTRASTS:
+            with self.subTest(key=spec["key"]):
+                self.assertEqual(sorted(spec["plain"]), ["a_higher", "a_lower"])
+                for line in spec["plain"].values():
+                    self.assertIn("{delta}", line)
+                    self.assertTrue(line.endswith("."), line)
+                    self.assertLessEqual(len(line), 160, line)
+                    self.assertFalse(InterfaceGlyphTests.EMOJI.search(line), line)
+
+    def test_the_reading_follows_the_sign_the_coefficient_measured(self):
+        spec = policy.NIGHT_CONTRASTS[0]
+        self.assertEqual(
+            bio_correlate._contrast_plain(spec, -4.2),
+            spec["plain"]["a_lower"].replace("{delta}", "4.2"),
+        )
+        self.assertEqual(
+            bio_correlate._contrast_plain(spec, 4.2),
+            spec["plain"]["a_higher"].replace("{delta}", "4.2"),
+        )
+        # The gap travels as a plain number, never as the template.
+        self.assertNotIn("{", bio_correlate._contrast_plain(spec, -4.2))
+
+    def test_a_level_comparison_reads_as_level(self):
+        self.assertEqual(
+            bio_correlate._contrast_plain(policy.NIGHT_CONTRASTS[0], 0.0),
+            policy.NIGHT_CONTRAST_LEVEL,
+        )
+
+    def test_a_spec_with_no_written_reading_publishes_none(self):
+        # Absent stays absent: the engine will not compose a reading policy has
+        # not written, so a future spec cannot publish a sentence nobody chose.
+        self.assertIsNone(bio_correlate._contrast_plain({"key": "brand_new"}, -2.0))
+
+    def test_a_published_contrast_carries_the_reading_matching_its_means(self):
+        result = self._contrasts()
+        late = next(c for c in result["contrasts"] if c["key"] == "late_bedtime_hrv")
+
+        self.assertEqual(late["delta"], -6.0)
+        self.assertEqual(
+            late["plain"],
+            policy.NIGHT_CONTRASTS[0]["plain"]["a_lower"].replace("{delta}", "6.0"),
+        )
+
+    def test_the_row_states_the_meaning_before_it_shows_the_arithmetic(self):
+        page = self._page()
+        head, caption = page.split(
+            '<div class="mt-1.5 text-[10px] text-slate-500">${esc(caption)}</div>', 1
+        )
+        head = head.split("const headline = c.plain", 1)[1]
+        # The reading is the row's first line, the two means follow it, and the
+        # question the comparison asked becomes the small caption underneath.
+        self.assertIn("${headline}", head)
+        self.assertLess(head.index("${headline}"), head.index("${c.mean_a}"))
+        self.assertIn("${c.mean_b}", head)
+        self.assertIn("c.plain ? c.question : null", head)
+        self.assertIn('class="text-[11px] font-semibold text-white leading-snug">${headline}', head)
+        # A vault published before the engine wrote a reading still reads: the
+        # question takes the headline and the caption does not repeat it.
+        self.assertIn("c.plain ? esc(asSentence(c.plain)) : esc(c.question)", page)
+
+
+class NarrowWidthTests(unittest.TestCase):
+    """Measured at a 246 px window (230 px usable), the page scrolled sideways by
+    40 px. Two instrument rows put a fixed-size dial beside a text column and
+    left it 49 px and 0 px wide -- no amount of wrapping helps inside a column
+    that narrow, so both rows stack below `sm` instead. The dossier badge and the
+    comparison's own meta chip then wrap rather than widen the document."""
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(encoding="utf-8")
+
+    def test_the_two_instrument_rows_stack_below_the_small_breakpoint(self):
+        page = self._page()
+        # Readiness: gauge beside its readings on a wide window, stacked under one.
+        self.assertIn("flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5", page)
+        # Movement: the 7-day ring beside the averages, stacked under one.
+        self.assertIn("flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4", page)
+        # The dials also give up 16px, and the readiness column can shrink.
+        self.assertIn("w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0 self-start sm:self-auto", page)
+        self.assertIn('<div class="flex-1 min-w-0 space-y-2">', page)
+
+    def test_every_reading_row_wraps_instead_of_widening_the_document(self):
+        page = self._page()
+        self.assertIn("flex flex-wrap items-center justify-between gap-x-3 gap-y-1", page)
+        self.assertIn("flex flex-wrap justify-between gap-x-2 gap-y-0.5", page)
+        self.assertIn("flex flex-wrap items-center justify-between gap-2 pb-3", page)
+        # The clinical dossier's engine badge carries prose, so it wraps inside
+        # its own pill rather than pushing the card out of the window.
+        self.assertEqual(page.count("max-w-full text-center break-words"), 3)
+
+
 if __name__ == "__main__":
     unittest.main()

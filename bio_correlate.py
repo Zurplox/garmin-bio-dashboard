@@ -238,6 +238,25 @@ def _format_clock(minutes):
     return f"{minutes // 60:02d}:{minutes % 60:02d}"
 
 
+def _contrast_plain(spec, delta):
+    """A contrast's one-line reading, with the measured gap filled in.
+
+    Policy supplies both directions because a comparison can land either way in a
+    real history; the engine only reads the sign and substitutes the number, so
+    the wording still has one owner. A spec policy has not written yet publishes
+    no reading at all rather than a composed one.
+    """
+    templates = spec.get("plain")
+    if not templates:
+        return None
+    if delta == 0:
+        return policy.NIGHT_CONTRAST_LEVEL
+    template = templates.get("a_lower" if delta < 0 else "a_higher")
+    if not template:
+        return None
+    return template.replace("{delta}", f"{abs(delta):.1f}")
+
+
 def night_contrasts(activities, sleep_history, hrv_history):
     """Groups of the athlete's own nights compared side by side.
 
@@ -350,6 +369,7 @@ def night_contrasts(activities, sleep_history, hrv_history):
             continue
         mean_a = sum(groups["a"]) / len(groups["a"])
         mean_b = sum(groups["b"]) / len(groups["b"])
+        delta = round(mean_a - mean_b, 1)
         published.append(
             {
                 "key": spec["key"],
@@ -359,7 +379,8 @@ def night_contrasts(activities, sleep_history, hrv_history):
                 "label_b": spec["label_b"],
                 "mean_a": round(mean_a, 1),
                 "mean_b": round(mean_b, 1),
-                "delta": round(mean_a - mean_b, 1),
+                "delta": delta,
+                "plain": _contrast_plain(spec, delta),
                 "nights_a": len(groups["a"]),
                 "nights_b": len(groups["b"]),
                 "evidence": policy.evidence(*spec["evidence"]),

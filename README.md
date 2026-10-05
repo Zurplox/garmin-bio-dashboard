@@ -467,4 +467,27 @@ running page before the fix and measured again after it, and each is now pinned 
 
 ---
 
+## 🗣️ The night contrasts speak, and the page stops scrolling sideways — 2026-10-05
+
+* **A contrast now answers before it asks.** The rows under the correlation lab used to open with the
+  question they were investigating, so the reading meant comparing two averages and deriving the
+  direction. Each row now leads with what the comparison came out as — *A late night leaves you
+  4.2 ms less overnight HRV than an on-time night.* — then shows the two group averages, and the
+  question becomes the small caption beside the night counts. The evidence panel is unchanged.
+* **Both directions are written, because the data can surprise.** The evening-session comparison
+  measures **1.1 ms above** the quiet nights, so every contrast states what it means in each
+  direction (*a lower* / *a higher*) and the page shows the one your nights actually measured —
+  "not less — evening training did not cost the night here" — rather than the direction the
+  research would expect. The wording lives in policy with every other reading; the engine only
+  chooses the direction and fills in the measured gap.
+* **No sideways scroll at any width.** Measured at a 246 px window (230 px usable) the page scrolled
+  40 px, because the readiness gauge and the movement ring are fixed-size dials that left their text
+  columns 49 px and 0 px wide — no amount of text wrapping helps inside a column that narrow. Both
+  rows now stack on a phone-width window and sit side by side as before on a wide one, the clinical
+  dossier's engine badge wraps inside its own pill, and the correlation's day count wraps rather
+  than widening the card. Verified at 230, 254, 340 and 1148 px usable: `scrollWidth == clientWidth`,
+  desktop layout unchanged.
+
+---
+
 *Built with Python, the device data API, Web Crypto API, Tailwind CSS, and Chart.js.*

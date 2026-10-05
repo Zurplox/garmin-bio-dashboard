@@ -399,6 +399,17 @@ NIGHT_CONTRAST_TRAINING_MINUTES = 20
 # A session starting at or after this hour is an evening session.
 NIGHT_CONTRAST_EVENING_HOUR = 18
 
+# The one-line reading of a contrast, printed above its two group averages so the
+# answer arrives before the arithmetic. Each spec carries both directions, because
+# a comparison can land either way in a real history and the wording must not
+# assume the expected one: the early evening-session contrast measured *above* the
+# quiet-night average, and a row that said "evening sessions cost you recovery"
+# would have been untrue of the athlete's own data. `{delta}` is the measured gap
+# with its sign already read by the engine.
+NIGHT_CONTRAST_LEVEL = (
+    "The two groups came out level on the nights measured, so this window shows no difference."
+)
+
 NIGHT_CONTRAST_CAVEAT = (
     "Groups of your own nights compared side by side, not an experiment: everything else that "
     "differed between those nights travels with the comparison. The night counts sit beside "
@@ -418,6 +429,13 @@ NIGHT_CONTRASTS = (
         "question": "What does a late bedtime cost the same night?",
         "label_a": "Late bedtime (45+ min past your median)",
         "label_b": "On time (within 30 min of your median)",
+        "plain": {
+            "a_lower": "A late night leaves you {delta} ms less overnight HRV than an on-time night.",
+            "a_higher": (
+                "A late night came with {delta} ms more overnight HRV than an on-time night, "
+                "the opposite of what the research usually finds."
+            ),
+        },
         "evidence": ("sleep_regularity",),
     },
     {
@@ -427,6 +445,13 @@ NIGHT_CONTRASTS = (
         "question": "What does a training day do to the following night?",
         "label_a": "Night after a training day (20+ min)",
         "label_b": "Night after a rest day",
+        "plain": {
+            "a_lower": "A training day leaves your recovery {delta} ms lower the next night.",
+            "a_higher": (
+                "The night after a training day came with {delta} ms more HRV than a rest "
+                "day, not less."
+            ),
+        },
         "evidence": (),
     },
     {
@@ -436,6 +461,13 @@ NIGHT_CONTRASTS = (
         "question": "Does a training day change how deep you sleep?",
         "label_a": "Night after a training day (20+ min)",
         "label_b": "Night after a rest day",
+        "plain": {
+            "a_lower": "A training day costs {delta} minutes of deep sleep on the night that follows.",
+            "a_higher": (
+                "The night after a training day carried {delta} minutes more deep sleep than a "
+                "rest day, not less."
+            ),
+        },
         "evidence": (),
     },
     {
@@ -445,6 +477,13 @@ NIGHT_CONTRASTS = (
         "question": "Does an evening session spoil the night that follows it?",
         "label_a": "Night after an evening session (start 18:00+)",
         "label_b": "Night after a day with no evening session",
+        "plain": {
+            "a_lower": "An evening session leaves your recovery {delta} ms lower the next night.",
+            "a_higher": (
+                "The night after an evening session came with {delta} ms more HRV, not less — "
+                "evening training did not cost the night here."
+            ),
+        },
         "evidence": ("evening_exercise",),
     },
 )
