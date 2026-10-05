@@ -90,6 +90,7 @@ METRIC_LABELS = {
     "fitness_age": "Biological fitness age",
     "training_load": "Workload balance (ACWR)",
     "activities": "Workout activity feed",
+    "muscles": "Muscle coverage (exercise sets)",
     "body_battery": "Body Battery",
     "user_summary": "Steps & daily stress average",
     "stress_distribution": "24-hour stress distribution",

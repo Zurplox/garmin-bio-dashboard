@@ -414,4 +414,33 @@ running page before the fix and measured again after it, and each is now pinned 
 
 ---
 
+## 🧭 Charts at a glance, and the sleep series put back in order — 2026-10-05
+
+* **Every chart opens with one look.** A six-tile deck sits directly under the *Today at a glance*
+  strip — sleep, HRV, resting rate, sleep stages, autonomic map and the consistency map — each tile
+  drawing the same series its full chart reads and opening that chart when tapped. The tiles paint
+  straight onto canvas rather than through Chart.js (so a stalled frame loop still shows them), and
+  they build no chart of their own: the deck is a window onto each reading, never a second owner.
+  Measured on the running page: six tiles painted, values matching the charts' own series, both
+  themes, no page overflow down to a 312 px viewport.
+* **The explanations moved behind the expanders.** The long-form copy that used to sit open on a card
+  — the illness marker meanings, the Body Battery / Stress Architecture / circadian narratives, the
+  oxygen note, travel, humidity and hydration lines, the correlation location check, the night
+  contrast caveat, the muscle counting note, the sleep benchmark captions, and each coaching card's
+  progression and guardrail — now lives in that card's explanation panel, so the cards read as
+  readings first. A placeholder that never resolved is gone rather than left looking busy.
+* **The sleep pipeline was reading March.** The sleep fetch walks backwards from today while the HRV
+  and RHR fetches walk forwards, so the published sleep series arrived newest-first while every
+  "recent N nights" window slices from the end: the sleep debt and the 7D/14D/30D chart views were
+  averaging the oldest week of the 210-night fetch. Caught by the new deck reading `7h 00m` beside
+  the glance strip's `7h 56m` for the same night. The fetch now returns the series in date order, the
+  debt math sorts defensively, and both front-end readers order a copy before slicing. Verified live:
+  the deck's sleep tile went `7h 00m` → `7h 56m`, matching the measured night.
+* **Muscle coverage review fixes.** The two 144 px muscle figures no longer spill a narrow card
+  (`flex-1 min-w-0`, measured 11 px of page scroll removed at a 296 px window), each map shape keeps
+  exactly one refreshed `<title>` across re-renders, and the provenance panel names the group
+  "Muscle coverage (exercise sets)".
+
+---
+
 *Built with Python, the device data API, Web Crypto API, Tailwind CSS, and Chart.js.*

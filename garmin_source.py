@@ -150,6 +150,16 @@ def fetch_sleep_history(client, days=210, dq=None):
                     "bedtime_minutes": analytics.bedtime_minutes_from_record(dto),
                 })
 
+    # The loop above walks backwards from today, so the collected list is
+    # newest-first. Every history series the payload publishes ascends by date
+    # (the HRV and RHR fetches walk forward), and every "recent N nights" window
+    # downstream slices from the end: left that way, `[-7:]` means the oldest
+    # week of the whole fetch, which is how the sleep debt and the 7D/30D chart
+    # views were quietly reading March while October was measured. Order it here,
+    # at the one place that talks to Garmin, and never hand a descending series
+    # to a slicer.
+    sleep_history.sort(key=lambda night: night["date"])
+
     print(f"   ✅ Processed {len(sleep_history)} sleep records ({fetched_remote} newly fetched, {len(sleep_history) - fetched_remote} from cache)")
 
     if dq:

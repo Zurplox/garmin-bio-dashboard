@@ -485,6 +485,38 @@
     @media print {
       .aurora, #cursorGlow, #scrollProgress { display: none !important; }
     }
+
+    /* ---- Chart deck ------------------------------------------------------
+       The whole record in one look, before any scrolling. Each tile draws the
+       same series its full chart reads, so the deck is a window onto a reading
+       rather than a second owner of it; tapping a tile opens that chart. */
+    .deck-tile {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      width: 100%;
+      padding: 0.625rem;
+      border-radius: 0.75rem;
+      text-align: left;
+      cursor: pointer;
+      background: rgba(15, 23, 42, 0.72);
+      border: 1px solid rgba(30, 41, 59, 1);
+      transition: border-color 0.25s ease;
+    }
+    .deck-tile:hover, .deck-tile:focus-visible { border-color: rgba(34, 211, 238, 0.45); }
+    [data-theme="light"] .deck-tile { background: rgba(255, 255, 255, 0.85); border-color: rgba(148, 163, 184, 0.45); }
+    .deck-tile-label { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #94a3b8; }
+    .deck-tile-value { font-size: 13px; font-weight: 700; color: #ffffff; }
+    [data-theme="light"] .deck-tile-value { color: #0b1220; }
+    .deck-spark { width: 100%; height: 44px; display: block; }
+    @media (prefers-reduced-motion: no-preference) {
+      .deck-tile { transition: border-color 0.25s ease, transform 0.25s ease; }
+      .deck-tile:hover, .deck-tile:focus-visible { transform: translateY(-2px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .deck-tile, .deck-tile:hover, .deck-tile:focus-visible { transition: none; transform: none; }
+    }
+
     /* Clinical Report Print Styles */
     @media print {
       body {
@@ -957,6 +989,49 @@
         </div>
       </section>
 
+      <!-- CHART DECK: every chart, at one look, before any scrolling. Each tile
+           draws the same series its full chart reads and opens that chart when
+           tapped, so the deck never becomes a second owner of a reading. -->
+      <section class="glass-card rounded-2xl p-4 lg:p-5 border border-slate-800">
+        <div class="flex items-baseline justify-between gap-3 mb-3">
+          <span class="text-[10px] font-bold tracking-wider text-cyan-400 uppercase">Charts at a glance</span>
+          <span class="text-[10px] text-slate-500">Tap a tile to open its chart</span>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5" data-stagger="60">
+          <button type="button" onclick="jumpToChart('sleepChart')" class="deck-tile" aria-label="Open the sleep architecture chart">
+            <span class="deck-tile-label">Sleep</span>
+            <canvas id="deckSleep" class="deck-spark" aria-hidden="true"></canvas>
+            <span id="deckSleepValue" class="deck-tile-value mono">--</span>
+          </button>
+          <button type="button" onclick="jumpToChart('hrvChart')" class="deck-tile" aria-label="Open the HRV chart">
+            <span class="deck-tile-label">HRV</span>
+            <canvas id="deckHrv" class="deck-spark" aria-hidden="true"></canvas>
+            <span id="deckHrvValue" class="deck-tile-value mono">--</span>
+          </button>
+          <button type="button" onclick="jumpToChart('multiYearRhrChart')" class="deck-tile" aria-label="Open the resting heart rate chart">
+            <span class="deck-tile-label">Resting rate</span>
+            <canvas id="deckRhr" class="deck-spark" aria-hidden="true"></canvas>
+            <span id="deckRhrValue" class="deck-tile-value mono">--</span>
+          </button>
+          <button type="button" onclick="jumpToChart('sleepDoughnutChart')" class="deck-tile" aria-label="Open the sleep stage breakdown">
+            <span class="deck-tile-label">Sleep stages</span>
+            <canvas id="deckStages" class="deck-spark" aria-hidden="true"></canvas>
+            <span id="deckStagesValue" class="deck-tile-value mono">--</span>
+          </button>
+          <button type="button" onclick="jumpToChart('autonomicScatterChart')" class="deck-tile" aria-label="Open the autonomic quadrant chart">
+            <span class="deck-tile-label">Autonomic</span>
+            <canvas id="deckAutonomic" class="deck-spark" aria-hidden="true"></canvas>
+            <span id="deckAutonomicValue" class="deck-tile-value mono">--</span>
+          </button>
+          <button type="button" onclick="jumpToChart('consistencyGrid')" class="deck-tile" aria-label="Open the training consistency map">
+            <span class="deck-tile-label">Consistency</span>
+            <canvas id="deckConsistency" class="deck-spark" aria-hidden="true"></canvas>
+            <span id="deckConsistencyValue" class="deck-tile-value mono">--</span>
+          </button>
+        </div>
+      </section>
+
       <!-- SECTION 0: AI DAILY BRIEFING (PERSONALIZED SUMMARY) -->
       <section class="glass-card briefing-card rounded-2xl p-5 lg:p-6 border border-violet-500/20" data-stagger="90" style="background: linear-gradient(135deg, rgba(139,92,246,0.08) 0%, rgba(14,24,46,0.9) 60%);">
         <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
@@ -1184,35 +1259,40 @@
             <div class="text-[10px] text-slate-400 uppercase font-semibold">Δ RHR vs Base</div>
             <div id="markerDeltaRhr" class="text-lg font-bold text-emerald-400 mono">+1.2 bpm</div>
             <div class="text-[10px] text-slate-500">Normal (&lt; +3.0)</div>
-            <div class="text-[10px] text-slate-600 mt-1 leading-tight">Your heart rate at rest vs your personal average. A sudden rise of +3+ bpm often signals your immune system is fighting something before you feel symptoms.</div>
           </div>
           <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
             <div class="text-[10px] text-slate-400 uppercase font-semibold">Δ HRV vs Base</div>
             <div id="markerDeltaHrv" class="text-lg font-bold text-emerald-400 mono">+8.5%</div>
             <div class="text-[10px] text-slate-500">Elevated Vagal Tone</div>
-            <div class="text-[10px] text-slate-600 mt-1 leading-tight">Change in heart rate variability vs your baseline. A sharp drop in HRV (−15% or more) is one of the earliest signals of illness — sometimes 48h before symptoms appear.</div>
           </div>
           <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
             <div class="text-[10px] text-slate-400 uppercase font-semibold">Nocturnal Resp</div>
             <div id="markerRespRate" class="text-lg font-bold text-cyan-400 mono">13.0 brpm</div>
             <div class="text-[10px] text-slate-500">Normal Range: 11.5 - 14.5</div>
-            <div class="text-[10px] text-slate-600 mt-1 leading-tight">Breaths per minute measured during sleep. Elevated breathing rate (15+) is a classic early marker of respiratory infection, fever, or overtraining stress.</div>
           </div>
           <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
             <div class="text-[10px] text-slate-400 uppercase font-semibold">Sleep Stress Index</div>
             <div id="markerSleepStress" class="text-lg font-bold text-emerald-400 mono">16 / 100</div>
             <div class="text-[10px] text-slate-500">Deep Parasympathetic</div>
-            <div class="text-[10px] text-slate-600 mt-1 leading-tight">How activated your "fight or flight" system was during sleep. Low (0–25) = deep recovery. High (60+) = your body was stressed overnight — a common pre-sickness pattern.</div>
           </div>
         </div>
 
-        <p id="illnessDetailText" class="text-xs text-slate-300 leading-relaxed font-medium">
-          Vitals confirm an uncompromised immune system. No nocturnal respiratory elevation, no sustained resting heart rate spike, and zero sympathetic nervous overdrive detected.
-        </p>
-
-        <div class="pt-3 mt-3 border-t border-slate-800/80 text-[11px] text-slate-500 mono flex flex-wrap gap-x-4 gap-y-1">
-          <span>Clinical Marker: Sickness Flagged if ΔRHR &gt; +3 bpm AND ΔHRV &lt; -15%</span>
+        <div class="pt-3 mt-3 border-t border-slate-800/80 text-[11px] text-slate-500 mono">
           <span id="illnessImmuneStatus">Immune Status: --</span>
+        </div>
+
+        <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+          <span>ⓘ What do these four markers mean?</span>
+        </button>
+        <div class="hidden mt-1 p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-2">
+          <p id="illnessDetailText" class="text-slate-300 font-medium">
+            Vitals confirm an uncompromised immune system. No nocturnal respiratory elevation, no sustained resting heart rate spike, and zero sympathetic nervous overdrive detected.
+          </p>
+          <p><strong class="text-slate-200">Δ RHR vs base</strong> — Your heart rate at rest vs your personal average. A sudden rise of +3+ bpm often signals your immune system is fighting something before you feel symptoms.</p>
+          <p><strong class="text-slate-200">Δ HRV vs base</strong> — Change in heart rate variability vs your baseline. A sharp drop in HRV (−15% or more) is one of the earliest signals of illness — sometimes 48h before symptoms appear.</p>
+          <p><strong class="text-slate-200">Nocturnal resp</strong> — Breaths per minute measured during sleep. Elevated breathing rate (15+) is a classic early marker of respiratory infection, fever, or overtraining stress.</p>
+          <p><strong class="text-slate-200">Sleep stress index</strong> — How activated your "fight or flight" system was during sleep. Low (0–25) = deep recovery. High (60+) = your body was stressed overnight — a common pre-sickness pattern.</p>
+          <p class="text-slate-500 mono text-[10px]">Clinical Marker: Sickness Flagged if ΔRHR &gt; +3 bpm AND ΔHRV &lt; -15%</p>
         </div>
       </section>
 
@@ -1277,9 +1357,6 @@
                 </div>
               </div>
 
-              <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-[11px] text-slate-300 leading-tight" id="bbNarrative">
-                Awaiting Body Battery telemetry.
-              </div>
             </div>
           </div>
 
@@ -1296,6 +1373,7 @@
             <p><span class="text-cyan-400">&#9679;</span> <strong class="text-white">50–74</strong> = Good energy. Suitable for training.</p>
             <p><span class="text-cyan-400">&#9679;</span> <strong class="text-white">25–49</strong> = Low. Light activity recommended.</p>
             <p><span class="text-cyan-400">&#9679;</span> <strong class="text-white">0–24</strong> = Depleted. Your body needs rest and sleep urgently.</p>
+            <p id="bbNarrative" class="text-slate-300">Awaiting Body Battery telemetry.</p>
             <p class="text-slate-500">Sleep charges your battery. Stress, exercise, and mental effort drain it. Overnight your sleep added <span id="infoBodyBatteryCharge" class="text-slate-300">--</span> points of charge to it.</p>
           </div>
         </div>
@@ -1347,13 +1425,11 @@
             </div>
           </div>
 
-          <div class="pt-2.5 border-t border-slate-800/80 text-[11px] text-slate-400 leading-tight" id="stressNarrative">
-            Awaiting stress telemetry.
-          </div>
           <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
             <span>ⓘ What is Stress Architecture?</span>
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+            <p class="text-slate-300" id="stressNarrative">Awaiting stress telemetry.</p>
             <p><strong class="text-amber-400">Stress Architecture</strong> tracks your Autonomic Nervous System (ANS) all day — the part of your nervous system you can't consciously control. It runs on two modes: "rest & digest" (recovery) and "fight or flight" (stress).</p>
             <p><span class="text-emerald-400">&#9679;</span> <strong class="text-white">Rest (0–25)</strong> = Your body is in repair mode — hormones regenerate, muscles rebuild, immune system strengthens.</p>
             <p><span class="text-cyan-400">&#9679;</span> <strong class="text-white">Low (26–50)</strong> = Light activity or mild mental engagement. Still healthy.</p>
@@ -1392,13 +1468,11 @@
             </div>
           </div>
 
-          <div class="pt-2.5 border-t border-slate-800/80 text-[11px] text-slate-400 leading-tight" id="circNarrative">
-            Awaiting sleep-onset telemetry.
-          </div>
           <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
             <span>ⓘ What are Circadian & Ultradian rhythms?</span>
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+            <p class="text-slate-300" id="circNarrative">Awaiting sleep-onset telemetry.</p>
             <p><strong class="text-violet-400">Circadian Rhythm</strong> is your body's 24-hour internal clock — it controls when you feel sleepy, when you're alert, when your hormones peak, and when your body temperature rises/falls. Disrupting it (late nights, jet lag) degrades sleep quality and performance.</p>
             <p><strong class="text-violet-400">Ultradian Cycles</strong> are the 90-minute loops your brain cycles through during sleep: deep sleep → light sleep → REM → repeat. More complete cycles = more growth hormone released, more memory consolidated, more physical repair done.</p>
             <p><strong class="text-emerald-400">4+ cycles (6+ hours)</strong> is the elite athlete minimum for tissue regeneration. 5 cycles (7.5h) is optimal.</p>
@@ -1562,12 +1636,12 @@
               <div>Lowest recorded: <strong id="oxyLowest" class="text-slate-200">--</strong></div>
               <div>Taken at: <strong id="oxyWhen" class="text-slate-300">--</strong></div>
             </div>
-            <p id="oxyCoverage" class="text-[11px] text-slate-500 leading-relaxed"></p>
-            <p id="oxyPlain" class="text-[11px] text-slate-300 leading-relaxed font-medium"></p>
             <button onclick="toggleInfo(this)" aria-expanded="false" class="text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
               <span>ⓘ What is blood oxygen, and why is my series patchy?</span>
             </button>
             <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+              <p class="text-slate-300 font-medium" id="oxyPlain"></p>
+              <p class="text-slate-500" id="oxyCoverage"></p>
               <p><strong class="text-cyan-400">Blood oxygen (SpO₂)</strong> is the share of your red blood cells carrying oxygen. At sea level most healthy adults sit between 95% and 100%; a sustained reading below 90% is the point at which a doctor should look at it.</p>
               <p>Watches measure it with a light sensor, so they get a reading when the watch is still and the sensor sits flat — not necessarily every night. This card therefore reports how many days actually carried a reading, and the latest one it took, instead of an average that would look nightly when it is not.</p>
               <p>If you want a reading every night, set Pulse Ox on the watch to <span class="text-slate-300">During Sleep</span>. Until then, treat each reading as one sample, not a trend.</p>
@@ -1589,13 +1663,13 @@
               <div>Where you train: <strong id="envHome" class="text-slate-200">--</strong></div>
               <div>Last session at: <strong id="envLast" class="text-slate-300">--</strong></div>
             </div>
-            <p id="envTravel" class="text-[11px] text-slate-300 leading-relaxed font-medium"></p>
-            <p id="envStation" class="text-[11px] text-slate-500 leading-relaxed"></p>
-            <p id="envHydration" class="text-[11px] text-slate-400 leading-relaxed"></p>
             <button onclick="toggleInfo(this)" aria-expanded="false" class="text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
               <span>ⓘ Where do these readings come from?</span>
             </button>
             <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+              <p class="text-slate-300 font-medium" id="envTravel"></p>
+              <p class="text-slate-500" id="envStation"></p>
+              <p class="text-slate-400" id="envHydration"></p>
               <p><strong class="text-cyan-400">Location</strong> is taken from the sessions your watch recorded, so "where you train" is the place it logged most often and anywhere else is travel. Nothing here is assumed about where you live.</p>
               <p><strong class="text-cyan-400">Temperature and humidity</strong> come from the weather station your device paired with your most recent session — that is why they are the conditions of that session rather than a city forecast.</p>
               <p><strong class="text-cyan-400">Heat acclimation</strong> is your device's own estimate of how adapted your body is to training in the heat. It rises with repeated hot sessions and falls away after a week or so without them. Hydration figures are the target your account has set and the fluid the device logged, so a target with no intake simply means nothing was logged.</p>
@@ -1621,11 +1695,11 @@
               <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Device race forecast</div>
               <ul id="capRaceList" class="text-xs text-slate-300 space-y-0.5 font-medium"></ul>
             </div>
-            <p id="capPlain" class="text-[11px] text-slate-300 leading-relaxed font-medium"></p>
             <button onclick="toggleInfo(this)" aria-expanded="false" class="text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
               <span>ⓘ What is VO₂max, and what can I do with race times?</span>
             </button>
             <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+              <p class="text-slate-300 font-medium" id="capPlain"></p>
               <p><strong class="text-cyan-400">VO₂max</strong> is the most oxygen your body can use per minute per kilogram — the standard single number for aerobic capacity. Trained endurance athletes often sit between 50 and 65; a rise of one or two points over months of consistent training is a real improvement.</p>
               <p><strong class="text-cyan-400">Race forecasts</strong> are your device's own projections from your recent running. They assume you keep training the way you have been, so they are a fair estimate of current fitness rather than a promise.</p>
               <p><strong class="text-cyan-400">BMI and threshold heart rate</strong> are computed from the height, weight and heart-rate values on your own profile — set them in the watch app and everything here follows. <strong class="text-cyan-400">Intensity minutes</strong> count moderate-equivalent minutes: the 150-minute weekly target is the widely used guideline, and vigorous minutes count double.</p>
@@ -1642,12 +1716,12 @@
             <span id="corrSummary" class="text-[11px] text-slate-500 mono">--</span>
           </div>
           <ul id="corrList" class="space-y-2 text-xs text-slate-300 font-medium" data-stagger="60"></ul>
-          <p id="corrTravel" class="mt-2 text-xs text-slate-300 leading-relaxed font-medium"></p>
-          <p id="corrCaveat" class="mt-2 text-[11px] text-slate-500 leading-relaxed"></p>
           <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
             <span>ⓘ How to read a correlation</span>
           </button>
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+            <p class="text-slate-300 font-medium" id="corrTravel"></p>
+            <p class="text-slate-500" id="corrCaveat"></p>
             <p><strong class="text-violet-400">r</strong> is a number between −1 and +1. Near +1 means the two readings rise and fall together; near −1 means one rises as the other falls; near 0 means they are unrelated. The day count is how many nights both were measured — a strong <span class="mono">r</span> from 20 nights is a hint, from 100 nights it is a pattern.</p>
             <p>Only pairings with at least 14 paired days and an <span class="mono">r</span> of 0.35 or stronger are shown, and only pairings with a plausible physiological reason are tested at all. Testing every combination would eventually produce a strong-looking number by chance.</p>
             <p>A correlation is a pattern in your own data, never proof that one thing caused the other. If you change one habit and the pattern holds, that is when it becomes worth trusting.</p>
@@ -1661,11 +1735,11 @@
               <span id="nightContrastMeta" class="text-[11px] text-slate-500 mono">--</span>
             </div>
             <div id="nightContrastList" class="space-y-2 text-xs text-slate-300 font-medium" data-stagger="60"></div>
-            <p id="nightContrastCaveat" class="mt-2 text-[11px] text-slate-500 leading-relaxed"></p>
             <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
               <span>ⓘ How to read a night contrast</span>
             </button>
             <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+              <p class="text-slate-500" id="nightContrastCaveat"></p>
               <p>Each line compares two groups of <strong class="text-cyan-400">your own nights</strong> — for example nights after a late bedtime against nights you went to bed on time — and reads the average of each group beside its night count. The thresholds (what counts as "late", a "training day", an "evening session") come from the dashboard's own policy, measured against <strong class="text-cyan-400">your median bedtime</strong>, not a clock time someone invented.</p>
               <p>A group needs at least 14 nights before its average is shown at all. A smaller group is not a number, it is an anecdote.</p>
               <p>This is a comparison, not an experiment: everything else that differed between those nights travels with the comparison. A late bedtime usually brings a later evening with it. If you shift one habit and the contrast holds, that is when it becomes worth acting on.</p>
@@ -1753,9 +1827,9 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
           <div class="flex flex-col items-center">
-            <div class="flex items-start gap-4">
-              <figure class="text-center">
-                <svg id="muscleMapFront" viewBox="0 0 200 470" class="w-36 h-auto" role="img" aria-label="Front-view muscle map">
+            <div class="flex items-start gap-4 w-full justify-center">
+              <figure class="text-center flex-1 min-w-0 max-w-[9rem]">
+                <svg id="muscleMapFront" viewBox="0 0 200 470" class="w-full h-auto" role="img" aria-label="Front-view muscle map">
                   <circle cx="100" cy="26" r="13" fill="#263348"/>
                   <rect x="45" y="80" width="14" height="38" rx="7" data-group="biceps" fill="#263348"/>
                   <rect x="141" y="80" width="14" height="38" rx="7" data-group="biceps" fill="#263348"/>
@@ -1775,8 +1849,8 @@
                 </svg>
                 <figcaption class="text-[10px] text-slate-500">Front</figcaption>
               </figure>
-              <figure class="text-center">
-                <svg id="muscleMapBack" viewBox="0 0 200 470" class="w-36 h-auto" role="img" aria-label="Back-view muscle map">
+              <figure class="text-center flex-1 min-w-0 max-w-[9rem]">
+                <svg id="muscleMapBack" viewBox="0 0 200 470" class="w-full h-auto" role="img" aria-label="Back-view muscle map">
                   <circle cx="100" cy="26" r="13" fill="#263348"/>
                   <rect x="45" y="80" width="14" height="38" rx="7" data-group="triceps" fill="#263348"/>
                   <rect x="141" y="80" width="14" height="38" rx="7" data-group="triceps" fill="#263348"/>
@@ -1804,7 +1878,12 @@
           </div>
           <div id="muscleGroupList" class="grid grid-cols-2 gap-2" data-stagger="60"></div>
         </div>
-        <p id="muscleNote" class="text-[11px] text-slate-500 leading-relaxed"></p>
+        <button onclick="toggleInfo(this)" aria-expanded="false" class="text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+          <span>ⓘ How these groups are counted</span>
+        </button>
+        <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+          <p id="muscleNote" class="text-slate-500"></p>
+        </div>
       </section>
 
       <!-- SECTION 4D: INTERACTIVE INSTRUMENTS — the load, movement and consistency
@@ -2119,25 +2198,27 @@
               <div class="text-[10px] text-slate-400 uppercase font-semibold">Sleep Consistency</div>
               <div id="metricConsistency" class="text-2xl font-extrabold text-emerald-400 mono">82%</div>
               <div class="text-[11px] text-slate-400">Regular 14-day bedtime window</div>
-              <div class="text-[10px] text-slate-600 mt-1 leading-tight">How regular your bedtime and wake time are. High consistency = stronger circadian rhythm = better sleep quality automatically. Going to bed at the same time every night is one of the highest-impact sleep interventions.</div>
             </div>
             <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1">
               <div class="text-[10px] text-slate-400 uppercase font-semibold">Sleep Efficiency</div>
               <div id="metricEfficiency" class="text-2xl font-extrabold text-cyan-400 mono">100%</div>
               <div class="text-[11px] text-slate-400">Restorative time in bed vs awake</div>
-              <div class="text-[10px] text-slate-600 mt-1 leading-tight">The percentage of time in bed that you were actually sleeping. 100% = you fell asleep immediately and stayed asleep. Below 85% can indicate insomnia or sleep apnea risk.</div>
             </div>
             <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1">
               <div class="text-[10px] text-slate-400 uppercase font-semibold">7-Day Accumulated Debt</div>
               <div id="metric7dDebt" class="text-2xl font-extrabold text-amber-400 mono">4.7 hrs</div>
               <div class="text-[11px] text-slate-400">Pay down with +55m tonight</div>
-              <div class="text-[10px] text-slate-600 mt-1 leading-tight">The total sleep shortfall from the past 7 nights. Like financial debt — it accumulates and must be repaid. The best strategy is adding 30–60 minutes per night over 1–2 weeks rather than one long "catch-up" night.</div>
             </div>
           </div>
 
-          <p class="text-xs text-slate-300 leading-relaxed" id="sleepBenchmarkNarrative">
-            Analysing sleep restoration against clinical benchmarks...
-          </p>
+          <button onclick="toggleInfo(this)" aria-expanded="false" class="text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
+            <span>ⓘ What these benchmarks mean</span>
+          </button>
+          <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
+            <p><strong class="text-slate-200">Sleep consistency</strong> — How regular your bedtime and wake time are. High consistency = stronger circadian rhythm = better sleep quality automatically. Going to bed at the same time every night is one of the highest-impact sleep interventions.</p>
+            <p><strong class="text-slate-200">Sleep efficiency</strong> — The percentage of time in bed that you were actually sleeping. 100% = you fell asleep immediately and stayed asleep. Below 85% can indicate insomnia or sleep apnea risk.</p>
+            <p><strong class="text-slate-200">7-day accumulated debt</strong> — The total sleep shortfall from the past 7 nights. Like financial debt — it accumulates and must be repaid. The best strategy is adding 30–60 minutes per night over 1–2 weeks rather than one long "catch-up" night.</p>
+          </div>
         </div>
 
       </section>
@@ -2679,6 +2760,266 @@
     }
 
     window.addEventListener('resize', queueChartRefit);
+
+    // ---- Chart deck ---------------------------------------------------------
+    // Six tiles at the top of the page, each drawing the same series its full
+    // chart reads. A tile is a door, never a second owner of a reading: the
+    // values are read from the payload the charts read, and the consistency
+    // tile quotes the instrument grid's own summary line. Painted directly on
+    // canvas rather than through Chart.js, so a stalled frame loop still shows
+    // every tile -- the same failure the charts refit around.
+    const DECK_PAD = 4;
+
+    function deckSurface(id) {
+      const canvas = document.getElementById(id);
+      if (!canvas) return null;
+      const dpr = window.devicePixelRatio || 1;
+      const width = Math.max(1, Math.round(canvas.clientWidth * dpr));
+      const height = Math.max(1, Math.round(canvas.clientHeight * dpr));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, width / dpr, height / dpr);
+      return { ctx, w: width / dpr, h: height / dpr };
+    }
+
+    function deckValue(id, text) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    }
+
+    // A mini line for a series that may carry gaps: a run of measured readings
+    // is drawn as one line, and an unmeasured stretch breaks it rather than
+    // being bridged, so the tile shows the same shape the full chart does.
+    function deckLine(id, values, color) {
+      const box = deckSurface(id);
+      if (!box) return;
+      const { ctx, w, h } = box;
+      const runs = [];
+      let run = [];
+      values.forEach((raw, index) => {
+        const value = raw === null || raw === undefined ? null : Number(raw);
+        if (value === null || !Number.isFinite(value)) {
+          if (run.length) runs.push(run);
+          run = [];
+          return;
+        }
+        run.push({ x: index, y: value });
+      });
+      if (run.length) runs.push(run);
+      const measured = runs.flat();
+      if (measured.length < 2) return;
+      const span = values.length > 1 ? values.length - 1 : 1;
+      const min = Math.min(...measured.map(p => p.y));
+      const max = Math.max(...measured.map(p => p.y));
+      const range = max - min || 1;
+      const px = p => DECK_PAD + (p.x / span) * (w - DECK_PAD * 2);
+      const py = p => h - DECK_PAD - ((p.y - min) / range) * (h - DECK_PAD * 2);
+      runs.forEach(points => {
+        if (points.length < 2) return;
+        ctx.beginPath();
+        points.forEach((p, index) => { index ? ctx.lineTo(px(p), py(p)) : ctx.moveTo(px(p), py(p)); });
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.6;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.stroke();
+        ctx.lineTo(px(points[points.length - 1]), h);
+        ctx.lineTo(px(points[0]), h);
+        ctx.closePath();
+        ctx.globalAlpha = 0.14;
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      });
+    }
+
+    function deckRing(id, segments, holeColor) {
+      const box = deckSurface(id);
+      if (!box) return;
+      const { ctx, w, h } = box;
+      const total = segments.reduce((sum, segment) => sum + (Number(segment.value) || 0), 0);
+      if (!total) return;
+      const cx = w / 2;
+      const cy = h / 2;
+      const radius = Math.max(1, Math.min(w, h) / 2 - 1);
+      let angle = -Math.PI / 2;
+      segments.forEach(segment => {
+        const sweep = ((Number(segment.value) || 0) / total) * Math.PI * 2;
+        if (sweep <= 0) return;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, radius, angle, angle + sweep);
+        ctx.closePath();
+        ctx.fillStyle = segment.color;
+        ctx.fill();
+        angle += sweep;
+      });
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 0.62, 0, Math.PI * 2);
+      ctx.fillStyle = holeColor;
+      ctx.fill();
+    }
+
+    function deckScatter(id, points, baseX, baseY, colors) {
+      const box = deckSurface(id);
+      if (!box) return;
+      const { ctx, w, h } = box;
+      if (!points.length) return;
+      const xs = points.map(p => p.x);
+      const ys = points.map(p => p.y);
+      const x0 = Math.min(...xs, Number.isFinite(baseX) ? baseX : Infinity);
+      const x1 = Math.max(...xs, Number.isFinite(baseX) ? baseX : -Infinity);
+      const y0 = Math.min(...ys, Number.isFinite(baseY) ? baseY : Infinity);
+      const y1 = Math.max(...ys, Number.isFinite(baseY) ? baseY : -Infinity);
+      const xRange = x1 - x0 || 1;
+      const yRange = y1 - y0 || 1;
+      const px = value => DECK_PAD + ((value - x0) / xRange) * (w - DECK_PAD * 2);
+      const py = value => h - DECK_PAD - ((value - y0) / yRange) * (h - DECK_PAD * 2);
+      if (Number.isFinite(baseX) && Number.isFinite(baseY)) {
+        ctx.strokeStyle = colors.grid;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(px(baseX), DECK_PAD);
+        ctx.lineTo(px(baseX), h - DECK_PAD);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(DECK_PAD, py(baseY));
+        ctx.lineTo(w - DECK_PAD, py(baseY));
+        ctx.stroke();
+      }
+      points.forEach((point, index) => {
+        const latest = index === points.length - 1;
+        ctx.beginPath();
+        ctx.arc(px(point.x), py(point.y), latest ? 3 : 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = latest ? colors.tones.cyan : colors.tones.green;
+        ctx.fill();
+      });
+    }
+
+    // The same seven-row map the instrument grid draws, at a glance: minutes are
+    // read through the same alpha rule, so the two can never disagree.
+    function deckHeat(id, byDay, anchor, heat) {
+      const box = deckSurface(id);
+      if (!box) return;
+      const { ctx, w, h } = box;
+      const end = new Date(`${anchor}T00:00:00Z`);
+      if (Number.isNaN(end.getTime())) return;
+      const first = new Date(end.getTime() - (CONSISTENCY_DAYS - 1) * 86400000);
+      const columnStart = new Date(first.getTime() - first.getUTCDay() * 86400000);
+      const weeks = Math.floor((end - columnStart) / (7 * 86400000)) + 1;
+      const cellW = (w - 2) / weeks;
+      const cellH = (h - 2) / 7;
+      const days = Math.floor((end - columnStart) / 86400000) + 1;
+      for (let i = 0; i < days; i++) {
+        const day = new Date(columnStart.getTime() + i * 86400000);
+        const date = day.toISOString().slice(0, 10);
+        if (day < first) continue;
+        const entry = byDay[date];
+        const minutes = entry ? entry.minutes : 0;
+        const alpha = minutes > 0 ? 0.28 + 0.62 * Math.min(1, minutes / 90) : 0;
+        ctx.fillStyle = minutes > 0 ? `rgba(${heat}, ${alpha.toFixed(2)})` : 'rgba(148, 163, 184, 0.14)';
+        ctx.fillRect(
+          1 + Math.floor(i / 7) * cellW,
+          1 + (i % 7) * cellH,
+          Math.max(1, cellW - 1.5),
+          Math.max(1, cellH - 1.5),
+        );
+      }
+    }
+
+    function deckHours(seconds) {
+      const minutes = Math.round(Number(seconds) / 60);
+      return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`;
+    }
+
+    function drawChartDeck() {
+      const data = globalBioData;
+      if (!data || !document.getElementById('deckSleep')) return;
+      const history = data.history || {};
+      const today = data.today || {};
+      const colors = themeColors();
+      // A vault published before the fetches ordered their series can still carry
+      // sleep newest-first, so every series is ordered here before a window is
+      // taken: the window is "the last N", and that must not depend on the order
+      // the payload happens to be in.
+      const ordered = series => (series || [])
+        .slice()
+        .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+
+      const sleep = ordered(history.daily_sleep).slice(-30);
+      deckLine('deckSleep', sleep.map(n => (n && n.total_seconds ? n.total_seconds / 3600 : null)), '#6366f1');
+      const lastSleep = [...sleep].reverse().find(n => n && n.total_seconds);
+      deckValue('deckSleepValue', lastSleep ? deckHours(lastSleep.total_seconds) : '--');
+
+      const hrv = ordered(history.daily_hrv).slice(-30);
+      deckLine('deckHrv', hrv.map(n => (n && n.lastNightAvg != null ? n.lastNightAvg : null)), colors.tones.green);
+      const lastHrv = [...hrv].reverse().find(n => n && n.lastNightAvg != null);
+      deckValue('deckHrvValue', lastHrv ? `${Math.round(Number(lastHrv.lastNightAvg) * 10) / 10} ms` : '--');
+
+      const rhr = ordered(history.daily_rhr).slice(-60);
+      deckLine('deckRhr', rhr.map(n => (n && n.rhr != null ? n.rhr : null)), colors.tones.amber);
+      const lastRhr = [...rhr].reverse().find(n => n && n.rhr != null);
+      deckValue('deckRhrValue', lastRhr ? `${Math.round(Number(lastRhr.rhr) * 10) / 10} bpm` : '--');
+
+      // A stage the watch did not measure keeps the ring empty, the same rule the
+      // doughnut follows: all three stages or none.
+      const stagesMeasured = [today.deep_sleep_seconds, today.rem_sleep_seconds, today.light_sleep_seconds]
+        .every(value => value !== null && value !== undefined);
+      if (stagesMeasured) {
+        deckRing('deckStages', [
+          { value: today.deep_sleep_seconds, color: '#6366f1' },
+          { value: today.rem_sleep_seconds, color: '#06b6d4' },
+          { value: today.light_sleep_seconds, color: '#334155' },
+          { value: today.awake_sleep_seconds, color: '#f43f5e' },
+        ], colors.surface);
+      }
+      deckValue('deckStagesValue', today.sleep_score != null ? `${today.sleep_score} score` : '--');
+
+      const rhrByDate = {};
+      ordered(history.daily_rhr).forEach(n => {
+        if (n && n.date && n.rhr != null) rhrByDate[n.date] = n.rhr;
+      });
+      const pairs = [];
+      ordered(history.daily_hrv).forEach(n => {
+        const rhrValue = n && n.date ? rhrByDate[n.date] : null;
+        if (rhrValue != null && n.lastNightAvg != null) {
+          pairs.push({ x: Number(rhrValue), y: Number(n.lastNightAvg) });
+        }
+      });
+      const recentPairs = pairs.slice(-60);
+      deckScatter('deckAutonomic', recentPairs, Number(data.baselines?.rhr_30d), Number(data.baselines?.hrv_30d), colors);
+      deckValue('deckAutonomicValue', recentPairs.length ? `${recentPairs.length} nights` : '--');
+
+      const anchor = today.date || new Date().toISOString().slice(0, 10);
+      deckHeat('deckConsistency', consistencyDays || {}, anchor, colors.heat);
+      // The tile quotes the grid's own summary rather than counting again, so the
+      // glance and the instrument always read the same number.
+      const summaryEl = document.getElementById('consistencySummary');
+      const summaryText = summaryEl ? summaryEl.textContent.trim() : '';
+      deckValue('deckConsistencyValue', summaryText ? summaryText.split(' · ')[0] : '--');
+    }
+
+    function jumpToChart(canvasId) {
+      const target = document.getElementById(canvasId);
+      if (!target) return;
+      const section = target.closest('section') || target;
+      section.scrollIntoView({ behavior: motionAllows() ? 'smooth' : 'auto', block: 'start' });
+      playCue('step');
+    }
+
+    let deckRedrawQueued = false;
+    function queueDeckRedraw() {
+      if (deckRedrawQueued) return;
+      deckRedrawQueued = true;
+      const run = () => { deckRedrawQueued = false; drawChartDeck(); };
+      requestAnimationFrame(run);
+      window.setTimeout(run, CHART_REFIT_GRACE_MS);
+    }
+    window.addEventListener('resize', queueDeckRedraw);
 
     // The scroll meter at the top of the window: one bar, filled by how far
     // down the page the reader has come. Painted from scroll position only --
@@ -4385,6 +4726,11 @@
       // a refit here instead, so a rebuild lands on the real box even where the frame
       // loop is throttled.
       queueChartRefit();
+
+      // The chart deck draws from the same payload the charts just read, and the
+      // consistency tile quotes the grid's own summary, so it is painted after
+      // every panel has published its reading.
+      drawChartDeck();
     }
 
     // The four risk contributors used to be static markup, so they kept reading
@@ -4684,15 +5030,18 @@
               </div>
               ${coachVisual(card.visual, cardTone)}
               <p class="text-[11px] text-slate-300 leading-relaxed">${esc(card.verdict)}</p>
-              ${!card.measured ? '' : `<p class="text-[11px] text-slate-400 leading-relaxed">${esc(asSentence(card.plain))}</p>`}
               <div class="p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
                 <div class="text-[10px] font-bold tracking-wider text-emerald-400 uppercase mb-1">Do this</div>
                 <p class="text-[11px] text-white leading-relaxed">${esc(card.action)}</p>
               </div>
               ${card.measured ? `
-              <div class="text-[10px] text-slate-400 leading-relaxed">
-                <div><span class="text-slate-500 font-bold">Progress:</span> ${esc(card.progression)}</div>
-                <div class="mt-1"><span class="text-slate-500 font-bold">Back off when:</span> ${esc(card.guardrail)}</div>
+              <button onclick="toggleInfo(this)" aria-expanded="false" class="block text-left text-[10px] text-cyan-400/70 hover:text-cyan-400 transition cursor-pointer">
+                ⓘ Why this prescription, and how to progress it
+              </button>
+              <div class="hidden mt-1 p-2 rounded-lg bg-slate-950/80 border border-slate-800 text-[10px] text-slate-400 leading-relaxed space-y-1">
+                <p>${esc(asSentence(card.plain))}</p>
+                <p><span class="text-slate-500 font-bold">Progress:</span> ${esc(card.progression)}</p>
+                <p><span class="text-slate-500 font-bold">Back off when:</span> ${esc(card.guardrail)}</p>
               </div>` : ''}
               ${metrics ? `<div class="pt-1 border-t border-slate-800/60">${metrics}</div>` : ''}
               ${evidence ? `<div class="space-y-1 pt-1">${evidence}</div>` : ''}
@@ -4734,15 +5083,26 @@
       document.querySelectorAll('#muscleMapFront [data-group], #muscleMapBack [data-group]').forEach(el => {
         const g = byKey[el.dataset.group];
         const fill = g && MUSCLE_BAND_COLORS[g.band];
+        // A re-render (a theme change, a refresh, a reload) repaints the same
+        // shapes, so the fill is set every pass and returns to the neutral
+        // silhouette when a group carries no band: the previous render's colour
+        // must not outlive its reading.
+        el.setAttribute('fill', fill || '#263348');
         if (fill) {
-          el.setAttribute('fill', fill);
-            el.setAttribute('fill-opacity', g.band === 'recent' ? '0.95' : '0.75');
+          el.setAttribute('fill-opacity', g.band === 'recent' ? '0.95' : '0.75');
+        } else {
+          el.removeAttribute('fill-opacity');
         }
-        const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        // One title per shape, refreshed in place: a second render must not set a
+        // second one down, and the tooltip must never keep an older band's words.
+        let title = el.querySelector(':scope > title');
+        if (!title) {
+          title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+          el.insertBefore(title, el.firstChild);
+        }
         title.textContent = g
           ? `${g.label}: ${g.band_label} — ${g.sets} sets, ${g.sessions} session${g.sessions === 1 ? '' : 's'}${g.last_date ? ', last ' + g.last_date : ''}`
           : 'Not measured in the published window';
-        el.appendChild(title);
       });
 
       const list = document.getElementById('muscleGroupList');
@@ -4925,9 +5285,13 @@
             </div>
           </div>
           <div class="mt-1.5 text-[10px] text-slate-500">${esc(c.metric_label)} · ${c.nights_a} nights vs ${c.nights_b} nights</div>
-          ${(c.evidence || []).map(ev => `
-            <div class="mt-1.5 text-[10px] text-slate-500 leading-relaxed"><strong class="text-cyan-400/80">Evidence:</strong> ${esc(ev.claim)} — ${esc(ev.finding)} <span class="text-slate-600">(${esc(ev.source)})</span>${ev.caveat ? ` <span class="text-slate-600">${esc(ev.caveat)}</span>` : ''}</div>
-          `).join('')}
+          ${(c.evidence || []).length ? `
+          <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-1.5 block text-left text-[10px] text-cyan-400/70 hover:text-cyan-400 transition cursor-pointer">
+            ⓘ Evidence behind this comparison
+          </button>
+          <div class="hidden mt-1 p-2 rounded-lg bg-slate-950/80 border border-slate-800 text-[10px] text-slate-500 leading-relaxed space-y-1">
+            ${(c.evidence || []).map(ev => `<p><strong class="text-cyan-400/80">Evidence:</strong> ${esc(ev.claim)} — ${esc(ev.finding)} <span class="text-slate-600">(${esc(ev.source)})</span>${ev.caveat ? ` <span class="text-slate-600">${esc(ev.caveat)}</span>` : ''}</p>`).join('')}
+          </div>` : ''}
         </div>
       `;
       }).join('');
@@ -4996,7 +5360,13 @@
 
     function updateSleepChart() {
       if (!globalBioData) return;
-      const allSleep = globalBioData.history?.daily_sleep || [];
+      // The sleep fetch walks backwards from today, so a vault published before
+      // the fetch ordered its series can still arrive newest-first. "The last 30
+      // nights" has to mean the last 30 whatever the payload says, so the axis
+      // is ordered here rather than trusted.
+      const allSleep = (globalBioData.history?.daily_sleep || [])
+        .slice()
+        .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
       const subset = (currentSleepTf === 'ALL') ? allSleep : allSleep.slice(-currentSleepTf);
 
       const ctx = document.getElementById("sleepChart").getContext("2d");

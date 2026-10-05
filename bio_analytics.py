@@ -418,6 +418,11 @@ def calculate_day_strain(today_str, steps, stress_avg, activities):
 
 def calculate_sleep_need(day_strain, today, sleep_history):
     """Sleep need, debt paydown and the reverse-engineered bedtime."""
+    # Defensive ordering, the same rule the baselines follow: every "recent N
+    # nights" window below slices this list, so upstream ordering is never
+    # trusted. A descending list made the debt math average the oldest week of
+    # the fetch instead of the last one.
+    sleep_history = _by(sleep_history, "date")
     recent_7_sleep = sleep_history[-7:] if len(sleep_history) >= 7 else sleep_history
     raw_7d_debt = 0
     for s in recent_7_sleep:

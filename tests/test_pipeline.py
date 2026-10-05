@@ -4322,5 +4322,86 @@ class SignalPayloadTests(unittest.TestCase):
         self.assertNotIn("bmi", payload["fitness"])
 
 
+# ---------------------------------------------------------------------------
+# History series order: a "recent N" window must mean the recent N
+# ---------------------------------------------------------------------------
+
+class SleepOrderTests(unittest.TestCase):
+    """The sleep fetch walks backwards from today, so its series arrives
+    newest-first while HRV and RHR arrive oldest-first. Every window that slices
+    from the end therefore read the oldest week of the fetch: the sleep debt and
+    the 7D/30D chart views were averaging March while October was measured."""
+
+    def test_sleep_need_reads_the_recent_week_whatever_order_the_fetch_produced(self):
+        nights = [make_sleep(f"2026-09-{day:02d}", hours=5.0 + day * 0.2) for day in range(1, 15)]
+        today = {"sleep_time_seconds": 27000, "awake_sleep_seconds": 1800}
+        ascending = analytics.calculate_sleep_need(10.0, today, nights)
+        descending = analytics.calculate_sleep_need(10.0, today, list(reversed(nights)))
+        self.assertEqual(ascending["accumulated_7d_debt_hours"], descending["accumulated_7d_debt_hours"])
+        self.assertEqual(ascending["sleep_consistency_pct"], descending["sleep_consistency_pct"])
+        self.assertEqual(ascending["recommended_bedtime"], descending["recommended_bedtime"])
+
+    def test_the_recent_week_is_the_last_seven_nights_not_the_first(self):
+        old_short = [make_sleep(f"2026-08-{day:02d}", hours=5.0) for day in range(1, 8)]
+        recent_long = [make_sleep(f"2026-09-{day:02d}", hours=8.0) for day in range(1, 8)]
+        today = {"sleep_time_seconds": 28800, "awake_sleep_seconds": 0}
+        need = analytics.calculate_sleep_need(10.0, today, old_short + recent_long)
+        self.assertEqual(need["accumulated_7d_debt_hours"], 0.0)
+
+    def test_the_sleep_fetch_publishes_its_series_in_date_order(self):
+        source = (Path(__file__).resolve().parent.parent / "garmin_source.py").read_text(encoding="utf-8")
+        fetch = source.split("def fetch_sleep_history", 1)[1].split("\ndef fetch_fitness_and_workload", 1)[0]
+        self.assertIn("sleep_history.sort(key=lambda night: night[\"date\"])", fetch)
+
+
+# ---------------------------------------------------------------------------
+# Chart deck: every chart at one look, and none of them owned twice
+# ---------------------------------------------------------------------------
+
+class ChartDeckTests(unittest.TestCase):
+    """Six tiles at the top of the page, each drawing the series its full chart
+    reads and opening that chart when tapped."""
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(encoding="utf-8")
+
+    @staticmethod
+    def _deck():
+        return ChartDeckTests._page().split("function drawChartDeck", 1)[1].split("\n    function jumpToChart", 1)[0]
+
+    def test_every_chart_has_a_tile_that_opens_it(self):
+        page = self._page()
+        for canvas_id in ("sleepChart", "hrvChart", "multiYearRhrChart",
+                          "sleepDoughnutChart", "autonomicScatterChart", "consistencyGrid"):
+            self.assertIn(f"jumpToChart('{canvas_id}')", page)
+
+    def test_the_deck_paints_every_tile_and_builds_no_chart_of_its_own(self):
+        deck = self._deck()
+        for tile in ("deckSleep", "deckHrv", "deckRhr", "deckStages", "deckAutonomic", "deckConsistency"):
+            self.assertIn(f"'{tile}'", deck)
+        # The tiles are a window onto the charts, not a second owner of a reading.
+        self.assertNotIn("new Chart", deck)
+
+    def test_a_gap_breaks_the_mini_line_instead_of_bridging_it(self):
+        line = self._page().split("function deckLine", 1)[1].split("function deckRing", 1)[0]
+        self.assertIn("if (value === null || !Number.isFinite(value))", line)
+        self.assertIn("runs.push(run)", line)
+
+    def test_the_deck_orders_its_series_before_taking_a_window(self):
+        page = self._page()
+        self.assertIn("const ordered = series => (series || [])", page)
+        self.assertIn(".sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))", page)
+        # Both readers of the sleep series order it: the chart and the deck.
+        self.assertGreaterEqual(
+            page.count(".sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))"),
+            2,
+        )
+
+    def test_the_consistency_tile_quotes_the_instrument_grid(self):
+        deck = self._deck()
+        self.assertIn("getElementById('consistencySummary')", deck)
+
+
 if __name__ == "__main__":
     unittest.main()
