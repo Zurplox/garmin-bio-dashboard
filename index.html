@@ -1713,7 +1713,7 @@
             <div class="text-xs font-bold text-violet-400 uppercase tracking-wide flex items-center gap-1.5">
               <span>●</span> Correlation Lab — how your own signals move together
             </div>
-            <span id="corrSummary" class="text-[11px] text-slate-500 mono">--</span>
+            <span id="corrSummary" class="text-[11px] text-slate-400">--</span>
           </div>
           <ul id="corrList" class="space-y-2 text-xs text-slate-300 font-medium" data-stagger="60"></ul>
           <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-2 text-[10px] text-cyan-400/70 hover:text-cyan-400 flex items-center gap-1 transition cursor-pointer">
@@ -1722,6 +1722,7 @@
           <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1">
             <p class="text-slate-300 font-medium" id="corrTravel"></p>
             <p class="text-slate-500" id="corrCaveat"></p>
+            <p class="mono text-slate-500" id="corrMethod"></p>
             <p><strong class="text-violet-400">r</strong> is a number between −1 and +1. Near +1 means the two readings rise and fall together; near −1 means one rises as the other falls; near 0 means they are unrelated. The day count is how many nights both were measured — a strong <span class="mono">r</span> from 20 nights is a hint, from 100 nights it is a pattern.</p>
             <p>Only pairings with at least 14 paired days and an <span class="mono">r</span> of 0.35 or stronger are shown, and only pairings with a plausible physiological reason are tested at all. Testing every combination would eventually produce a strong-looking number by chance.</p>
             <p>A correlation is a pattern in your own data, never proof that one thing caused the other. If you change one habit and the pattern holds, that is when it becomes worth trusting.</p>
@@ -5215,7 +5216,18 @@
       // --- correlation lab ---
       const summary = document.getElementById('corrSummary');
       const findings = corr.findings || [];
-      summary.textContent = `${findings.length} of ${corr.tested_pairs ?? 0} pairs published · window ${corr.window_days ?? 0}d · need n≥${corr.min_days ?? 0} and |r|≥${corr.min_r ?? 0}`;
+      const windowDays = corr.window_days ?? 0;
+      // The header says what the panel holds, in words. The exact method -- how
+      // many pairings were checked, the window they were checked over, and the
+      // floor a pair has to clear before it is published -- moved into the "how
+      // to read" panel, which already explained it in words; a reader who wants
+      // the exact numbers can still ask for them.
+      summary.textContent = findings.length
+        ? `${findings.length} pattern${findings.length === 1 ? '' : 's'} found in your last ${windowDays} days`
+        : 'No pattern strong enough to publish yet';
+      document.getElementById('corrMethod').textContent =
+        `${findings.length} of ${corr.tested_pairs ?? 0} pairings checked · ${windowDays}-day window · ` +
+        `published at n≥${corr.min_days ?? 0} paired days and |r|≥${corr.min_r ?? 0}`;
       const list = document.getElementById('corrList');
       // A row states the relationship before it explains it: the two names with the
       // measured direction drawn between them, then one plain line saying what that

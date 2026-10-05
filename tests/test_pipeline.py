@@ -4622,6 +4622,52 @@ class NightContrastReadingTests(unittest.TestCase):
         self.assertIn("c.plain ? esc(asSentence(c.plain)) : esc(c.question)", page)
 
 
+class CorrelationHeaderTests(unittest.TestCase):
+    """The panel's header used to be the method line: `3 of 9 pairs published ·
+    window 120d · need n≥14 and |r|≥0.35`. It says what the panel holds instead,
+    and the exact floor lives in the panel that already explained it in words --
+    available on request, no longer the first thing a reader reads."""
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(encoding="utf-8")
+
+    @staticmethod
+    def _render():
+        page = CorrelationHeaderTests._page()
+        return page.split("// --- correlation lab ---", 1)[1].split(
+            "const list = document.getElementById('corrList');", 1
+        )[0]
+
+    def test_the_header_states_what_the_panel_holds_in_words(self):
+        render = self._render()
+        self.assertIn(
+            "`${findings.length} pattern${findings.length === 1 ? '' : 's'} found in your last ${windowDays} days`",
+            render,
+        )
+        # The empty state reads as a plain sentence rather than a formula.
+        self.assertIn("'No pattern strong enough to publish yet'", render)
+        self.assertNotIn("pairs published", render)
+        self.assertNotIn("need n≥", render)
+
+    def test_the_exact_floor_moves_into_the_how_to_read_panel(self):
+        page, render = self._page(), self._render()
+        self.assertIn("getElementById('corrMethod')", render)
+        self.assertIn("n≥${corr.min_days ?? 0} paired days", render)
+        self.assertIn("|r|≥${corr.min_r ?? 0}", render)
+        # It is inside the collapsed panel, not in the visible header: the panel
+        # opens before the method line, and the visible line sits before the
+        # expander that holds the panel.
+        panel = page.split("<span>ⓘ How to read a correlation</span>", 1)[1]
+        before, after = panel.split('class="mono text-slate-500" id="corrMethod"', 1)
+        self.assertIn("hidden mt-1 p-2.5 rounded-xl", before)
+        self.assertNotIn('id="corrSummary"', panel)
+        self.assertTrue(after.lstrip().startswith("></p>"), after[:40])
+        # The visible line is prose, so it no longer wears the mono treatment the
+        # formula needed.
+        self.assertIn('<span id="corrSummary" class="text-[11px] text-slate-400">', page)
+
+
 class NarrowWidthTests(unittest.TestCase):
     """Measured at a 246 px window (230 px usable), the page scrolled sideways by
     40 px. Two instrument rows put a fixed-size dial beside a text column and

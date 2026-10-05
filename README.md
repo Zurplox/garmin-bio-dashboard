@@ -490,4 +490,15 @@ running page before the fix and measured again after it, and each is now pinned 
 
 ---
 
+## 🧭 The lab's header reads as a sentence — 2026-10-05
+
+* **The Correlation Lab header states what the panel holds.** It read `3 of 9 pairs published · window
+  120d · need n≥14 and |r|≥0.35` — the method, leading. It now reads **“3 patterns found in your last
+  120 days”**, and the exact floor (how many pairings were checked, the window, and the numbers a
+  pair must clear) sits in the **ⓘ How to read a correlation** panel, which already explained it in
+  words. Nothing is lost; it just stops being the first thing a reader meets. An empty panel reads
+  “No pattern strong enough to publish yet”.
+
+---
+
 *Built with Python, the device data API, Web Crypto API, Tailwind CSS, and Chart.js.*
