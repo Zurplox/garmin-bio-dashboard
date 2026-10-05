@@ -79,7 +79,7 @@ Values that are *models* rather than measurements are labelled as such: **Day St
 | Capacity (VO₂max, BMI, threshold HR) | account profile + max-metrics | age, sex, height and weight are read from the profile; BMI is computed from those, never assumed |
 | Race forecasts | device race predictions | 5K / 10K / half / marathon, formatted from the device's own seconds |
 | Intensity minutes, steps, floors, calories | device daily summaries | weekly moderate-equivalent minutes against the 150-minute guideline |
-| Correlations | computed from the athlete's own paired days | curated pairs only, each published with `r`, the paired-day count and a plain-English note; a pair below 14 paired days or |r| < 0.35 is refused rather than published |
+| Correlations | computed from the athlete's own paired days | curated pairs only, each published with `r`, the paired-day count, the direction drawn between the two readings and a one-line plain-English reading; the mechanism note opens from the row. A pair below 14 paired days or |r| < 0.35 is refused rather than published |
 
 ---
 
@@ -442,6 +442,28 @@ running page before the fix and measured again after it, and each is now pinned 
   (`flex-1 min-w-0`, measured 11 px of page scroll removed at a 296 px window), each map shape keeps
   exactly one refreshed `<title>` across re-renders, and the provenance panel names the group
   "Muscle coverage (exercise sets)".
+
+---
+
+## 🔗 A pattern says what it means before it explains why — 2026-10-05
+
+* **The correlation lab stopped making you assemble the reading.** A published row now states the
+  relationship itself: the two readings with the measured direction drawn between them
+  (`nightly stress (/100) ↑ → overnight HRV (ms) ↓`), one plain line under it
+  (`Stress at night costs you recovery by morning.`), and `r` with the paired-day count still in view.
+  The mechanism note that used to trail the sentence in the same breath now opens from the row's own
+  **ⓘ Why these two move together**.
+* **The short readings have one owner.** `bio_policy.PAIR_PLAIN` writes one line per curated pair, the
+  engine publishes it as `plain` on every finding, and the page prints what it is handed — so the lab
+  cannot drift from its own wording, and a pair policy has not written yet still reads as the direction
+  the coefficient measured. `CorrelationRowTests` pins a line for every curated pair, the fallback, and
+  the row's shape: reading in view, note inside the collapsed panel.
+* **A narrow window wraps between the two readings.** Each side keeps its own arrow (`A ↑` / `→ B ↓`),
+  so at 343 px usable the statement breaks across two lines instead of stranding an arrow at the end of
+  one. Verified on the running page at 1263 px and 343 px, in both themes, with no page overflow.
+* **The vault is re-published with the field already in place** (same passphrase, same envelope and
+  iteration count; the decrypted payload differs from the previous one only by the three added `plain`
+  values), so the dashboard reads correctly before the daily sync writes the same field itself.
 
 ---
 

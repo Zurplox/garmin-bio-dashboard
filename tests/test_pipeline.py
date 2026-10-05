@@ -4439,5 +4439,77 @@ class CoachAdviceVisibilityTests(unittest.TestCase):
         self.assertNotIn("card.guardrail", panel)
 
 
+# ---------------------------------------------------------------------------
+# Correlation rows: the meaning in view, the mechanism one tap away
+# ---------------------------------------------------------------------------
+
+class CorrelationRowTests(unittest.TestCase):
+    """A published pattern used to be a sentence the reader had to assemble:
+    the direction sat inside clause after clause, and the mechanism note trailed
+    it in the same breath. Each row now draws the relationship and says in one
+    plain line what it means, with the long note folded behind the row's own
+    expander."""
+
+    @staticmethod
+    def _page():
+        return (Path(__file__).resolve().parent.parent / "index.html").read_text(encoding="utf-8")
+
+    @staticmethod
+    def _row():
+        page = CorrelationRowTests._page()
+        return page.split("// A row states the relationship before it explains it:", 1)[1].split(
+            "const travel = corr.location", 1
+        )[0]
+
+    def test_every_curated_pair_carries_a_short_reading(self):
+        # A pair policy can publish is a pair the row prints first, so the short
+        # line and the long note are written together and neither can go missing.
+        self.assertEqual(set(policy.PAIR_PLAIN), set(policy.PAIR_NOTES))
+        for pair, line in policy.PAIR_PLAIN.items():
+            with self.subTest(pair=pair):
+                self.assertTrue(line[0].isupper(), line)
+                self.assertTrue(line.endswith("."), line)
+                self.assertLessEqual(len(line), 120, line)
+                self.assertNotEqual(line, policy.PAIR_NOTES[pair])
+                self.assertFalse(InterfaceGlyphTests.EMOJI.search(line), line)
+
+    def test_a_published_finding_carries_both_readings(self):
+        dates = [f"2026-08-{day:02d}" for day in range(1, 41)]
+        series = {
+            "hrv": {date: 50 + index for index, date in enumerate(dates)},
+            "sleep_score": {date: 55 + index for index, date in enumerate(dates)},
+        }
+        finding = bio_correlate.build_correlations(series)["findings"][0]
+
+        self.assertEqual(finding["plain"], policy.PAIR_PLAIN[("hrv", "sleep_score")])
+        self.assertEqual(finding["note"], policy.PAIR_NOTES[("hrv", "sleep_score")])
+        self.assertEqual(finding["direction"], "higher")
+
+    def test_a_pair_with_no_written_reading_still_reads_as_a_direction(self):
+        # The fallback exists so a pair added to the tested list can never print
+        # an empty takeaway line, and it reads the coefficient's own sign.
+        rising = bio_correlate._pair_plain("aa", "bb", "alpha (u)", "beta (v)", 0.4)
+        falling = bio_correlate._pair_plain("aa", "bb", "alpha (u)", "beta (v)", -0.4)
+        self.assertIn("rise and fall together", rising)
+        self.assertIn("move in opposite directions", falling)
+
+    def test_the_row_draws_the_direction_and_folds_the_mechanism_away(self):
+        row = self._row()
+        # The coefficient and the days behind it stay in view, and the direction
+        # is drawn both ways from the finding's own sign.
+        self.assertIn("r=${f.r}", row)
+        self.assertIn("${f.days} paired days", row)
+        self.assertIn("const bArrow = f.direction === 'lower' ? '&#8595;' : '&#8593;';", row)
+        self.assertIn("&#8593;", row)
+        self.assertIn("&#8594;", row)
+        # The plain line is printed in view, ahead of the expander...
+        visible, folded = row.split('<button onclick="toggleInfo(this)"', 1)
+        self.assertIn("esc(asSentence(f.plain))", visible)
+        self.assertNotIn("f.note", visible)
+        # ...and the mechanism note is inside the panel that button opens.
+        panel = folded.split('<div class="hidden mt-1 p-2.5 rounded-xl', 1)[1]
+        self.assertIn("${esc(f.note)}", panel)
+
+
 if __name__ == "__main__":
     unittest.main()

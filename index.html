@@ -5217,18 +5217,44 @@
       const findings = corr.findings || [];
       summary.textContent = `${findings.length} of ${corr.tested_pairs ?? 0} pairs published · window ${corr.window_days ?? 0}d · need n≥${corr.min_days ?? 0} and |r|≥${corr.min_r ?? 0}`;
       const list = document.getElementById('corrList');
+      // A row states the relationship before it explains it: the two names with the
+      // measured direction drawn between them, then one plain line saying what that
+      // means. The mechanism note sits behind the row's own expander, so a reader
+      // who wants the "why" opens it and everyone else reads the "what".
       list.innerHTML = findings.length
-        ? findings.map(f => `
-            <li class="flex items-start gap-2">
-              <span class="mono font-bold text-violet-400 shrink-0">r=${f.r}</span>
-              <span>
-                <strong class="text-violet-300">${esc(f.strength)} pattern</strong> across ${f.days} paired days: when
-                <strong class="text-white">${esc(f.label_a)}</strong> was higher,
-                <strong class="text-white">${esc(f.label_b)}</strong> was <strong class="text-white">${esc(f.direction)}</strong>.
-                <span class="text-slate-400">${esc(f.note)}</span>
-              </span>
+        ? findings.map(f => {
+            const bArrow = f.direction === 'lower' ? '&#8595;' : '&#8593;';
+            const directionLabel = `${esc(f.label_a)} was higher, ${esc(f.label_b)} was ${esc(f.direction)}`;
+            return `
+            <li class="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 transition-colors duration-500 hover:border-violet-500/40">
+              <div class="flex items-center justify-between gap-3">
+                <span class="mono font-bold text-[11px] px-2 py-0.5 rounded-full border bg-violet-500/10 border-violet-500/30 text-violet-300 shrink-0">r=${f.r}</span>
+                <span class="text-[10px] text-slate-500 mono shrink-0">${f.days} paired days · ${esc(f.strength)}</span>
+              </div>
+              <!-- Each side keeps its own arrow, so a narrow window wraps the
+                   statement between the two readings rather than stranding the
+                   arrow at the end of a line. -->
+              <div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 leading-tight" title="${directionLabel}" aria-label="${directionLabel}">
+                <span class="inline-flex items-baseline gap-1">
+                  <span class="text-sm font-bold text-white">${esc(f.label_a)}</span>
+                  <span class="mono font-bold text-violet-300" aria-hidden="true">&#8593;</span>
+                </span>
+                <span class="inline-flex items-baseline gap-1">
+                  <span class="text-slate-500" aria-hidden="true">&#8594;</span>
+                  <span class="text-sm font-bold text-white">${esc(f.label_b)}</span>
+                  <span class="mono font-bold text-violet-300" aria-hidden="true">${bArrow}</span>
+                </span>
+              </div>
+              <div class="mt-1.5 text-[11px] text-violet-200/90 leading-relaxed">${esc(asSentence(f.plain))}</div>
+              <button onclick="toggleInfo(this)" aria-expanded="false" class="mt-1.5 block text-left text-[10px] text-cyan-400/70 hover:text-cyan-400 transition cursor-pointer">
+                ⓘ Why these two move together
+              </button>
+              <div class="hidden mt-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
+                <p>${esc(f.note)}</p>
+              </div>
             </li>
-          `).join('')
+          `;
+          }).join('')
         : '<li class="text-slate-500">No pair has enough paired days yet, so no pattern is published. A pairing appears once it has both a sufficient sample size and a coefficient at or above the threshold shown above.</li>';
       const travel = corr.location || null;
       const travelEl = document.getElementById('corrTravel');

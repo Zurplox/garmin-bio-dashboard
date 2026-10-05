@@ -518,6 +518,42 @@ PAIR_NOTES = {
 }
 
 
+# The short reading of each curated pair, written to be understood at a glance:
+# the dashboard prints one of these under the two names, with the measured
+# direction drawn beside them, so the reader never has to assemble the meaning
+# from the sentence around it. The long mechanism note above is still published
+# with every finding; it opens on request instead of leading.
+PAIR_PLAIN = {
+    ("hrv", "sleep_score"): (
+        "Sleep and recovery rise together: better-scored nights come with more HRV by morning."
+    ),
+    ("hrv", "rhr"): (
+        "Better recovery reads as a slower resting pulse — these two dials move against each other."
+    ),
+    ("deep_pct", "hrv"): (
+        "Deep sleep is when you repair, so a bigger deep-sleep share goes with higher HRV."
+    ),
+    ("rhr", "sleep_hours"): (
+        "Shorter nights leave your resting pulse higher the next morning."
+    ),
+    ("rhr", "steps"): (
+        "More movement in a day comes back as a lower resting pulse that night."
+    ),
+    ("respiration", "hrv"): (
+        "Breathing rate and HRV are two dials on the same nervous system, so they move as a pair."
+    ),
+    ("sleep_stress", "hrv"): (
+        "Stress at night costs you recovery by morning."
+    ),
+    ("spo2", "hrv"): (
+        "A night that reads harder on oxygen reads harder on recovery too."
+    ),
+    ("hrv", "steps"): (
+        "Busier days ask for more overnight repair, which shows up in these two together."
+    ),
+}
+
+
 # --- coaching ---------------------------------------------------------------
 # Everything above answers "what do my numbers say". Coaching answers "so what do
 # I do today", so each domain below is one prescription built from the same

@@ -63,6 +63,20 @@ def _pair_note(key_a, key_b):
     )
 
 
+def _pair_plain(key_a, key_b, label_a, label_b, r):
+    """The one-line reading of a pair, for the row that shows it.
+
+    Policy supplies the curated wording; a pair it has not written yet still
+    reads as a direction rather than as nothing, because the row prints this
+    line in view while the long note stays folded behind it.
+    """
+    text = policy.PAIR_PLAIN.get((key_a, key_b)) or policy.PAIR_PLAIN.get((key_b, key_a))
+    if text:
+        return text
+    movement = "rise and fall together" if r > 0 else "move in opposite directions"
+    return f"In your own data, {label_a} and {label_b} {movement}."
+
+
 def build_correlations(series, max_findings=None):
     """Rank the curated channel pairs by how strong the relationship is.
 
@@ -95,6 +109,7 @@ def build_correlations(series, max_findings=None):
                 "days": n,
                 "strength": strength_word(r),
                 "direction": "higher" if r > 0 else "lower",
+                "plain": _pair_plain(key_a, key_b, label_a, label_b, r),
                 "note": _pair_note(key_a, key_b),
             }
         )
