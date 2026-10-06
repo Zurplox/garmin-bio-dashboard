@@ -1830,42 +1830,68 @@
           <div class="flex flex-col items-center">
             <div class="flex items-start gap-4 w-full justify-center">
               <figure class="text-center flex-1 min-w-0 max-w-[9rem]">
-                <svg id="muscleMapFront" viewBox="0 0 200 470" class="w-full h-auto" role="img" aria-label="Front-view muscle map">
-                  <circle cx="100" cy="26" r="13" fill="#263348"/>
-                  <rect x="45" y="80" width="14" height="38" rx="7" data-group="biceps" fill="#263348"/>
-                  <rect x="141" y="80" width="14" height="38" rx="7" data-group="biceps" fill="#263348"/>
-                  <ellipse cx="61" cy="70" rx="13" ry="10" data-group="shoulders" fill="#263348"/>
-                  <ellipse cx="139" cy="70" rx="13" ry="10" data-group="shoulders" fill="#263348"/>
-                  <ellipse cx="86" cy="88" rx="16" ry="19" data-group="chest" fill="#263348"/>
-                  <ellipse cx="114" cy="88" rx="16" ry="19" data-group="chest" fill="#263348"/>
-                  <rect x="80" y="112" width="40" height="42" rx="10" data-group="core" fill="#263348"/>
-                  <rect x="43" y="126" width="13" height="40" rx="6" fill="#263348"/>
-                  <rect x="144" y="126" width="13" height="40" rx="6" fill="#263348"/>
-                  <rect x="76" y="168" width="21" height="82" rx="9" data-group="quads" fill="#263348"/>
-                  <rect x="103" y="168" width="21" height="82" rx="9" data-group="quads" fill="#263348"/>
-                  <rect x="78" y="262" width="16" height="46" rx="8" data-group="calves" fill="#263348"/>
-                  <rect x="106" y="262" width="16" height="46" rx="8" data-group="calves" fill="#263348"/>
-                  <rect x="76" y="318" width="20" height="10" rx="5" fill="#263348"/>
-                  <rect x="104" y="318" width="20" height="10" rx="5" fill="#263348"/>
+                <svg id="muscleMapFront" viewBox="0 0 200 300" class="w-full h-auto" role="img" aria-label="Front-view muscle map">
+                  <circle cx="100" cy="16" r="12" fill="#263348"/>
+                  <path d="M92 28 h16 l4 10 H88 Z" fill="#263348"/>
+                  <!-- Shoulders / delts -->
+                  <path d="M58 38 q16 -10 22 0 q-2 14 -12 16 q-12 -2 -10 -16 Z" data-group="shoulders" fill="#263348"/>
+                  <path d="M142 38 q-16 -10 -22 0 q2 14 12 16 q12 -2 10 -16 Z" data-group="shoulders" fill="#263348"/>
+                  <!-- Chest / pecs -->
+                  <path d="M80 40 q18 -4 20 2 v22 q-14 6 -22 -4 q-2 -12 2 -20 Z" data-group="chest" fill="#263348"/>
+                  <path d="M120 40 q-18 -4 -20 2 v22 q14 6 22 -4 q2 -12 -2 -20 Z" data-group="chest" fill="#263348"/>
+                  <!-- Biceps -->
+                  <path d="M52 44 v22 q6 6 12 2 v-20 q-6 -6 -12 -2 Z" data-group="biceps" fill="#263348"/>
+                  <path d="M148 44 v22 q-6 6 -12 2 v-20 q6 -6 12 -2 Z" data-group="biceps" fill="#263348"/>
+                  <!-- Forearms (no exercise maps here, so never coloured) -->
+                  <path d="M50 70 v22 q7 6 13 0 v-20 q-6 -4 -13 -2 Z" fill="#263348"/>
+                  <path d="M150 70 v22 q-7 6 -13 0 v-20 q6 -4 13 -2 Z" fill="#263348"/>
+                  <!-- Core / six-pack segments -->
+                  <g data-group="core" fill="#263348">
+                    <rect x="82" y="66" width="17" height="9" rx="3"/>
+                    <rect x="101" y="66" width="17" height="9" rx="3"/>
+                    <rect x="82" y="77" width="17" height="9" rx="3"/>
+                    <rect x="101" y="77" width="17" height="9" rx="3"/>
+                    <rect x="84" y="88" width="15" height="9" rx="3"/>
+                    <rect x="101" y="88" width="15" height="9" rx="3"/>
+                  </g>
+                  <!-- Quadriceps: two teardrop thighs -->
+                  <path d="M80 100 q-8 4 -6 30 q4 16 16 16 q12 0 14 -20 q2 -22 -8 -26 Z" data-group="quads" fill="#263348"/>
+                  <path d="M120 100 q8 4 6 30 q-4 16 -16 16 q-12 0 -14 -20 q-2 -22 8 -26 Z" data-group="quads" fill="#263348"/>
+                  <!-- Calves -->
+                  <path d="M84 158 q-4 2 -2 30 q4 10 10 10 q8 0 10 -14 q2 -24 -6 -28 Z" data-group="calves" fill="#263348"/>
+                  <path d="M116 158 q4 2 2 30 q-4 10 -10 10 q-8 0 -10 -14 q-2 -24 6 -28 Z" data-group="calves" fill="#263348"/>
+                  <!-- Feet -->
+                  <path d="M80 206 h22 q6 0 6 8 h-28 q0 -8 0 -8 Z" fill="#263348"/>
+                  <path d="M120 206 h-22 q-6 0 -6 8 h28 q0 -8 0 -8 Z" fill="#263348"/>
                 </svg>
                 <figcaption class="text-[10px] text-slate-500">Front</figcaption>
               </figure>
               <figure class="text-center flex-1 min-w-0 max-w-[9rem]">
-                <svg id="muscleMapBack" viewBox="0 0 200 470" class="w-full h-auto" role="img" aria-label="Back-view muscle map">
-                  <circle cx="100" cy="26" r="13" fill="#263348"/>
-                  <rect x="45" y="80" width="14" height="38" rx="7" data-group="triceps" fill="#263348"/>
-                  <rect x="141" y="80" width="14" height="38" rx="7" data-group="triceps" fill="#263348"/>
-                  <rect x="72" y="66" width="56" height="78" rx="14" data-group="back" fill="#263348"/>
-                  <rect x="43" y="126" width="13" height="40" rx="6" fill="#263348"/>
-                  <rect x="144" y="126" width="13" height="40" rx="6" fill="#263348"/>
-                  <ellipse cx="86" cy="166" rx="16" ry="13" data-group="glutes" fill="#263348"/>
-                  <ellipse cx="114" cy="166" rx="16" ry="13" data-group="glutes" fill="#263348"/>
-                  <rect x="76" y="184" width="21" height="74" rx="9" data-group="hamstrings" fill="#263348"/>
-                  <rect x="103" y="184" width="21" height="74" rx="9" data-group="hamstrings" fill="#263348"/>
-                  <rect x="78" y="268" width="16" height="46" rx="8" data-group="calves" fill="#263348"/>
-                  <rect x="106" y="268" width="16" height="46" rx="8" data-group="calves" fill="#263348"/>
-                  <rect x="76" y="324" width="20" height="10" rx="5" fill="#263348"/>
-                  <rect x="104" y="324" width="20" height="10" rx="5" fill="#263348"/>
+                <svg id="muscleMapBack" viewBox="0 0 200 300" class="w-full h-auto" role="img" aria-label="Back-view muscle map">
+                  <circle cx="100" cy="16" r="12" fill="#263348"/>
+                  <path d="M92 28 h16 l4 10 H88 Z" fill="#263348"/>
+                  <!-- Trap shelf, credited to the back group -->
+                  <path d="M84 34 L116 34 L120 46 L80 46 Z" data-group="back" fill="#263348"/>
+                  <!-- Back / lats panel -->
+                  <path d="M78 46 h44 q8 0 8 26 q0 26 -12 30 q-18 4 -36 0 q-12 -4 -12 -30 q0 -26 8 -26 Z" data-group="back" fill="#263348"/>
+                  <!-- Triceps -->
+                  <path d="M52 46 v22 q6 6 12 2 v-20 q-6 -6 -12 -2 Z" data-group="triceps" fill="#263348"/>
+                  <path d="M148 46 v22 q-6 6 -12 2 v-20 q6 -6 12 -2 Z" data-group="triceps" fill="#263348"/>
+                  <!-- Forearms -->
+                  <path d="M50 74 v20 q7 6 13 0 v-18 q-6 -4 -13 -2 Z" fill="#263348"/>
+                  <path d="M150 74 v20 q-7 6 -13 0 v-18 q6 -4 13 -2 Z" fill="#263348"/>
+                  <!-- Glutes -->
+                  <path d="M78 106 q20 -6 22 8 q-2 14 -20 14 q-14 -2 -12 -16 q2 -4 10 -6 Z" data-group="glutes" fill="#263348"/>
+                  <path d="M122 106 q-20 -6 -22 8 q2 14 20 14 q14 -2 12 -16 q-2 -4 -10 -6 Z" data-group="glutes" fill="#263348"/>
+                  <!-- Hamstrings -->
+                  <path d="M80 128 q-8 4 -6 28 q4 14 16 14 q12 0 14 -20 q2 -20 -8 -22 Z" data-group="hamstrings" fill="#263348"/>
+                  <path d="M120 128 q8 4 6 28 q-4 14 -16 14 q-12 0 -14 -20 q-2 -20 8 -22 Z" data-group="hamstrings" fill="#263348"/>
+                  <!-- Calves -->
+                  <path d="M84 164 q-4 2 -2 30 q4 10 10 10 q8 0 10 -14 q2 -24 -6 -28 Z" data-group="calves" fill="#263348"/>
+                  <path d="M116 164 q4 2 2 30 q-4 10 -10 10 q-8 0 -10 -14 q-2 -24 6 -28 Z" data-group="calves" fill="#263348"/>
+                  <!-- Feet -->
+                  <path d="M80 210 h22 q6 0 6 8 h-28 q0 -8 0 -8 Z" fill="#263348"/>
+                  <path d="M120 210 h-22 q-6 0 -6 8 h28 q0 -8 0 -8 Z" fill="#263348"/>
                 </svg>
                 <figcaption class="text-[10px] text-slate-500">Back</figcaption>
               </figure>
