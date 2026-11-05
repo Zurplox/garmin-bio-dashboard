@@ -59,6 +59,7 @@ jobs:
           python encrypt_data.py
 
       - name: Commit & Push Encrypted Dashboard Data
+        if: github.ref == 'refs/heads/main'
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
@@ -84,3 +85,7 @@ jobs:
             sleep $((attempt * 15))
           done
           exit 1
+
+      - name: Skip publish outside main
+        if: github.ref != 'refs/heads/main'
+        run: echo "Sync completed without publishing because this run is not on main."
