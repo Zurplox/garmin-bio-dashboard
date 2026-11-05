@@ -41,7 +41,7 @@ HISTORY_RANGES = [
 
 
 def get_authenticated_client():
-    from garminconnect import Garmin
+    from garminconnect import Garmin, GarminConnectAuthenticationError
 
     token_file = Path(TOKEN_STORE) / "garmin_tokens.json"
     if not token_file.exists():
@@ -49,8 +49,25 @@ def get_authenticated_client():
         sys.exit(1)
 
     client = Garmin()
-    client.login(tokenstore=TOKEN_STORE)
-    return client
+    try:
+        client.login(tokenstore=TOKEN_STORE)
+        return client
+    except GarminConnectAuthenticationError as token_error:
+        email = os.environ.get("GARMIN_EMAIL")
+        password = os.environ.get("GARMIN_PASSWORD")
+        if not email or not password:
+            raise GarminConnectAuthenticationError(
+                "Saved Garmin session tokens are expired or invalid. "
+                "Set GARMIN_EMAIL and GARMIN_PASSWORD to refresh them, "
+                "then rerun the workflow."
+            ) from token_error
+
+        print("⚠️ Saved Garmin session tokens were rejected; refreshing with credentials.")
+        credential_kwargs = {"password": password}
+        credential_client = Garmin(email=email, **credential_kwargs)
+        credential_client.login(tokenstore=TOKEN_STORE)
+        print("✅ Garmin session tokens refreshed successfully.")
+        return credential_client
 
 
 def _resolved_ranges():

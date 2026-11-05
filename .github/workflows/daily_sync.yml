@@ -47,6 +47,8 @@ jobs:
       - name: Run Biometric Ingestion & Baseline Sync
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+          GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
         run: |
           python sync.py
 
