@@ -47,6 +47,8 @@ jobs:
       - name: Run Biometric Ingestion & Baseline Sync
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+          GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
         run: |
           python sync.py
 
@@ -57,6 +59,7 @@ jobs:
           python encrypt_data.py
 
       - name: Commit & Push Encrypted Dashboard Data
+        if: github.ref == 'refs/heads/main'
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
@@ -82,3 +85,7 @@ jobs:
             sleep $((attempt * 15))
           done
           exit 1
+
+      - name: Skip publish outside main
+        if: github.ref != 'refs/heads/main'
+        run: echo "Sync completed without publishing because this run is not on main."

@@ -168,7 +168,7 @@ This is not cosmetic. Publishing the model's number meant the same physiology pr
 
 `daily_sync.yml` runs at **08:00 AM SGT (00:00 UTC)** with an **08:30 SGT** catch-up, serialised by a concurrency group so the two runs cannot race to push:
 
-1. Authenticates headlessly with the device account's SSO using encrypted session tokens in `GARMIN_TOKENS`.
+1. Authenticates headlessly with the device account's SSO using encrypted session tokens in `GARMIN_TOKENS`. If those tokens expire, the workflow refreshes them automatically when `GARMIN_EMAIL` and `GARMIN_PASSWORD` repository secrets are also configured.
 2. Ingests sleep architecture, HRV, multi-year RHR, Body Battery, stress telemetry and activities.
 3. Records data provenance and aborts if the core metrics are unavailable.
 4. Scores clinical intelligence with the rule engine, then optionally overlays Gemini's narrative.
